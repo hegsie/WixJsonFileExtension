@@ -1,0 +1,12 @@
+﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment Id="JsonFile">
+    <CustomAction Id="Wix4JsonFile_X64" DllEntry="JsonFile" Execute="immediate" Return="check" BinaryRef="jsonca.dll" />
+    <InstallExecuteSequence>
+      <Custom Action="Wix4JsonFile_X64" After="InstallFinalize" />
+    </InstallExecuteSequence>
+  </Fragment>
+
+  <Fragment Id="JsonFileCustomActions">
+    <Binary Id="jsonca.dll" SourceFile="$(SolutionDir)x64\$(Configuration)\jsonca.dll" />
+  </Fragment>
+</Wix>

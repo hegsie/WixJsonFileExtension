@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
+
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+	<TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>Hegsie.Wix.JsonExtension</RootNamespace>
+    <Description>WiX Toolset Utility extension</Description>
+    <Title>WiX JSON extension</Title>
+    <DebugType>embedded</DebugType>
+    <LangVersion>latest</LangVersion>
+    <AssemblyVersion>4.0.0.0</AssemblyVersion>
+    <FileVersion>4.0.0.0</FileVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Properties\**" />
+    <EmbeddedResource Remove="Properties\**" />
+    <None Remove="Properties\**" />
+  </ItemGroup>
+  
+    <ItemGroup>
+    <Content Include="WixJsonExtension.targets" PackagePath="build" />
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\wixlib\bin\x64\$(Configuration)\Hegsie.Wix.JsonExtension.Data.json.wixlib">
+      <LogicalName>Hegsie.Wix.JsonExtension.Data.json.wixlib</LogicalName>
+      <Link>Hegsie.Wix.JsonExtension.Data.json.wixlib</Link>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Extensibility" Version="4.0.1" />
+    <PackageReference Include="WixToolset.Sdk" Version="4.0.1" />
+  </ItemGroup>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy $(OutDir)\WixJsonExtension.dll $(SolutionDir)\TestJsonConfigInstaller  /K /D /H /Y" />
+  </Target>
+
+</Project>
