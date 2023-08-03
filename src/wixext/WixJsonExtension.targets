@@ -3,7 +3,9 @@
 
 <Project>
   <ItemGroup>
-    <WixExtension Include="WixJsonExtension.dll" Condition=" Exists('WixJsonExtension.dll') " />
-    <UnsupportedWixExtension Include="$(MSBuildThisFileName)" Condition=" !Exists('WixJsonExtension.dll') " />
+    <WixExtension Include="$(MSBuildThisFileDirectory)..\$(WixToolsetExtensionPackageFolder)\$(MSBuildThisFileName).dll"
+       Condition=" Exists('$(MSBuildThisFileDirectory)..\$(WixToolsetExtensionPackageFolder)\$(MSBuildThisFileName).dll') " />
+    <UnsupportedWixExtension Include="$(MSBuildThisFileName)"
+      Condition=" !Exists('$(MSBuildThisFileDirectory)..\$(WixToolsetExtensionPackageFolder)\$(MSBuildThisFileName).dll') " />
   </ItemGroup>
 </Project>

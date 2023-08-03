@@ -20,6 +20,7 @@
   
     <ItemGroup>
     <Content Include="WixJsonExtension.targets" PackagePath="build" />
+    <Content Include="$(TargetPath)" PackagePath="wixext4" />
   </ItemGroup>
 
 
