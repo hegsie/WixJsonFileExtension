@@ -48,4 +48,5 @@ jobs:
       run: dotnet pack --no-build --configuration Release /p:Version=4.0.0.${{github.run_number}}
 
     - name: Push to NuGet
+      working-directory: ${{env.SOLUTION_FILE_PATH}}\src\wixext\bin\$(Configuration)\
       run: dotnet nuget push "*.nupkg" --api-key ${{secrets.nuget_api_key}} --source https://api.nuget.org/v3/index.json
