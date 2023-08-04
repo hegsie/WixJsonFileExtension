@@ -35,7 +35,7 @@
     <PackageReference Include="WixToolset.Sdk" Version="4.0.1" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy $(OutDir)\WixJsonExtension.dll $(SolutionDir)\TestJsonConfigInstaller  /K /D /H /Y" />
+    <Exec Command="xcopy $(OutDir)\Wix4JsonFileExtension.dll $(SolutionDir)\TestJsonConfigInstaller  /K /D /H /Y" />
   </Target>
 
 </Project>
