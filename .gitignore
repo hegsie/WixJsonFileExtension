@@ -287,3 +287,4 @@ __pycache__/
 *.odx.cs
 *.xsd.cs
 TestJsonConfigInstaller/WixJsonExtension.dll
+/TestJsonConfigInstaller/Wix4JsonFileExtension.dll

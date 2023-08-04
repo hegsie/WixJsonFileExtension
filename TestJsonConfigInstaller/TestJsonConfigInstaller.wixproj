@@ -11,8 +11,8 @@
     <PackageReference Include="WixToolset.Util.wixext" Version="4.0.1" />
   </ItemGroup>
   <ItemGroup>
-    <WixExtension Include="WixJsonExtension.dll" Condition=" Exists('WixJsonExtension.dll') " />
-    <UnsupportedWixExtension Include="$(MSBuildThisFileName)" Condition=" !Exists('WixJsonExtension.dll') " />
+    <WixExtension Include="Wix4JsonFileExtension.dll" Condition=" Exists('Wix4JsonFileExtension.dll') " />
+    <UnsupportedWixExtension Include="$(MSBuildThisFileName)" Condition=" !Exists('Wix4JsonFileExtension.dll') " />
   </ItemGroup>
   <PropertyGroup>
     <PostBuildEvent>xcopy /y $(ProjectDir)install.cmd $(TargetDir)</PostBuildEvent>
