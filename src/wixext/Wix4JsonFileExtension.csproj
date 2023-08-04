@@ -22,7 +22,7 @@
   </ItemGroup>
   
     <ItemGroup>
-    <Content Include="WixJsonExtension.targets" PackagePath="build" />
+    <Content Include="Wix4JsonFileExtension.targets" PackagePath="build" />
     <Content Include="$(TargetPath)" PackagePath="wixext4" />
   </ItemGroup>
 
