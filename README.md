@@ -5,7 +5,11 @@
 
 To Use this Wix Extension
 1. Add a package regerenve to your project with `dotnet add package Wix4JsonFileExtension`
-2. Add a schema reference inside your wxs file to ```xml xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension"
+2. Add a schema reference inside your wxs file to 
+```xml
+xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension"
+to 
+```
 3. Use the JsonFile XML element inside your wxs to update your target jaon file: <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="addArrayValue" />```
 3. Refer to the product.wxs inside the TestJsonConfigInstaller project here for examples on how to manipulate your JSON file inside of an MSI
 
