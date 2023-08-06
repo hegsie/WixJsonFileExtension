@@ -4,8 +4,9 @@
 ## Status: JSONPath supported for install only applications
 
 To Use this Wix Extension
-1. Download the release assembly WixJsonExtension.dll and store it somewhere your wixproj can access it 
-2. Inside your wixproj in visual studio add a reference to the above assembly
+1. Add a package regerenve to your project with `dotnet add package Wix4JsonFileExtension`
+2. Add a schema reference inside your wxs file to ```xml xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension"
+3. Use the JsonFile XML element inside your wxs to update your target jaon file: <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="addArrayValue" />```
 3. Refer to the product.wxs inside the TestJsonConfigInstaller project here for examples on how to manipulate your JSON file inside of an MSI
 
 NB: There are a lot of complex scenarios when using JSONPath (like multi-select inside arrays etc, which don't currently work) 
