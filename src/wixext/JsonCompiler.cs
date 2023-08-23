@@ -262,6 +262,7 @@ namespace Hegsie.Wix.JsonExtension
 		{
 			const string ActionDeleteValue = "deleteValue";
 			const string ActionSetValue = "setValue";
+			const string ActionCreateValue = "createJsonPointerValue";
 			const string ActionAddArrayValue = "addArrayValue";
 
 			int action;
@@ -285,6 +286,10 @@ namespace Hegsie.Wix.JsonExtension
 					case ActionAddArrayValue:
 						flags |= 4;
 						action = 3;
+						break;
+					case ActionCreateValue:
+						flags |= 8;
+						action = 4;
 						break;
 					default:
 						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),

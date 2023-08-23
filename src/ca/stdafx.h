@@ -20,3 +20,4 @@
 // TODO: reference additional headers your program requires here
 #include "jsoncons/jsoncons/json.hpp"
 #include "jsoncons/jsoncons_ext/jsonpath/jsonpath.hpp"
+#include "jsoncons/jsoncons_ext/jsonpointer/jsonpointer.hpp"

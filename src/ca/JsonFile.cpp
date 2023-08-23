@@ -21,16 +21,15 @@ static HRESULT UpdateJsonFile(
     __in int iFlags,
     __in_z LPCWSTR wzComponent
 );
-void SetJsonPathValue(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LPCWSTR wzValue);
-void SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LPCWSTR wzValue);
-void DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath);
+HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue);
+HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LPCWSTR wzValue);
+HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath);
 
 const int FLAG_DELETEVALUE = 0;
 const int FLAG_SETVALUE = 1;
 const int FLAG_ADDARRAYVALUE = 2;
-const int FLAG_UNINSTALL = 3;
-const int FLAG_PRESERVEDATE = 4;
-const int FLAG_JSONPOINTER = 5;
+const int FLAG_CREATEVALUE = 3;
+
 
 template<typename T>
 std::string ToString(const T& v)
@@ -235,20 +234,22 @@ static HRESULT UpdateJsonFile(
     //    MB_OK
     //);
 
-    if (flags.test(FLAG_SETVALUE)) {
-        SetJsonPathValue(wzFile, elementPath, wzValue);
+    bool create = flags.test(FLAG_CREATEVALUE);
+    WcaLog(LOGMSG_STANDARD, "Found create set to %s", create ? "true" : "false");
+    if (flags.test(FLAG_SETVALUE) || create) {
+        hr = SetJsonPathValue(wzFile, elementPath, wzValue, create);
     }
     else if (flags.test(FLAG_DELETEVALUE)) {
-        DeleteJsonPath(wzFile, elementPath);
+        hr = DeleteJsonPath(wzFile, elementPath);
     }
     else if (flags.test(FLAG_ADDARRAYVALUE)) {
-        SetJsonPathObject(wzFile, elementPath, wzValue);
+        hr = SetJsonPathObject(wzFile, elementPath, wzValue);
     }
 
     return hr;
 }
 
-void SetJsonPathValue(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LPCWSTR wzValue) {
+HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue) {
 
     try
     {
@@ -259,34 +260,68 @@ void SetJsonPathValue(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LP
         char* cValue = bValue;
 
         if (fs::exists(fs::path (wzFile))) {
-            
+
             std::ifstream is(cFile);
             json j = json::parse(is);
 
-            WcaLog(LOGMSG_STANDARD, "About to replace value: |%s| {%s}", sElementPath.c_str(), cValue);
+            if (createValue) {
+                std::error_code ec;
+                jsonpointer::add_if_absent(j, sElementPath, json(cValue), ec);
 
-            auto f = [cValue](const std::string& /*path*/, json& value)
-            {
-                value = cValue;
-            };
+                if (ec) {
+                    WcaLog(LOGMSG_STANDARD, "json pointer add_if_absent %s", ec.message());
+                }
+                else {
+                    std::ofstream os(wzFile,
+                        std::ios_base::out | std::ios_base::trunc);
+                    WcaLog(LOGMSG_STANDARD, "created output stream");
 
-            jsonpath::json_replace(j, sElementPath.c_str(), f);
+                    pretty_print(j).dump(os);
+                    WcaLog(LOGMSG_STANDARD, "dumped output stream");
 
-            WcaLog(LOGMSG_STANDARD, "Updating the json %s with values %s.", sElementPath.c_str(), cValue);
+                    os.close();
+                    WcaLog(LOGMSG_STANDARD, "closed output stream");
+                }
+            }
+            else {
 
-            std::ofstream os(wzFile,
-                std::ios_base::out | std::ios_base::trunc);
-            WcaLog(LOGMSG_STANDARD, "created output stream");
+                json result1 = jsonpath::json_query(j, sElementPath);
 
-            pretty_print(j).dump(os);
-            WcaLog(LOGMSG_STANDARD, "dumped output stream");
+                WcaLog(LOGMSG_STANDARD, "Found %d elements", result1.size());
 
-            os.close();
-            WcaLog(LOGMSG_STANDARD, "closed output stream");
+                if (result1.size() > 0) {
+                    WcaLog(LOGMSG_STANDARD, "About to replace value: |%s| {%s}", sElementPath.c_str(), cValue);
+
+                    auto f = [cValue](const std::string& /*path*/, json& value)
+                        {
+                            value = cValue;
+                        };
+
+                    jsonpath::json_replace(j, sElementPath, f);
+
+                    WcaLog(LOGMSG_STANDARD, "Updating the json %s with values %s.", sElementPath.c_str(), cValue);
+
+                    std::ofstream os(wzFile,
+                        std::ios_base::out | std::ios_base::trunc);
+                    WcaLog(LOGMSG_STANDARD, "created output stream");
+
+                    pretty_print(j).dump(os);
+                    WcaLog(LOGMSG_STANDARD, "dumped output stream");
+
+                    os.close();
+                    WcaLog(LOGMSG_STANDARD, "closed output stream");
+                }
+                else {
+                    WcaLog(LOGMSG_STANDARD, "No elements to update: %s", sElementPath.c_str());
+
+                    return HRESULT_FROM_WIN32(ERROR_OBJECT_NOT_FOUND);
+                }
+            }
         }
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
         }
+        return S_OK;
     }
     catch (std::exception& e)
     {
@@ -295,7 +330,7 @@ void SetJsonPathValue(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LP
     }
 }
 
-void DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
+HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
 {
     try
     {
@@ -346,6 +381,7 @@ void DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
         }
+        return S_OK;
     }
     catch (std::exception& e)
     {
@@ -354,7 +390,7 @@ void DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
     }
 }
 
-void SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LPCWSTR wzValue) {
+HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LPCWSTR wzValue) {
 
     try
     {
@@ -402,6 +438,7 @@ void SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z L
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
         }
+        return S_OK;
     }
     catch (std::exception& e)
     {

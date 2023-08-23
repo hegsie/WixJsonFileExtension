@@ -29,6 +29,13 @@
 
         <Json:JsonFile Id="appSettingsUpdatePrice" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].price" Value="1.67" Action="setValue" />
         <Json:JsonFile Id="appSettingsUpdateCategory" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].category" Value="[MY_VALUE]" Action="setValue" />
+
+        <Json:JsonFile Id="non_existing_setting"
+               File="[#JsonConfig]"
+               ElementPath="/NonExisting"
+               Value="Value Not Set" 
+               Action="createJsonPointerValue"/>
+        
       </Component>
     </ComponentGroup>
   </Fragment>
