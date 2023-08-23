@@ -13,6 +13,15 @@ xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension"
 ```xml
 <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="addArrayValue" />
 ```
+
+Possible Actions include
+ - deleteValue
+ - setValue (this is the default if one isn't specified)
+ - addArrayValue
+ - createJsonPointerValue
+
+ All actions use JSONPaths in their ElementPaths unless specified in their action i.e. createJsonPointerValue
+
 3. Refer to the product.wxs inside the TestJsonConfigInstaller project here for examples on how to manipulate your JSON file inside of an MSI
 
 NB: There are a lot of complex scenarios when using JSONPath (like multi-select inside arrays etc, which don't currently work) 
