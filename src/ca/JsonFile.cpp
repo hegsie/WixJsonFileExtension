@@ -182,6 +182,12 @@ static HRESULT UpdateJsonFile(
     std::ifstream is(cFile);
     WcaLog(LOGMSG_STANDARD, "Created wifstream, %s", cFile);
 
+    if (is.fail())
+    {
+        WcaLog(LOGMSG_STANDARD, "Unable to open the target file, either its missing or rights need adding/elevating");
+        return 1;
+    }
+
     json_stream_reader reader(is);
 
     std::error_code ec;
@@ -265,6 +271,12 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
             std::ifstream is(cFile);
             json j = json::parse(is);
 
+            if (is.fail())
+            {
+                WcaLog(LOGMSG_STANDARD, "Unable to open the target file, either its missing or rights need adding/elevating");
+                return 1;
+            }
+
             if (createValue) {
                 std::error_code ec;
                 jsonpointer::add_if_absent(j, sElementPath, json(cValue), ec);
@@ -341,6 +353,12 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
         if (fs::exists(fs::path(wzFile))) {
             json j;
             std::ifstream is(cFile);
+
+            if (is.fail())
+            {
+                WcaLog(LOGMSG_STANDARD, "Unable to open the target file, either its missing or rights need adding/elevating");
+                return 1;
+            }
 
             is >> j;
 
