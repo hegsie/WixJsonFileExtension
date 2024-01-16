@@ -1,10 +1,10 @@
-# WixJsonExtension
+# Wix4JsonFileExtension
 #### An extension to Windows&reg; installer XML (WiX) to create or modify JSON-formatted files during an installation.
 
 ## Status: JSONPath supported for install only applications
 
 To Use this Wix Extension
-1. Add a package regerenve to your project with `dotnet add package Wix4JsonFileExtension`
+1. Add a package reference to your project with `dotnet add package Wix4JsonFileExtension`
 2. Add a schema reference inside your wxs file to 
 ```xml
 xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension"
