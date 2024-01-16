@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" DefaultTargets="Build" InitialTargets="EnsureWixToolsetInstalled" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\..\packages\WixToolset.WcaUtil.4.0.3\build\WixToolset.WcaUtil.props" Condition="Exists('..\..\packages\WixToolset.WcaUtil.4.0.3\build\WixToolset.WcaUtil.props')" />
+  <Import Project="..\..\packages\WixToolset.DUtil.4.0.3\build\WixToolset.DUtil.props" Condition="Exists('..\..\packages\WixToolset.DUtil.4.0.3\build\WixToolset.DUtil.props')" />
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
@@ -47,7 +49,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(WIX)sdk\$(WixPlatformToolset)\inc;$(ProjectDir)\jsoncons\jsoncons;$(ProjectDir)\jsoncons;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\jsoncons\jsoncons;$(ProjectDir)\jsoncons;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>JSONCONS_NO_DEPRECATED;WIN32;_DEBUG;_WINDOWS;_USRDLL;CUSTOMACTIONTEST_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -58,8 +60,8 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>msi.lib;dutil.lib;wcautil.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(WIX)sdk\$(WixPlatformToolset)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>msi.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>CustomAction.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -71,7 +73,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>$(WIX)sdk\$(WixPlatformToolset)\inc;$(ProjectDir)\jsoncons;$(ProjectDir)\jsoncons\jsoncons;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\jsoncons;$(ProjectDir)\jsoncons\jsoncons;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>JSONCONS_NO_DEPRECATEDWIN32;NDEBUG;_WINDOWS;_USRDLL;CUSTOMACTIONTEST_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -81,7 +83,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>msi.lib;dutil.lib;wcautil.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>msi.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(WIX)sdk\$(WixPlatformToolset)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>CustomAction.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -100,6 +102,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="CustomAction.def" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h" />
@@ -115,6 +118,12 @@
   <Target Name="EnsureWixToolsetInstalled" Condition=" '$(WixNativeCATargetsImported)' != 'true' ">
     <Error Text="The WiX Toolset v3.11 (or newer) build tools must be installed to build this project. To download the WiX Toolset, see http://wixtoolset.org/releases/" />
   </Target>
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\..\packages\WixToolset.DUtil.4.0.3\build\WixToolset.DUtil.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\WixToolset.DUtil.4.0.3\build\WixToolset.DUtil.props'))" />
+    <Error Condition="!Exists('..\..\packages\WixToolset.WcaUtil.4.0.3\build\WixToolset.WcaUtil.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\WixToolset.WcaUtil.4.0.3\build\WixToolset.WcaUtil.props'))" />
+  </Target>
 </Project>

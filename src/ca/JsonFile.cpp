@@ -97,32 +97,32 @@ extern "C" UINT WINAPI JsonFile(
 
         WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile File for Id:%ls", sczId);
         hr = WcaGetRecordFormattedString(hRec, jfqFile, &sczFile);
-        ExitOnFailure1(hr, "failed to get File for Wix4JsonFile with Id: %s", sczId);
+        ExitOnFailure(hr, "failed to get File for Wix4JsonFile with Id: %s", sczId);
 
         WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile ElementPath for Id:%ls", sczId);
         hr = WcaGetRecordString(hRec, jfqElementPath, &sczElementPath);
         WcaLog(LOGMSG_STANDARD, "Found Wix4JsonFile ElementPath for Id:%ls", sczElementPath);
-        ExitOnFailure1(hr, "Failed to get ElementPath for Wix4JsonFile with Id: %s", sczId);
+        ExitOnFailure(hr, "Failed to get ElementPath for Wix4JsonFile with Id: %s", sczId);
 
         WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile Value for Id:%ls", sczId);
         hr = WcaGetRecordFormattedString(hRec, jfqValue, &sczValue);
-        ExitOnFailure1(hr, "Failed to get Value for Wix4JsonFile with Id: %s", sczId);
+        ExitOnFailure(hr, "Failed to get Value for Wix4JsonFile with Id: %s", sczId);
 
         WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile Flags for Id:%ls", sczId);
         hr = WcaGetRecordInteger(hRec, jfqFlags, &iFlags);
-        ExitOnFailure1(hr, "Failed to get Flags for Wix4JsonFile with Id: %s", sczId);
+        ExitOnFailure(hr, "Failed to get Flags for Wix4JsonFile with Id: %s", sczId);
 
         WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile Component for Id:%ls", sczId);
         hr = WcaGetRecordString(hRec, jfqComponent, &sczComponent);
         ExitOnFailure(hr, "Failed to get Wix4JsonFile component.");
 
         UINT er = ::MsiGetComponentStateW(hInstall, sczComponent, &isInstalled, &isAction);
-        ExitOnFailure1(hr = HRESULT_FROM_WIN32(er), "failed to get install state for Component: %ls", sczComponent);
+        ExitOnFailure(hr = HRESULT_FROM_WIN32(er), "failed to get install state for Component: %ls", sczComponent);
         if (WcaIsInstalling(isInstalled, isAction))
         {
             WcaLog(LOGMSG_STANDARD, "Updating Wix4JsonFile for Id:%ls", sczId);
             hr = UpdateJsonFile(sczId, sczFile, sczElementPath, sczValue, iFlags, sczComponent);
-            ExitOnFailure2(hr, "Failed while navigating path: %S for row: %S", sczFile, sczId);
+            ExitOnFailure(hr, "Failed while navigating path: %S for row: %S", sczFile, sczId);
         }
         else if (WcaIsUninstalling(isInstalled, isAction)) {
             // Don't really worry about this yet as file is deleted on uninstall
