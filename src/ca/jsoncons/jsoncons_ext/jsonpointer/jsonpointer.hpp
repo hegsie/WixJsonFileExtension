@@ -1,4 +1,4 @@
-// Copyright 2017 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -27,7 +27,8 @@ namespace jsoncons { namespace jsonpointer {
     {
         start,
         escaped,
-        delim
+        new_token,
+        part
     };
 
     } // namespace detail
@@ -140,27 +141,30 @@ namespace jsoncons { namespace jsonpointer {
 
             while (p < pend)
             {
-                bool done = false;
-                while (p < pend && !done)
-                {
                     switch (state)
                     {
                         case jsonpointer::detail::pointer_state::start: 
                             switch (*p)
                             {
                                 case '/':
-                                    state = jsonpointer::detail::pointer_state::delim;
+                                    state = jsonpointer::detail::pointer_state::new_token;
                                     break;
                                 default:
                                     ec = jsonpointer_errc::expected_slash;
                                     return basic_json_pointer();
                             };
                             break;
-                        case jsonpointer::detail::pointer_state::delim: 
+                        case jsonpointer::detail::pointer_state::part:
+                            state = jsonpointer::detail::pointer_state::new_token; 
+                            JSONCONS_FALLTHROUGH;
+
+                        case jsonpointer::detail::pointer_state::new_token: 
                             switch (*p)
                             {
                                 case '/':
-                                    done = true;
+                                    tokens.push_back(buffer);
+                                    buffer.clear();
+                                    state = jsonpointer::detail::pointer_state::part; 
                                     break;
                                 case '~':
                                     state = jsonpointer::detail::pointer_state::escaped;
@@ -175,11 +179,11 @@ namespace jsoncons { namespace jsonpointer {
                             {
                                 case '0':
                                     buffer.push_back('~');
-                                    state = jsonpointer::detail::pointer_state::delim;
+                                    state = jsonpointer::detail::pointer_state::new_token;
                                     break;
                                 case '1':
                                     buffer.push_back('/');
-                                    state = jsonpointer::detail::pointer_state::delim;
+                                    state = jsonpointer::detail::pointer_state::new_token;
                                     break;
                                 default:
                                     ec = jsonpointer_errc::expected_0_or_1;
@@ -188,11 +192,8 @@ namespace jsoncons { namespace jsonpointer {
                             break;
                     }
                     ++p;
-                }
-                tokens.push_back(buffer);
-                buffer.clear();
             }
-            if (!buffer.empty())
+            if (state == jsonpointer::detail::pointer_state::new_token || state == jsonpointer::detail::pointer_state::part)
             {
                 tokens.push_back(buffer);
             }
@@ -282,6 +283,23 @@ namespace jsoncons { namespace jsonpointer {
             tokens_.clear();
         }
 
+        basic_json_pointer& append(const string_type& s) 
+        {
+            tokens_.push_back(s);
+            return *this;
+        }
+
+        template <class IntegerType>
+        typename std::enable_if<extension_traits::is_integer<IntegerType>::value, basic_json_pointer&>::type
+        append(IntegerType val)
+        {
+            string_type s;
+            jsoncons::detail::from_integer(val, s);
+            tokens_.push_back(s);
+
+            return *this;
+        }
+
         basic_json_pointer& operator/=(const string_type& s) 
         {
             tokens_.push_back(s);
@@ -289,7 +307,7 @@ namespace jsoncons { namespace jsonpointer {
         }
 
         template <class IntegerType>
-        typename std::enable_if<traits_extension::is_integer<IntegerType>::value, basic_json_pointer&>::type
+        typename std::enable_if<extension_traits::is_integer<IntegerType>::value, basic_json_pointer&>::type
         operator/=(IntegerType val)
         {
             string_type s;
@@ -413,7 +431,7 @@ namespace jsoncons { namespace jsonpointer {
 
         friend bool operator==( const basic_json_pointer& lhs, const basic_json_pointer& rhs )
         {
-            return lhs.tokens_ == rhs.okens_;
+            return lhs.tokens_ == rhs.tokens_;
         }
 
         friend bool operator!=( const basic_json_pointer& lhs, const basic_json_pointer& rhs )
@@ -430,7 +448,7 @@ namespace jsoncons { namespace jsonpointer {
     };
 
     template <class CharT,class IntegerType>
-    typename std::enable_if<traits_extension::is_integer<IntegerType>::value, basic_json_pointer<CharT>>::type
+    typename std::enable_if<extension_traits::is_integer<IntegerType>::value, basic_json_pointer<CharT>>::type
     operator/(const basic_json_pointer<CharT>& lhs, IntegerType rhs)
     {
         basic_json_pointer<CharT> p(lhs);
@@ -440,6 +458,18 @@ namespace jsoncons { namespace jsonpointer {
 
     using json_pointer = basic_json_pointer<char>;
     using wjson_pointer = basic_json_pointer<wchar_t>;
+
+    inline
+    std::string to_string(const json_pointer& ptr)
+    {
+        return ptr.to_string();
+    }
+
+    inline
+    std::wstring to_wstring(const wjson_pointer& ptr)
+    {
+        return ptr.to_string();
+    }
 
     #if !defined(JSONCONS_NO_DEPRECATED)
     template<class CharT>

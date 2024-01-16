@@ -1,4 +1,4 @@
-// Copyright 2017 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -27,13 +27,13 @@ class basic_cbor_reader
     using char_type = char;
 
     basic_cbor_parser<Source,Allocator> parser_;
-    basic_json_visitor2_to_visitor_adaptor<char_type,Allocator> adaptor_;
-    json_visitor2& visitor_;
+    basic_item_event_visitor_to_json_visitor<char_type,Allocator> adaptor_;
+    item_event_visitor& visitor_;
 public:
     template <class Sourceable>
     basic_cbor_reader(Sourceable&& source, 
                       json_visitor& visitor, 
-                      const Allocator alloc)
+                      const Allocator& alloc)
        : basic_cbor_reader(std::forward<Sourceable>(source),
                            visitor,
                            cbor_decode_options(),
@@ -45,15 +45,15 @@ public:
     basic_cbor_reader(Sourceable&& source, 
                       json_visitor& visitor, 
                       const cbor_decode_options& options = cbor_decode_options(),
-                      const Allocator alloc=Allocator())
+                      const Allocator& alloc=Allocator())
        : parser_(std::forward<Sourceable>(source), options, alloc),
          adaptor_(visitor, alloc), visitor_(adaptor_)
     {
     }
     template <class Sourceable>
     basic_cbor_reader(Sourceable&& source, 
-                      json_visitor2& visitor, 
-                      const Allocator alloc)
+                      item_event_visitor& visitor, 
+                      const Allocator& alloc)
        : basic_cbor_reader(std::forward<Sourceable>(source),
                            visitor,
                            cbor_decode_options(),
@@ -63,9 +63,9 @@ public:
 
     template <class Sourceable>
     basic_cbor_reader(Sourceable&& source, 
-                      json_visitor2& visitor, 
+                      item_event_visitor& visitor, 
                       const cbor_decode_options& options = cbor_decode_options(),
-                      const Allocator alloc=Allocator())
+                      const Allocator& alloc=Allocator())
        : parser_(std::forward<Sourceable>(source), options, alloc),
          visitor_(visitor)
     {

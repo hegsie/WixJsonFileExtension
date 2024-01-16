@@ -1,4 +1,4 @@
-// Copyright 2015 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -545,7 +545,7 @@ private:
     std::vector<string_type,string_allocator_type> column_defaults_;
     std::vector<csv_parse_state,csv_parse_state_allocator_type> state_stack_;
     string_type buffer_;
-    std::vector<std::pair<string_view_type,double>> string_double_map_;
+    std::vector<std::pair<std::basic_string<char_type>,double>> string_double_map_;
 
 public:
     basic_csv_parser(const TempAllocator& alloc = TempAllocator())
@@ -1497,7 +1497,9 @@ private:
         }
         if (start != 0 || length != buffer_.size())
         {
-            buffer_ = buffer_.substr(start,length-start);
+            // Do not use buffer_.substr(...), as this won't preserve the allocator state.
+            buffer_.resize(length);
+            buffer_.erase(0, start);
         }
     }
 
@@ -1807,8 +1809,8 @@ private:
     {
         numeric_check_state state = numeric_check_state::initial;
         bool is_negative = false;
-        int precision = 0;
-        uint8_t decimal_places = 0;
+        //int precision = 0;
+        //uint8_t decimal_places = 0;
 
         auto last = buffer_.end();
 
@@ -1857,12 +1859,12 @@ private:
                         state = numeric_check_state::minus;
                         break;
                     case '0':
-                        ++precision;
+                        //++precision;
                         buffer.push_back(*p);
                         state = numeric_check_state::zero;
                         break;
                     case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
-                        ++precision;
+                        //++precision;
                         buffer.push_back(*p);
                         state = numeric_check_state::integer;
                         break;
@@ -1895,7 +1897,7 @@ private:
                     switch (*p)
                     {
                     case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
-                        ++precision;
+                        //++precision;
                         buffer.push_back(*p);
                         break;
                     case '.':
@@ -1917,12 +1919,12 @@ private:
                     switch (*p)
                     {
                     case '0':
-                        ++precision;
+                        //++precision;
                         buffer.push_back(*p);
                         state = numeric_check_state::zero;
                         break;
                     case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
-                        ++precision;
+                        //++precision;
                         buffer.push_back(*p);
                         state = numeric_check_state::integer;
                         break;
@@ -1937,8 +1939,8 @@ private:
                     switch (*p)
                     {
                     case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
-                        ++precision;
-                        ++decimal_places;
+                        //++precision;
+                        //++decimal_places;
                         buffer.push_back(*p);
                         state = numeric_check_state::fraction;
                         break;
@@ -1953,8 +1955,8 @@ private:
                     switch (*p)
                     {
                     case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
-                        ++precision;
-                        ++decimal_places;
+                        //++precision;
+                        //++decimal_places;
                         buffer.push_back(*p);
                         break;
                     case 'e':case 'E':

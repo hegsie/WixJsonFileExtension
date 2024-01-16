@@ -1,4 +1,4 @@
-// Copyright 2019 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -24,12 +24,15 @@ struct temp_allocator_arg_t
 
 constexpr temp_allocator_arg_t temp_allocator_arg{};
 
+#if !defined(JSONCONS_NO_DEPRECATED)
+
 struct result_allocator_arg_t
 {
     explicit result_allocator_arg_t() = default; 
 };
 
 constexpr result_allocator_arg_t result_allocator_arg{};
+#endif
 
 struct half_arg_t
 {

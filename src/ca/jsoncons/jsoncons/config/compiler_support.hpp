@@ -1,4 +1,4 @@
-// Copyright 2013 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -24,7 +24,8 @@
 // MIT license
 
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54577
-#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ < 9
+#if defined(__clang__) 
+#elif defined(__GNUC__) && (__GNUC__ == 4 && __GNUC_MINOR__ < 9)
 #define JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR 1
 #define JSONCONS_NO_MAP_CONS_TAKES_ALLOCATOR 1
 #endif
@@ -114,21 +115,7 @@
    #endif
 #endif
 
-#if !defined(JSONCONS_HAS_STD_FROM_CHARS)
-#  if defined(__GNUC__)
-#   if (__GNUC__ >= 11)
-#    if (__cplusplus >= 201703)
-#     define JSONCONS_HAS_STD_FROM_CHARS 1
-#    endif // (__cplusplus >= 201703)
-#   endif // (__GNUC__ >= 11)
-#  endif // defined(__GNUC__)
-#  if defined(_MSC_VER)
-#   if (_MSC_VER >= 1924 && _MSVC_LANG >= 201703)
-#    define JSONCONS_HAS_STD_FROM_CHARS 1
-#   endif // (_MSC_VER >= 1924 && MSVC_LANG >= 201703)
-#  endif // defined(_MSC_VER)
-#endif
-#if defined(JSONCONS_HAS_STD_FROM_CHARS)
+#if defined(JSONCONS_HAS_STD_FROM_CHARS) && JSONCONS_HAS_STD_FROM_CHARS
 #include <charconv>
 #endif
 
@@ -158,6 +145,13 @@
 #else
     #define JSONCONS_NODISCARD
     #define JSONCONS_IF_CONSTEXPR if 
+#endif
+
+
+#if defined(JSONCONS_HAS_2017)
+#      if __has_include(<memory_resource>)
+#        define JSONCONS_HAS_POLYMORPHIC_ALLOCATOR 1
+#     endif // __has_include(<string_view>)
 #endif
 
 #if !defined(JSONCONS_HAS_STD_STRING_VIEW)
@@ -227,9 +221,9 @@
 
 #if !defined(JSONCONS_NO_EXCEPTIONS)
 
-#if defined(__GNUC__) && !__EXCEPTIONS
+#if defined(__GNUC__) && !defined(__EXCEPTIONS)
 # define JSONCONS_NO_EXCEPTIONS 1
-#elif _MSC_VER
+#elif defined(_MSC_VER)
 #if defined(_HAS_EXCEPTIONS) && _HAS_EXCEPTIONS == 0
 # define JSONCONS_NO_EXCEPTIONS 1
 #elif !defined(_CPPUNWIND)

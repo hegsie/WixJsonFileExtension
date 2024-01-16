@@ -1,4 +1,4 @@
-// Copyright 2013 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -302,7 +302,7 @@ namespace detail {
             }
 
         };
-        typedef typename std::allocator_traits<allocator_type>:: template rebind_alloc<encoding_context> encoding_context_allocator_type;
+        using encoding_context_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<encoding_context>;
 
         Sink sink_;
         basic_json_encode_options<CharT> options_;
@@ -444,11 +444,6 @@ namespace detail {
                     switch (options_.object_object_line_splits())
                     {
                         case line_split_kind::same_line:
-                            if (column_ >= options_.line_length_limit())
-                            {
-                                break_line();
-                            }
-                            break;
                         case line_split_kind::new_line:
                             if (column_ >= options_.line_length_limit())
                             {
@@ -678,6 +673,16 @@ namespace detail {
                 case semantic_tag::bigint:
                     write_bigint_value(sv);
                     break;
+                case semantic_tag::bigdec:
+                {
+                	// output lossless number
+                	if (options_.bigint_format() == bigint_chars_format::number)
+                	{
+	                	write_bigint_value(sv);
+				break;
+			}
+			JSONCONS_FALLTHROUGH;
+		}
                 default:
                 {
                     sink_.push_back('\"');
@@ -1101,7 +1106,7 @@ namespace detail {
                 return type_ == container_type::array;
             }
         };
-        typedef typename std::allocator_traits<allocator_type>:: template rebind_alloc<encoding_context> encoding_context_allocator_type;
+        using encoding_context_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<encoding_context>;
 
         Sink sink_;
         basic_json_encode_options<CharT> options_;
@@ -1114,14 +1119,14 @@ namespace detail {
         basic_compact_json_encoder& operator=(const basic_compact_json_encoder&) = delete;
     public:
         basic_compact_json_encoder(Sink&& sink, 
-                                      const Allocator& alloc = Allocator())
+            const Allocator& alloc = Allocator())
             : basic_compact_json_encoder(std::forward<Sink>(sink), basic_json_encode_options<CharT>(), alloc)
         {
         }
 
         basic_compact_json_encoder(Sink&& sink, 
-                                      const basic_json_encode_options<CharT>& options, 
-                                      const Allocator& alloc = Allocator())
+            const basic_json_encode_options<CharT>& options, 
+            const Allocator& alloc = Allocator())
            : sink_(std::forward<Sink>(sink)),
              options_(options),
              fp_(options.float_format(), options.precision()),
@@ -1329,6 +1334,16 @@ namespace detail {
                 case semantic_tag::bigint:
                     write_bigint_value(sv);
                     break;
+                case semantic_tag::bigdec:
+                {
+                	// output lossless number
+                	if (options_.bigint_format() == bigint_chars_format::number)
+                	{
+	                	write_bigint_value(sv);
+                		break;
+			}
+			JSONCONS_FALLTHROUGH;
+		}
                 default:
                 {
                     sink_.push_back('\"');

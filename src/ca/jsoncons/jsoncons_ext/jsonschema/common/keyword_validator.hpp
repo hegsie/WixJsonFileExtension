@@ -1,18 +1,17 @@
-// Copyright 2020 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_JSONSCHEMA_SUBSCHEMA_HPP
-#define JSONCONS_JSONSCHEMA_SUBSCHEMA_HPP
+#ifndef JSONCONS_JSONSCHEMA_COMMON_KEYWORD_VALIDATOR_HPP
+#define JSONCONS_JSONSCHEMA_COMMON_KEYWORD_VALIDATOR_HPP
 
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/uri.hpp>
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpointer/jsonpointer.hpp>
 #include <jsoncons_ext/jsonschema/jsonschema_error.hpp>
-#include <jsoncons_ext/jsonschema/schema_location.hpp>
 
 namespace jsoncons {
 namespace jsonschema {
@@ -53,12 +52,13 @@ namespace jsonschema {
     template <class Json>
     class keyword_validator 
     {
-        std::string absolute_keyword_location_;
+        std::string schema_path_;
     public:
+        using validator_type = std::unique_ptr<keyword_validator<Json>>;
         using self_pointer = keyword_validator<Json>*;
 
-        keyword_validator(const std::string& absolute_keyword_location)
-            : absolute_keyword_location_(absolute_keyword_location)
+        keyword_validator(const std::string& schema_path)
+            : schema_path_(schema_path)
         {
         }
 
@@ -69,9 +69,9 @@ namespace jsonschema {
 
         virtual ~keyword_validator() = default;
 
-        const std::string& absolute_keyword_location() const
+        const std::string& schema_path() const
         {
-            return absolute_keyword_location_;
+            return schema_path_;
         }
 
         void validate(const Json& instance, 
@@ -98,47 +98,59 @@ namespace jsonschema {
     };
 
     template <class Json>
-    std::vector<schema_location> update_uris(const Json& schema,
-                                         const std::vector<schema_location>& uris,
-                                         const std::vector<std::string>& keys)
+    using uri_resolver = std::function<Json(const jsoncons::uri & /*id*/)>;
+
+    template <class Json>
+    class reference_schema : public keyword_validator<Json>
     {
-        // Exclude uri's that are not plain name identifiers
-        std::vector<schema_location> new_uris;
-        for (const auto& uri : uris)
+        using validator_type = typename std::unique_ptr<keyword_validator<Json>>;
+        using validator_pointer = typename keyword_validator<Json>::self_pointer;
+
+        validator_pointer referred_schema_;
+
+    public:
+        reference_schema(const std::string& id)
+            : keyword_validator<Json>(id), referred_schema_(nullptr) {}
+
+        void set_referred_schema(validator_pointer target) { referred_schema_ = target; }
+
+    private:
+
+        void do_validate(const Json& instance, 
+                         const jsonpointer::json_pointer& instance_location, 
+                         error_reporter& reporter, 
+                         Json& patch) const override
         {
-            if (!uri.has_identifier())
-                new_uris.push_back(uri);
+            if (!referred_schema_)
+            {
+                reporter.error(validation_output("", 
+                                                 this->schema_path(), 
+                                                 instance_location.to_uri_fragment(), 
+                                                 "Unresolved schema reference " + this->schema_path()));
+                return;
+            }
+
+            referred_schema_->validate(instance, instance_location, reporter, patch);
         }
 
-        // Append the keys for this sub-schema to the uri's
-        for (const auto& key : keys)
+        jsoncons::optional<Json> get_default_value(const jsonpointer::json_pointer& instance_location, 
+                                                   const Json& instance, 
+                                                   error_reporter& reporter) const override
         {
-            for (auto& uri : new_uris)
+            if (!referred_schema_)
             {
-                auto new_u = uri.append(key);
-                uri = schema_location(new_u);
+                reporter.error(validation_output("", 
+                                                 this->schema_path(), 
+                                                 instance_location.to_uri_fragment(), 
+                                                 "Unresolved schema reference " + this->schema_path()));
+                return jsoncons::optional<Json>();
             }
-        }
-        if (schema.type() == json_type::object_value)
-        {
-            auto it = schema.find("$id"); // If $id is found, this schema can be referenced by the id
-            if (it != schema.object_range().end()) 
-            {
-                std::string id = it->value().template as<std::string>(); 
-                // Add it to the list if it is not already there
-                if (std::find(new_uris.begin(), new_uris.end(), id) == new_uris.end())
-                {
-                    schema_location relative(id); 
-                    schema_location new_uri = relative.resolve(new_uris.back());
-                    new_uris.emplace_back(new_uri); 
-                }
-            }
-        }
 
-        return new_uris;
-    }
+            return referred_schema_->get_default_value(instance_location, instance, reporter);
+        }
+    };
 
 } // namespace jsonschema
 } // namespace jsoncons
 
-#endif // JSONCONS_JSONSCHEMA_RULE_HPP
+#endif // JSONCONS_JSONSCHEMA_KEYWORD_VALIDATOR_HPP

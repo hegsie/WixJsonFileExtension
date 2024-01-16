@@ -1,4 +1,4 @@
-// Copyright 2019 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -10,7 +10,7 @@
 #include <algorithm> // std::swap
 #include <iterator> // std::iterator_traits, std::input_iterator_tag
 #include <jsoncons/config/jsoncons_config.hpp> // JSONCONS_EXPAND, JSONCONS_QUOTE
-#include <jsoncons/traits_extension.hpp>
+#include <jsoncons/extension_traits.hpp>
 #include <jsoncons/json_visitor.hpp>
 #include <limits> // std::numeric_limits
 #include <string>

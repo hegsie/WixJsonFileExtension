@@ -1,4 +1,4 @@
-// Copyright 2021 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -18,7 +18,7 @@
 #include <regex>
 #endif
 #include <jsoncons/json_type.hpp>
-#include <jsoncons_ext/jsonpath/json_location.hpp>
+#include <jsoncons_ext/jsonpath/path_node.hpp>
 #include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
 
 namespace jsoncons { 
@@ -132,7 +132,7 @@ namespace jsonpath {
     };
     constexpr argument_arg_t argument_arg{};
 
-    enum class result_options {value=0, nodups=1, sort=2, path=4};
+    enum class result_options {value=0, nodups=1, sort=2, sort_descending=4, path=8};
 
     using result_type = result_options;
 
@@ -296,7 +296,7 @@ namespace jsonpath {
         using char_type = typename Json::char_type;
         using parameter_type = parameter<Json>;
         using function_type = std::function<value_type(jsoncons::span<const parameter_type>, std::error_code& ec)>;
-        using string_type = std::basic_string<char_type>;
+        using string_type = typename Json::string_type;
 
         string_type function_name_;
         optional<std::size_t> arity_;
@@ -344,7 +344,7 @@ namespace jsonpath {
     class custom_functions
     {
         using char_type = typename Json::char_type;
-        using string_type = std::basic_string<char_type>;
+        using string_type = typename Json::string_type;
         using value_type = Json;
         using parameter_type = parameter<Json>;
         using function_type = std::function<value_type(jsoncons::span<const parameter_type>, std::error_code& ec)>;
@@ -430,7 +430,7 @@ namespace detail {
         Json evaluate(JsonReference val, 
                       std::error_code&) const override
         {
-            return is_false(val) ? Json(true) : Json(false);
+            return is_false(val) ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
         }
     };
 
@@ -447,11 +447,11 @@ namespace detail {
         {
             if (val.is_int64())
             {
-                return Json(-val.template as<int64_t>());
+                return Json(-val.template as<int64_t>(), semantic_tag::none);
             }
             else if (val.is_double())
             {
-                return Json(-val.as_double());
+                return Json(-val.as_double(), semantic_tag::none);
             }
             else
             {
@@ -464,7 +464,7 @@ namespace detail {
     class regex_operator final : public unary_operator<Json,JsonReference>
     {
         using char_type = typename Json::char_type;
-        using string_type = std::basic_string<char_type>;
+        using string_type = typename Json::string_type;
         std::basic_regex<char_type> pattern_;
     public:
         regex_operator(std::basic_regex<char_type>&& pattern)
@@ -483,7 +483,7 @@ namespace detail {
             {
                 return Json::null();
             }
-            return std::regex_search(val.as_string(), pattern_) ? Json(true) : Json(false);
+            return std::regex_search(val.as_string(), pattern_) ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
         }
     };
 
@@ -607,7 +607,7 @@ namespace detail {
 
         Json evaluate(JsonReference lhs, JsonReference rhs, std::error_code&) const override 
         {
-            return lhs == rhs ? Json(true) : Json(false);
+            return lhs == rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
         }
 
         std::string to_string(int level = 0) const override
@@ -634,7 +634,7 @@ namespace detail {
 
         Json evaluate(JsonReference lhs, JsonReference rhs, std::error_code&) const override 
         {
-            return lhs != rhs ? Json(true) : Json(false);
+            return lhs != rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
         }
 
         std::string to_string(int level = 0) const override
@@ -663,11 +663,11 @@ namespace detail {
         {
             if (lhs.is_number() && rhs.is_number())
             {
-                return lhs < rhs ? Json(true) : Json(false);
+                return lhs < rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             else if (lhs.is_string() && rhs.is_string())
             {
-                return lhs < rhs ? Json(true) : Json(false);
+                return lhs < rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             return Json::null();
         }
@@ -698,11 +698,11 @@ namespace detail {
         {
             if (lhs.is_number() && rhs.is_number())
             {
-                return lhs <= rhs ? Json(true) : Json(false);
+                return lhs <= rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             else if (lhs.is_string() && rhs.is_string())
             {
-                return lhs <= rhs ? Json(true) : Json(false);
+                return lhs <= rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             return Json::null();
         }
@@ -735,11 +735,11 @@ namespace detail {
 
             if (lhs.is_number() && rhs.is_number())
             {
-                return lhs > rhs ? Json(true) : Json(false);
+                return lhs > rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             else if (lhs.is_string() && rhs.is_string())
             {
-                return lhs > rhs ? Json(true) : Json(false);
+                return lhs > rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             return Json::null();
         }
@@ -770,11 +770,11 @@ namespace detail {
         {
             if (lhs.is_number() && rhs.is_number())
             {
-                return lhs >= rhs ? Json(true) : Json(false);
+                return lhs >= rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             else if (lhs.is_string() && rhs.is_string())
             {
-                return lhs >= rhs ? Json(true) : Json(false);
+                return lhs >= rhs ? Json(true, semantic_tag::none) : Json(false, semantic_tag::none);
             }
             return Json::null();
         }
@@ -809,15 +809,15 @@ namespace detail {
             }
             else if (lhs.is_int64() && rhs.is_int64())
             {
-                return Json(((lhs.template as<int64_t>() + rhs.template as<int64_t>())));
+                return Json(((lhs.template as<int64_t>() + rhs.template as<int64_t>())), semantic_tag::none);
             }
             else if (lhs.is_uint64() && rhs.is_uint64())
             {
-                return Json((lhs.template as<uint64_t>() + rhs.template as<uint64_t>()));
+                return Json((lhs.template as<uint64_t>() + rhs.template as<uint64_t>()), semantic_tag::none);
             }
             else
             {
-                return Json((lhs.as_double() + rhs.as_double()));
+                return Json((lhs.as_double() + rhs.as_double()), semantic_tag::none);
             }
         }
 
@@ -851,15 +851,15 @@ namespace detail {
             }
             else if (lhs.is_int64() && rhs.is_int64())
             {
-                return Json(((lhs.template as<int64_t>() - rhs.template as<int64_t>())));
+                return Json(((lhs.template as<int64_t>() - rhs.template as<int64_t>())), semantic_tag::none);
             }
             else if (lhs.is_uint64() && rhs.is_uint64())
             {
-                return Json((lhs.template as<uint64_t>() - rhs.template as<uint64_t>()));
+                return Json((lhs.template as<uint64_t>() - rhs.template as<uint64_t>()), semantic_tag::none);
             }
             else
             {
-                return Json((lhs.as_double() - rhs.as_double()));
+                return Json((lhs.as_double() - rhs.as_double()), semantic_tag::none);
             }
         }
 
@@ -893,15 +893,15 @@ namespace detail {
             }
             else if (lhs.is_int64() && rhs.is_int64())
             {
-                return Json(((lhs.template as<int64_t>() * rhs.template as<int64_t>())));
+                return Json(((lhs.template as<int64_t>() * rhs.template as<int64_t>())), semantic_tag::none);
             }
             else if (lhs.is_uint64() && rhs.is_uint64())
             {
-                return Json((lhs.template as<uint64_t>() * rhs.template as<uint64_t>()));
+                return Json((lhs.template as<uint64_t>() * rhs.template as<uint64_t>()), semantic_tag::none);
             }
             else
             {
-                return Json((lhs.as_double() * rhs.as_double()));
+                return Json((lhs.as_double() * rhs.as_double()), semantic_tag::none);
             }
         }
 
@@ -937,15 +937,15 @@ namespace detail {
             }
             else if (lhs.is_int64() && rhs.is_int64())
             {
-                return Json(((lhs.template as<int64_t>() / rhs.template as<int64_t>())));
+                return Json(((lhs.template as<int64_t>() / rhs.template as<int64_t>())), semantic_tag::none);
             }
             else if (lhs.is_uint64() && rhs.is_uint64())
             {
-                return Json((lhs.template as<uint64_t>() / rhs.template as<uint64_t>()));
+                return Json((lhs.template as<uint64_t>() / rhs.template as<uint64_t>()), semantic_tag::none);
             }
             else
             {
-                return Json((lhs.as_double() / rhs.as_double()));
+                return Json((lhs.as_double() / rhs.as_double()), semantic_tag::none);
             }
         }
 
@@ -981,15 +981,15 @@ namespace detail {
             }
             else if (lhs.is_int64() && rhs.is_int64())
             {
-                return Json(((lhs.template as<int64_t>() % rhs.template as<int64_t>())));
+                return Json(((lhs.template as<int64_t>() % rhs.template as<int64_t>())), semantic_tag::none);
             }
             else if (lhs.is_uint64() && rhs.is_uint64())
             {
-                return Json((lhs.template as<uint64_t>() % rhs.template as<uint64_t>()));
+                return Json((lhs.template as<uint64_t>() % rhs.template as<uint64_t>()), semantic_tag::none);
             }
             else
             {
-                return Json(fmod(lhs.as_double(), rhs.as_double()));
+                return Json(fmod(lhs.as_double(), rhs.as_double()), semantic_tag::none);
             }
         }
 
@@ -1099,10 +1099,10 @@ namespace detail {
                     {
                         if (j == arg1)
                         {
-                            return value_type(true);
+                            return value_type(true, semantic_tag::none);
                         }
                     }
-                    return value_type(false);
+                    return value_type(false, semantic_tag::none);
                 case json_type::string_value:
                 {
                     if (!arg1.is_string())
@@ -1112,7 +1112,7 @@ namespace detail {
                     }
                     auto sv0 = arg0.template as<string_view_type>();
                     auto sv1 = arg1.template as<string_view_type>();
-                    return sv0.find(sv1) != string_view_type::npos ? value_type(true) : value_type(false);
+                    return sv0.find(sv1) != string_view_type::npos ? value_type(true, semantic_tag::none) : value_type(false, semantic_tag::none);
                 }
                 default:
                 {
@@ -1176,11 +1176,11 @@ namespace detail {
 
             if (sv1.length() <= sv0.length() && sv1 == sv0.substr(sv0.length() - sv1.length()))
             {
-                return value_type(true);
+                return value_type(true, semantic_tag::none);
             }
             else
             {
-                return value_type(false);
+                return value_type(false, semantic_tag::none);
             }
         }
 
@@ -1238,11 +1238,11 @@ namespace detail {
 
             if (sv1.length() <= sv0.length() && sv1 == sv0.substr(0, sv1.length()))
             {
-                return value_type(true);
+                return value_type(true, semantic_tag::none);
             }
             else
             {
-                return value_type(false);
+                return value_type(false, semantic_tag::none);
             }
         }
 
@@ -1300,7 +1300,7 @@ namespace detail {
                 sum += j.template as<double>();
             }
 
-            return value_type(sum);
+            return value_type(sum, semantic_tag::none);
         }
 
         std::string to_string(int level = 0) const override
@@ -1321,14 +1321,19 @@ namespace detail {
     template <class Json>
     class tokenize_function : public function_base<Json>
     {
+        using allocator_type = typename Json::allocator_type;
+
+        allocator_type alloc_;
+
     public:
         using value_type = Json;
         using parameter_type = parameter<Json>;
         using char_type = typename Json::char_type;
-        using string_type = std::basic_string<char_type>;
+        using string_type = typename Json::string_type;
+        using string_view_type = typename Json::string_view_type;
 
-        tokenize_function()
-            : function_base<Json>(2)
+        tokenize_function(const allocator_type& alloc)
+            : function_base<Json>(2), alloc_(alloc)
         {
         }
 
@@ -1347,19 +1352,23 @@ namespace detail {
                 ec = jsonpath_errc::invalid_type;
                 return value_type::null();
             }
-            auto arg0 = args[0].value().template as<string_type>();
-            auto arg1 = args[1].value().template as<string_type>();
+            auto arg0 = args[0].value().template as<string_view_type>();
+            auto arg1 = args[1].value().template as<string_view_type>();
+
+            auto s0 = string_type(arg0.begin(), arg0.end(), alloc_);
+            auto s1 = string_type(arg1.begin(), arg1.end(), alloc_);
 
             std::regex::flag_type options = std::regex_constants::ECMAScript; 
-            std::basic_regex<char_type> pieces_regex(arg1, options);
+            std::basic_regex<char_type> pieces_regex(s1, options);
 
-            std::regex_token_iterator<typename string_type::const_iterator> rit ( arg0.begin(), arg0.end(), pieces_regex, -1);
+            std::regex_token_iterator<typename string_type::const_iterator> rit ( s0.begin(), s0.end(), pieces_regex, -1);
             std::regex_token_iterator<typename string_type::const_iterator> rend;
 
-            value_type j(json_array_arg);
+            value_type j(json_array_arg, semantic_tag::none, alloc_);
             while (rit != rend) 
             {
-                j.emplace_back(rit->str());
+                auto s = rit->str();
+                j.emplace_back(s.c_str(), semantic_tag::none);
                 ++rit;
             }
             return j;
@@ -1407,11 +1416,11 @@ namespace detail {
                 case json_type::uint64_value:
                 case json_type::int64_value:
                 {
-                    return value_type(arg0.template as<double>());
+                    return value_type(arg0.template as<double>(), semantic_tag::none);
                 }
                 case json_type::double_value:
                 {
-                    return value_type(std::ceil(arg0.template as<double>()));
+                    return value_type(std::ceil(arg0.template as<double>()), semantic_tag::none);
                 }
                 default:
                     ec = jsonpath_errc::invalid_type;
@@ -1459,11 +1468,11 @@ namespace detail {
                 case json_type::uint64_value:
                 case json_type::int64_value:
                 {
-                    return value_type(arg0.template as<double>());
+                    return value_type(arg0.template as<double>(), semantic_tag::none);
                 }
                 case json_type::double_value:
                 {
-                    return value_type(std::floor(arg0.template as<double>()));
+                    return value_type(std::floor(arg0.template as<double>()), semantic_tag::none);
                 }
                 default:
                     ec = jsonpath_errc::invalid_type;
@@ -1519,20 +1528,20 @@ namespace detail {
                     auto result1 = jsoncons::detail::to_integer(sv.data(), sv.length(), un);
                     if (result1)
                     {
-                        return value_type(un);
+                        return value_type(un, semantic_tag::none);
                     }
                     int64_t sn{0};
                     auto result2 = jsoncons::detail::to_integer(sv.data(), sv.length(), sn);
                     if (result2)
                     {
-                        return value_type(sn);
+                        return value_type(sn, semantic_tag::none);
                     }
                     jsoncons::detail::chars_to to_double;
                     try
                     {
                         auto s = arg0.as_string();
                         double d = to_double(s.c_str(), s.length());
-                        return value_type(d);
+                        return value_type(d, semantic_tag::none);
                     }
                     catch (const std::exception&)
                     {
@@ -1597,7 +1606,7 @@ namespace detail {
                 prod *= j.template as<double>();
             }
 
-            return value_type(prod);
+            return value_type(prod, semantic_tag::none);
         }
 
         std::string to_string(int level = 0) const override
@@ -1655,7 +1664,7 @@ namespace detail {
                 sum += j.template as<double>();
             }
 
-            return value_type(sum / static_cast<double>(arg0.size()));
+            return value_type(sum / static_cast<double>(arg0.size()), semantic_tag::none);
         }
 
         std::string to_string(int level = 0) const override
@@ -1840,11 +1849,11 @@ namespace detail {
                     return arg0;
                 case json_type::int64_value:
                 {
-                    return arg0.template as<int64_t>() >= 0 ? arg0 : value_type(std::abs(arg0.template as<int64_t>()));
+                    return arg0.template as<int64_t>() >= 0 ? arg0 : value_type(std::abs(arg0.template as<int64_t>()), semantic_tag::none);
                 }
                 case json_type::double_value:
                 {
-                    return arg0.template as<double>() >= 0 ? arg0 : value_type(std::abs(arg0.template as<double>()));
+                    return arg0.template as<double>() >= 0 ? arg0 : value_type(std::abs(arg0.template as<double>()), semantic_tag::none);
                 }
                 default:
                 {
@@ -1896,12 +1905,12 @@ namespace detail {
             {
                 case json_type::object_value:
                 case json_type::array_value:
-                    return value_type(arg0.size());
+                    return value_type(arg0.size(), semantic_tag::none);
                 case json_type::string_value:
                 {
                     auto sv0 = arg0.template as<string_view_type>();
                     auto length = unicode_traits::count_codepoints(sv0.data(), sv0.size());
-                    return value_type(length);
+                    return value_type(length, semantic_tag::none);
                 }
                 default:
                 {
@@ -1927,13 +1936,16 @@ namespace detail {
     template <class Json>
     class keys_function : public function_base<Json>
     {
+        using allocator_type = typename Json::allocator_type;
+
+        allocator_type alloc_;
     public:
         using value_type = Json;
         using parameter_type = parameter<Json>;
         using string_view_type = typename Json::string_view_type;
 
-        keys_function()
-            : function_base<Json>(1)
+        keys_function(const allocator_type& alloc)
+            : function_base<Json>(1), alloc_(alloc)
         {
         }
 
@@ -1946,19 +1958,20 @@ namespace detail {
                 return value_type::null();
             }
 
-            auto arg0= args[0].value();
+            auto arg0 = args[0].value();
             if (!arg0.is_object())
             {
                 ec = jsonpath_errc::invalid_type;
                 return value_type::null();
             }
 
-            value_type result(json_array_arg);
+            value_type result(json_array_arg, semantic_tag::none, alloc_);
             result.reserve(args.size());
 
             for (auto& item : arg0.object_range())
             {
-                result.emplace_back(item.key());
+                auto s = item.key();
+                result.emplace_back(s.c_str(), semantic_tag::none);
             }
             return result;
         }
@@ -2052,24 +2065,18 @@ namespace detail {
     struct path_value_pair
     {
         using char_type = typename Json::char_type;
-        using string_type = std::basic_string<char_type,std::char_traits<char_type>>;
+        using string_type = typename Json::string_type;
         using value_type = Json;
         using reference = JsonReference;
         using value_pointer = typename std::conditional<std::is_const<typename std::remove_reference<JsonReference>::type>::value,typename Json::const_pointer,typename Json::pointer>::type;
-        using json_location_node_type = json_location_node<char_type>;
-        using json_location_type = json_location<char_type>;
-        using path_pointer = const json_location_node_type*;
+        using path_node_type = basic_path_node<typename Json::char_type>;
+        using path_pointer = const path_node_type*;
 
-        json_location_type path_;
+        path_pointer path_ptr_;
         value_pointer value_ptr_;
 
-        path_value_pair(const json_location_type& path, reference value) noexcept
-            : path_(path), value_ptr_(std::addressof(value))
-        {
-        }
-
-        path_value_pair(json_location_type&& path, value_pointer valp) noexcept
-            : path_(std::move(path)), value_ptr_(valp)
+        path_value_pair(const path_node_type& path, reference value) noexcept
+            : path_ptr_(std::addressof(path)), value_ptr_(std::addressof(value))
         {
         }
 
@@ -2078,9 +2085,9 @@ namespace detail {
         path_value_pair& operator=(const path_value_pair&) = default;
         path_value_pair& operator=(path_value_pair&& other) = default;
 
-        json_location_type path() const
+        path_node_type path() const
         {
-            return path_;
+            return *path_ptr_;
         }
 
         reference value() 
@@ -2100,6 +2107,16 @@ namespace detail {
     };
 
     template <class Json,class JsonReference>
+    struct path_value_pair_greater
+    {
+        bool operator()(const path_value_pair<Json,JsonReference>& lhs,
+                        const path_value_pair<Json,JsonReference>& rhs) const noexcept
+        {
+            return rhs.path() < lhs.path();
+        }
+    };
+
+    template <class Json,class JsonReference>
     struct path_value_pair_equal
     {
         bool operator()(const path_value_pair<Json,JsonReference>& lhs,
@@ -2113,23 +2130,22 @@ namespace detail {
     struct path_component_value_pair
     {
         using char_type = typename Json::char_type;
-        using string_type = std::basic_string<char_type,std::char_traits<char_type>>;
+        using string_type = typename Json::string_type;
         using value_type = Json;
         using reference = JsonReference;
         using value_pointer = typename std::conditional<std::is_const<typename std::remove_reference<JsonReference>::type>::value,typename Json::const_pointer,typename Json::pointer>::type;
-        using json_location_node_type = json_location_node<char_type>;
-        using json_location_type = json_location<char_type>;
-        using path_pointer = const json_location_node_type*;
+        using path_node_type = basic_path_node<typename Json::char_type>;
+        using path_pointer = const path_node_type*;
     private:
-        const json_location_node_type* last_ptr_;
+        const path_node_type* last_ptr_;
         value_pointer value_ptr_;
     public:
-        path_component_value_pair(const json_location_node_type& last, reference value) noexcept
+        path_component_value_pair(const path_node_type& last, reference value) noexcept
             : last_ptr_(std::addressof(last)), value_ptr_(std::addressof(value))
         {
         }
 
-        const json_location_node_type& last() const
+        const path_node_type& last() const
         {
             return *last_ptr_;
         }
@@ -2145,63 +2161,85 @@ namespace detail {
     {
     public:
         using char_type = typename Json::char_type;
+        using string_type = typename Json::string_type;
         using reference = JsonReference;
-        using json_location_node_type = json_location_node<char_type>;
+        using path_node_type = basic_path_node<typename Json::char_type>;
 
         virtual ~node_receiver() noexcept = default;
 
-        virtual void add(const json_location_node_type& path_tail, 
-                         reference value) = 0;
+        virtual void add(const path_node_type& base_path, reference value) = 0;
     };
 
     template <class Json,class JsonReference>
     class path_value_receiver : public node_receiver<Json,JsonReference>
     {
     public:
+        using allocator_type = typename Json::allocator_type;
         using reference = JsonReference;
         using char_type = typename Json::char_type;
-        using json_location_node_type = json_location_node<char_type>;
-        using json_location_type = json_location<char_type>;
+        using string_type = typename Json::string_type;
+        using path_node_type = basic_path_node<typename Json::char_type>;
         using path_value_pair_type = path_value_pair<Json,JsonReference>;
 
+        allocator_type alloc_;
         std::vector<path_value_pair_type> nodes;
 
-        void add(const json_location_node_type& path_tail, 
-                 reference value) override
+        path_value_receiver(const allocator_type& alloc)
+            : alloc_(alloc)
         {
-            nodes.emplace_back(json_location_type(path_tail), std::addressof(value));
+        }
+
+        void add(const path_node_type& base_path, reference value) override
+        {
+            nodes.emplace_back(base_path, value);
         }
     };
 
     template <class Json,class JsonReference>
-    class path_stem_value_receiver : public node_receiver<Json,JsonReference>
+    class path_component_value_receiver : public node_receiver<Json,JsonReference>
     {
     public:
         using reference = JsonReference;
         using char_type = typename Json::char_type;
-        using json_location_node_type = json_location_node<char_type>;
-        using path_stem_value_pair_type = path_component_value_pair<Json,JsonReference>;
+        using string_type = typename Json::string_type;
+        using path_node_type = basic_path_node<typename Json::char_type>;
+        using path_component_value_pair_type = path_component_value_pair<Json,JsonReference>;
 
-        std::vector<path_stem_value_pair_type> nodes;
+        std::vector<path_component_value_pair_type> nodes;
 
-        void add(const json_location_node_type& path_tail, 
-                 reference value) override
+        void add(const path_node_type& base_path, reference value) override
         {
-            nodes.emplace_back(path_tail, value);
+            nodes.emplace_back(base_path, value);
         }
     };
 
     template <class Json, class JsonReference>
     class dynamic_resources
     {
+        using allocator_type = typename Json::allocator_type;
+        using char_type = typename Json::char_type;
+        using string_type = typename Json::string_type;
         using reference = JsonReference;
         using pointer = typename std::conditional<std::is_const<typename std::remove_reference<reference>::type>::value,typename Json::const_pointer,typename Json::pointer>::type;
-        using json_location_node_type = json_location_node<typename Json::char_type>;
-        using path_stem_value_pair_type = path_component_value_pair<Json,JsonReference>;
+        using path_node_type = basic_path_node<typename Json::char_type>;
+        using path_component_value_pair_type = path_component_value_pair<Json,JsonReference>;
+
+        allocator_type alloc_;
         std::vector<std::unique_ptr<Json>> temp_json_values_;
-        std::vector<std::unique_ptr<json_location_node_type>> temp_path_node_values_;
+        std::vector<std::unique_ptr<path_node_type>> temp_node_values_;
         std::unordered_map<std::size_t,pointer> cache_;
+        string_type length_label_;
     public:
+        dynamic_resources(const allocator_type& alloc = allocator_type())
+            : alloc_(alloc), length_label_{JSONCONS_CSTRING_CONSTANT(char_type, "length"), alloc}
+        {
+        }
+
+        allocator_type get_allocator() const
+        {
+            return alloc_;
+        }
+
         bool is_cached(std::size_t id) const
         {
             return cache_.find(id) != cache_.end();
@@ -2217,8 +2255,8 @@ namespace detail {
 
         reference null_value()
         {
-            static Json j{ null_type{} };
-            return j;
+            static Json a_null = Json(null_type(), semantic_tag::none);
+            return a_null;
         }
 
         template <typename... Args>
@@ -2230,24 +2268,17 @@ namespace detail {
             return ptr;
         }
 
-        const json_location_node_type& root_path_node() const
+        const string_type& length_label() const
         {
-            static json_location_node_type root('$');
-            return root;
-        }
-
-        const json_location_node_type& current_path_node() const
-        {
-            static json_location_node_type root('@');
-            return root;
+            return length_label_;
         }
 
         template <typename... Args>
-        const json_location_node_type* create_path_node(Args&& ... args)
+        const path_node_type* create_path_node(Args&& ... args)
         {
-            auto temp = jsoncons::make_unique<json_location_node_type>(std::forward<Args>(args)...);
-            json_location_node_type* ptr = temp.get();
-            temp_path_node_values_.emplace_back(std::move(temp));
+            auto temp = jsoncons::make_unique<path_node_type>(std::forward<Args>(args)...);
+            path_node_type* ptr = temp.get();
+            temp_node_values_.emplace_back(std::move(temp));
             return ptr;
         }
     };
@@ -2269,14 +2300,13 @@ namespace detail {
 
     public:
         using char_type = typename Json::char_type;
-        using string_type = std::basic_string<char_type,std::char_traits<char_type>>;
+        using string_type = typename Json::string_type;
         using string_view_type = jsoncons::basic_string_view<char_type, std::char_traits<char_type>>;
         using value_type = Json;
         using reference = JsonReference;
         using pointer = typename std::conditional<std::is_const<typename std::remove_reference<JsonReference>::type>::value,typename Json::const_pointer,typename Json::pointer>::type;
         using path_value_pair_type = path_value_pair<Json,JsonReference>;
-        using json_location_node_type = json_location_node<char_type>;
-        using json_location_type = json_location<char_type>;
+        using path_node_type = basic_path_node<typename Json::char_type>;
         using node_receiver_type = node_receiver<Json,JsonReference>;
         using selector_type = jsonpath_selector<Json,JsonReference>;
 
@@ -2306,14 +2336,14 @@ namespace detail {
 
         virtual void select(dynamic_resources<Json,JsonReference>& resources,
                             reference root,
-                            const json_location_node_type& path_tail, 
+                            const path_node_type& base_path, 
                             reference val, 
                             node_receiver_type& receiver,
                             result_options options) const = 0;
 
         virtual reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                                    reference root,
-                                   const json_location_node_type& path_tail, 
+                                   const path_node_type& base_path, 
                                    reference current, 
                                    result_options options,
                                    std::error_code& ec) const = 0;
@@ -2331,23 +2361,80 @@ namespace detail {
     template <class Json, class JsonReference>
     struct static_resources
     {
+        using allocator_type = typename Json::allocator_type;
         using char_type = typename Json::char_type;
-        using string_type = std::basic_string<char_type>;
+        using string_type = typename Json::string_type;
         using value_type = Json;
         using reference = JsonReference;
         using function_base_type = function_base<Json>;
         using selector_type = jsonpath_selector<Json,JsonReference>;
 
+        struct MyHash
+        {
+            std::uintmax_t operator()(string_type const& s) const noexcept
+            {
+                const int p = 31;
+                const int m = static_cast<int>(1e9) + 9;
+                std::uintmax_t hash_value = 0;
+                std::uintmax_t p_pow = 1;
+                for (char_type c : s) {
+                    hash_value = (hash_value + (c - 'a' + 1) * p_pow) % m;
+                    p_pow = (p_pow * p) % m;
+                }
+                return hash_value;   
+            }
+        };
+
+        allocator_type alloc_;
         std::vector<std::unique_ptr<selector_type>> selectors_;
         std::vector<std::unique_ptr<Json>> temp_json_values_;
         std::vector<std::unique_ptr<unary_operator<Json,JsonReference>>> unary_operators_;
-        std::unordered_map<string_type,std::unique_ptr<function_base_type>> custom_functions_;
 
-        static_resources()
+        std::unordered_map<string_type,std::unique_ptr<function_base_type>,MyHash> functions_;
+        std::unordered_map<string_type,std::unique_ptr<function_base_type>,MyHash> custom_functions_;
+
+        static_resources(const allocator_type& alloc = allocator_type())
+            : alloc_(alloc)
         {
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "abs"), alloc_}, 
+                    jsoncons::make_unique<abs_function<Json>>());
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "contains"), alloc_ },
+                    jsoncons::make_unique<contains_function<Json>>());
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "starts_with"), alloc_ },
+                    jsoncons::make_unique<starts_with_function<Json>>());
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "ends_with"), alloc_ },
+                    jsoncons::make_unique<ends_with_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "ceil"), alloc_}, 
+                    jsoncons::make_unique<ceil_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "floor"), alloc_}, 
+                    jsoncons::make_unique<floor_function<Json>>());
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "to_number"), alloc_ },
+                    jsoncons::make_unique<to_number_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "sum"), alloc_}, 
+                    jsoncons::make_unique<sum_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "prod"), alloc_}, 
+                    jsoncons::make_unique<prod_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "avg"), alloc_}, 
+                    jsoncons::make_unique<avg_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "min"), alloc_}, 
+                    jsoncons::make_unique<min_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "max"), alloc_}, 
+                    jsoncons::make_unique<max_function<Json>>());
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "length"), alloc_}, 
+                    jsoncons::make_unique<length_function<Json>>());
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "keys"), alloc_ },
+                    jsoncons::make_unique<keys_function<Json>>(alloc_));
+#if defined(JSONCONS_HAS_STD_REGEX)
+                functions_.emplace(string_type{ JSONCONS_CSTRING_CONSTANT(char_type, "tokenize"), alloc_ },
+                    jsoncons::make_unique<tokenize_function<Json>>(alloc_));
+#endif
+                functions_.emplace(string_type{JSONCONS_CSTRING_CONSTANT(char_type, "count"), alloc_}, 
+                    jsoncons::make_unique<length_function<Json>>());
         }
 
-        static_resources(const custom_functions<Json>& functions)
+        static_resources(const custom_functions<Json>& functions, 
+            const allocator_type& alloc = allocator_type())
+            : static_resources(alloc)
         {
             for (const auto& item : functions)
             {
@@ -2356,60 +2443,28 @@ namespace detail {
             }
         }
 
-        static_resources(const static_resources&) = default;
+        static_resources(const static_resources&) = delete;
+
+        static_resources operator=(const static_resources&) = delete;
+
+        //static_resources(static_resources&&) = delete;
+
+        static_resources operator=(static_resources&&) = delete;
 
         static_resources(static_resources&& other) noexcept 
-            : selectors_(std::move(other.selectors_)),
+            : alloc_(std::move(other.alloc_)),
+              selectors_(std::move(other.selectors_)),
               temp_json_values_(std::move(other.temp_json_values_)),
               unary_operators_(std::move(other.unary_operators_)),
+              functions_(std::move(other.functions_)),
               custom_functions_(std::move(other.custom_functions_))
         {
         }
 
         const function_base_type* get_function(const string_type& name, std::error_code& ec) const
         {
-            static abs_function<Json> abs_func;
-            static contains_function<Json> contains_func;
-            static starts_with_function<Json> starts_with_func;
-            static ends_with_function<Json> ends_with_func;
-            static ceil_function<Json> ceil_func;
-            static floor_function<Json> floor_func;
-            static to_number_function<Json> to_number_func;
-            static sum_function<Json> sum_func;
-            static prod_function<Json> prod_func;
-            static avg_function<Json> avg_func;
-            static min_function<Json> min_func;
-            static max_function<Json> max_func;
-            static length_function<Json> length_func;
-            static keys_function<Json> keys_func;
-#if defined(JSONCONS_HAS_STD_REGEX)
-            static tokenize_function<Json> tokenize_func;
-#endif
-
-            static std::unordered_map<string_type,const function_base_type*> functions =
-            {
-                {string_type{'a','b','s'}, &abs_func},
-                {string_type{'c','o','n','t','a','i','n','s'}, &contains_func},
-                {string_type{'s','t','a','r','t','s','_','w','i','t','h'}, &starts_with_func},
-                {string_type{'e','n','d','s','_','w','i','t','h'}, &ends_with_func},
-                {string_type{'c','e','i','l'}, &ceil_func},
-                {string_type{'f','l','o','o','r'}, &floor_func},
-                {string_type{'t','o','_','n','u','m','b','e','r'}, &to_number_func},
-                {string_type{'s','u','m'}, &sum_func},
-                {string_type{'p','r','o', 'd'}, &prod_func},
-                {string_type{'a','v','g'}, &avg_func},
-                {string_type{'m','i','n'}, &min_func},
-                {string_type{'m','a','x'}, &max_func},
-                {string_type{'l','e','n','g','t','h'}, &length_func},
-                {string_type{'k','e','y','s'}, &keys_func},
-#if defined(JSONCONS_HAS_STD_REGEX)
-                {string_type{'t','o','k','e','n','i','z','e'}, &tokenize_func},
-#endif
-                {string_type{'c','o','u','n','t'}, &length_func}
-            };
-
-            auto it = functions.find(name);
-            if (it == functions.end())
+            auto it = functions_.find(name);
+            if (it == functions_.end())
             {
                 auto it2 = custom_functions_.find(name);
                 if (it2 == custom_functions_.end())
@@ -2424,7 +2479,7 @@ namespace detail {
             }
             else
             {
-                return it->second;
+                return it->second.get();
             }
         }
 
@@ -2548,19 +2603,19 @@ namespace detail {
     {
     public:
         using char_type = typename Json::char_type;
-        using string_type = std::basic_string<char_type,std::char_traits<char_type>>;
+        using string_type = typename Json::string_type;
         using string_view_type = jsoncons::basic_string_view<char_type, std::char_traits<char_type>>;
         using value_type = Json;
         using reference = JsonReference;
         using pointer = typename std::conditional<std::is_const<typename std::remove_reference<JsonReference>::type>::value,typename Json::const_pointer,typename Json::pointer>::type;
         using path_value_pair_type = path_value_pair<Json,JsonReference>;
-        using json_location_node_type = json_location_node<char_type>;
+        using path_node_type = basic_path_node<typename Json::char_type>;
 
         virtual ~expression_base() noexcept = default;
 
         virtual value_type evaluate(dynamic_resources<Json,JsonReference>& resources,
                                            reference root,
-                                           //const json_location_node_type& path, 
+                                           //const path_node_type& path, 
                                            reference val, 
                                            result_options options,
                                            std::error_code& ec) const = 0;
@@ -2694,7 +2749,7 @@ namespace detail {
 
         token(token&& other) noexcept
         {
-            construct(std::forward<token>(other));
+            construct(std::move(other));
         }
 
         const Json& get_value(const_reference_arg_t, dynamic_resources<Json,JsonReference>&) const
@@ -2740,7 +2795,7 @@ namespace detail {
                 else
                 {
                     destroy();
-                    construct(std::forward<token>(other));
+                    construct(std::move(other));
                 }
             }
             return *this;
@@ -2930,22 +2985,26 @@ namespace detail {
     template <class Callback, class Json,class JsonReference>
     class callback_receiver : public node_receiver<Json,JsonReference>
     {
-        Callback& callback_;
     public:
+        using allocator_type = typename Json::allocator_type;
         using reference = JsonReference;
         using char_type = typename Json::char_type;
-        using json_location_node_type = json_location_node<char_type>;
-        using json_location_type = json_location<char_type>;
+        using string_type = typename Json::string_type;
+        using path_node_type = basic_path_node<typename Json::char_type>;
+    private:
+        allocator_type alloc_;
+        Callback& callback_;
+    public:
 
-        callback_receiver(Callback& callback)
-            : callback_(callback)
+        callback_receiver(Callback& callback, const allocator_type& alloc)
+            : alloc_(alloc), callback_(callback)
         {
         }
 
-        void add(const json_location_node_type& path_tail, 
+        void add(const path_node_type& base_path, 
                  reference value) override
         {
-            callback_(json_location_type(path_tail), value);
+            callback_(base_path, value);
         }
     };
 
@@ -2953,11 +3012,13 @@ namespace detail {
     class path_expression
     {
     public:
+        using allocator_type = typename Json::allocator_type;
         using char_type = typename Json::char_type;
-        using string_type = std::basic_string<char_type,std::char_traits<char_type>>;
+        using string_type = typename Json::string_type;
         using string_view_type = typename Json::string_view_type;
         using path_value_pair_type = path_value_pair<Json,JsonReference>;
         using path_value_pair_less_type = path_value_pair_less<Json,JsonReference>;
+        using path_value_pair_greater_type = path_value_pair_greater<Json,JsonReference>;
         using path_value_pair_equal_type = path_value_pair_equal<Json,JsonReference>;
         using value_type = Json;
         using reference = typename path_value_pair_type::reference;
@@ -2965,23 +3026,16 @@ namespace detail {
         using token_type = token<Json,JsonReference>;
         using reference_arg_type = typename std::conditional<std::is_const<typename std::remove_reference<JsonReference>::type>::value,
             const_reference_arg_t,reference_arg_t>::type;
-        using json_location_node_type = json_location_node<char_type>;
-        using json_location_type = json_location<char_type>;
+        using path_node_type = basic_path_node<typename Json::char_type>;
         using selector_type = jsonpath_selector<Json,JsonReference>;
     private:
+        allocator_type alloc_;
         selector_type* selector_;
         result_options required_options_;
     public:
 
-        path_expression()
-            : required_options_()
-        {
-        }
-
-        path_expression(path_expression&& expr) = default;
-
-        path_expression(selector_type* selector, bool paths_required)
-            : selector_(selector), required_options_()
+        path_expression(selector_type* selector, bool paths_required, const allocator_type& alloc)
+            : alloc_(alloc), selector_(selector), required_options_()
         {
             if (paths_required)
             {
@@ -2989,27 +3043,34 @@ namespace detail {
             }
         }
 
+        path_expression(const allocator_type& alloc)
+            : alloc_(alloc), selector_(nullptr), required_options_()
+        {
+        }
+
+        path_expression(path_expression&& expr) = default;
+
         path_expression& operator=(path_expression&& expr) = default;
 
         Json evaluate(dynamic_resources<Json,JsonReference>& resources, 
                       reference root,
-                      const json_location_node_type& path, 
+                      const path_node_type& path, 
                       reference instance,
                       result_options options) const
         {
-            Json result(json_array_arg);
+            Json result(json_array_arg, semantic_tag::none, alloc_);
 
             if ((options & result_options::path) == result_options::path)
             {
-                auto callback = [&result](const json_location_type& path, reference)
+                auto callback = [&result](const path_node_type& pathp, reference)
                 {
-                    result.emplace_back(path.to_string());
+                    result.emplace_back(to_basic_string(pathp)); 
                 };
                 evaluate(resources, root, path, instance, callback, options);
             }
             else
             {
-                auto callback = [&result](const json_location_type&, reference val)
+                auto callback = [&result](const path_node_type&, reference val)
                 {
                     result.push_back(val);
                 };
@@ -3020,10 +3081,10 @@ namespace detail {
         }
 
         template <class Callback>
-        typename std::enable_if<traits_extension::is_binary_function_object<Callback,const json_location_type&,reference>::value,void>::type
+        typename std::enable_if<extension_traits::is_binary_function_object<Callback,const path_node_type&,reference>::value,void>::type
         evaluate(dynamic_resources<Json,JsonReference>& resources, 
                  reference root,
-                 const json_location_node_type& path, 
+                 const path_node_type& path, 
                  reference current, 
                  Callback callback,
                  result_options options) const
@@ -3032,21 +3093,37 @@ namespace detail {
 
             options |= required_options_;
 
-            const result_options require_more = result_options::nodups | result_options::sort;
+            const result_options require_more = result_options::nodups | result_options::sort | result_options::sort_descending;
 
-            if ((options & require_more) != result_options())
+            if (selector_ != nullptr && (options & require_more) != result_options())
             {
-                path_value_receiver<Json,JsonReference> receiver;
+                path_value_receiver<Json,JsonReference> receiver{alloc_};
                 selector_->select(resources, root, path, current, receiver, options);
 
-                if (receiver.nodes.size() > 1 && (options & result_options::sort) == result_options::sort)
+                if (receiver.nodes.size() > 1) 
                 {
-                    std::sort(receiver.nodes.begin(), receiver.nodes.end(), path_value_pair_less_type());
+                    if ((options & result_options::sort_descending) == result_options::sort_descending)
+                    {
+                        std::sort(receiver.nodes.begin(), receiver.nodes.end(), path_value_pair_greater_type());
+                    } 
+                    else if ((options & result_options::sort) == result_options::sort)
+                    {
+                        std::sort(receiver.nodes.begin(), receiver.nodes.end(), path_value_pair_less_type());
+                    }
                 }
 
                 if (receiver.nodes.size() > 1 && (options & result_options::nodups) == result_options::nodups)
                 {
-                    if ((options & result_options::sort) == result_options::sort)
+                    if ((options & result_options::sort_descending) == result_options::sort_descending)
+                    {
+                        auto last = std::unique(receiver.nodes.rbegin(),receiver.nodes.rend(),path_value_pair_equal_type());
+                        receiver.nodes.erase(receiver.nodes.begin(), last.base());
+                        for (auto& node : receiver.nodes)
+                        {
+                            callback(node.path(), node.value());
+                        }
+                    }
+                    else if ((options & result_options::sort) == result_options::sort)
                     {
                         auto last = std::unique(receiver.nodes.begin(),receiver.nodes.end(),path_value_pair_equal_type());
                         receiver.nodes.erase(last,receiver.nodes.end());
@@ -3089,7 +3166,7 @@ namespace detail {
             }
             else
             {
-                callback_receiver<Callback,Json,JsonReference> receiver(callback);
+                callback_receiver<Callback,Json,JsonReference> receiver(callback, alloc_);
                 selector_->select(resources, root, path, current, receiver, options);
             }
         }
@@ -3103,7 +3180,10 @@ namespace detail {
                 s.append(level*2, ' ');
             }
             s.append("expression ");
-            s.append(selector_->to_string(level+1));
+            if (selector_ != nullptr)
+            {
+                s.append(selector_->to_string(level+1));
+            }
 
             return s;
 
@@ -3120,15 +3200,16 @@ namespace detail {
         using pointer = typename path_value_pair_type::value_pointer;
         using const_pointer = const value_type*;
         using char_type = typename Json::char_type;
-        using string_type = std::basic_string<char_type,std::char_traits<char_type>>;
+        using string_type = typename Json::string_type;
         using string_view_type = typename Json::string_view_type;
         using path_value_pair_less_type = path_value_pair_less<Json,reference>;
+        using path_value_pair_greater_type = path_value_pair_greater<Json,reference>;
         using path_value_pair_equal_type = path_value_pair_equal<Json,reference>;
         using parameter_type = parameter<Json>;
         using token_type = token<Json,reference>;
         using reference_arg_type = typename std::conditional<std::is_const<typename std::remove_reference<reference>::type>::value,
             const_reference_arg_t,reference_arg_t>::type;
-        using json_location_node_type = json_location_node<char_type>;
+        using path_node_type = basic_path_node<typename Json::char_type>;
         using stack_item_type = value_or_pointer<Json,JsonReference>;
     private:
         std::vector<token_type> token_list_;
@@ -3283,7 +3364,7 @@ namespace detail {
                             //}
                             //std::cout << "selector item: " << *ptr << "\n";
 
-                            reference val = tok.selector_->evaluate(resources, root, resources.current_path_node(), item.value(), options, ec);
+                            reference val = tok.selector_->evaluate(resources, root, path_node_type{}, item.value(), options, ec);
 
                             stack.pop_back();
                             stack.emplace_back(stack_item_type(std::addressof(val)));

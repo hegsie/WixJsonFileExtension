@@ -1,4 +1,4 @@
-﻿// Copyright 2021 Daniel Parker
+﻿// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -9,56 +9,68 @@
 
 #include <string>
 #include <vector>
-#include <functional>
+#include <memory>
+#include <type_traits> // std::is_const
+#include <limits> // std::numeric_limits
+#include <utility> // std::move
 #include <algorithm> // std::reverse
-#include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/detail/write_number.hpp>
+#include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpath/jsonpath_error.hpp>
-#include <jsoncons/json_type.hpp>
+#include <jsoncons_ext/jsonpath/jsonpath_utilities.hpp>
+#include <jsoncons_ext/jsonpath/path_node.hpp>
+#include <jsoncons/config/jsoncons_config.hpp>
 
 namespace jsoncons { 
-namespace jsonpath {
+namespace jsonpath { 
 
-    template <class CharT>
-    class json_location; 
-
-    enum class json_location_node_kind { root, index, name };
-
-    template <class CharT>
-    class json_location_node 
+    template <class CharT,class Allocator>
+    class basic_path_element 
     {
-        friend class json_location<CharT>;
     public:
         using char_type = CharT;
-        using string_type = std::basic_string<CharT>;
+        using allocator_type = Allocator;
+        using char_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<CharT>;
+        using string_type = std::basic_string<char_type,std::char_traits<char_type>,char_allocator_type>;
     private:
-
-        const json_location_node* parent_;
-        json_location_node_kind node_kind_;
+        bool has_name_;
         string_type name_;
         std::size_t index_;
+
     public:
-        json_location_node(char_type c)
-            : parent_(nullptr), node_kind_(json_location_node_kind::root), index_(0)
-        {
-            name_.push_back(c);
-        }
-
-        json_location_node(const json_location_node* parent, const string_type& name)
-            : parent_(parent), node_kind_(json_location_node_kind::name), name_(name), index_(0)
+        basic_path_element(const char_type* name, std::size_t length, 
+            const Allocator& alloc = Allocator())
+            : has_name_(true), name_(name, length, alloc), index_(0)
         {
         }
 
-        json_location_node(const json_location_node* parent, std::size_t index)
-            : parent_(parent), node_kind_(json_location_node_kind::index), index_(index)
+        explicit basic_path_element(const string_type& name)
+            : has_name_(true), name_(name), index_(0)
         {
         }
 
-        const json_location_node* parent() const { return parent_;}
-
-        json_location_node_kind node_kind() const
+        explicit basic_path_element(string_type&& name)
+            : has_name_(true), name_(std::move(name)), index_(0)
         {
-            return node_kind_;
+        }
+
+        basic_path_element(std::size_t index, 
+            const Allocator& alloc = Allocator())
+            : has_name_(false), name_(alloc), index_(index)
+        {
+        }
+
+        basic_path_element(const basic_path_element& other) = default;
+
+        basic_path_element& operator=(const basic_path_element& other) = default;
+
+        bool has_name() const
+        {
+            return has_name_;
+        }
+
+        bool has_index() const
+        {
+            return !has_name_;
         }
 
         const string_type& name() const
@@ -71,301 +83,559 @@ namespace jsonpath {
             return index_;
         }
 
-        void swap(json_location_node& node)
-        {
-            std::swap(parent_, node.parent_);
-            std::swap(node_kind_, node.node_kind_);
-            std::swap(name_, node.name_);
-            std::swap(index_, node.index_);
-        }
-
-    private:
-
-        std::size_t node_hash() const
-        {
-            std::size_t h = node_kind_ == json_location_node_kind::index ? std::hash<std::size_t>{}(index_) : std::hash<string_type>{}(name_);
-
-            return h;
-        }
-
-        int compare_node(const json_location_node& other) const
+        int compare(const basic_path_element& other) const
         {
             int diff = 0;
-            if (node_kind_ != other.node_kind_)
+            if (has_name_ != other.has_name_)
             {
-                diff = static_cast<int>(node_kind_) - static_cast<int>(other.node_kind_);
+                diff = static_cast<int>(has_name_) - static_cast<int>(other.has_name_);
             }
             else
             {
-                switch (node_kind_)
+                if (has_name_)
                 {
-                    case json_location_node_kind::root:
-                        diff = name_.compare(other.name_);
-                        break;
-                    case json_location_node_kind::index:
-                        diff = index_ < other.index_ ? -1 : index_ > other.index_ ? 1 : 0;
-                        break;
-                    case json_location_node_kind::name:
-                        diff = name_.compare(other.name_);
-                        break;
+                    diff = name_.compare(other.name_);
+                }
+                else
+                {
+                    diff = index_ < other.index_ ? -1 : index_ > other.index_ ? 1 : 0;
                 }
             }
             return diff;
         }
     };
 
+    // parser
     namespace detail {
+     
+        enum class json_location_state 
+        {
+            start,
+            relative_location,
+            single_quoted_string,
+            double_quoted_string,
+            unquoted_string,
+            selector,
+            digit,
+            expect_rbracket,
+            quoted_string_escape_char
+        };
 
-        template <class Iterator>
-        class json_location_iterator
-        { 
-            Iterator it_; 
+        enum class selector_separator_kind{bracket,dot};
+
+        template<class CharT, class Allocator>
+        class json_location_parser
+        {
+        public:
+            using allocator_type = Allocator;
+            using char_type = CharT;
+            using string_type = std::basic_string<CharT>;
+            using string_view_type = jsoncons::basic_string_view<CharT>;
+            using path_element_type = basic_path_element<CharT,Allocator>;
+            using path_element_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<path_element_type>;
+            using path_type = std::vector<path_element_type>;
+
+        private:
+
+            allocator_type alloc_;
+            std::size_t line_;
+            std::size_t column_;
+            const char_type* end_input_;
+            const char_type* p_;
 
         public:
-            using iterator_category = std::random_access_iterator_tag;
-
-            using value_type = typename std::remove_pointer<typename std::iterator_traits<Iterator>::value_type>::type;
-            using difference_type = typename std::iterator_traits<Iterator>::difference_type;
-            using pointer = const value_type*;
-            using reference = const value_type&;
-
-            json_location_iterator() : it_()
-            { 
-            }
-
-            explicit json_location_iterator(Iterator ptr) : it_(ptr)
+            json_location_parser(const allocator_type& alloc = allocator_type())
+                : alloc_(alloc), line_(1), column_(1),
+                  end_input_(nullptr),
+                  p_(nullptr)
             {
             }
 
-            json_location_iterator(const json_location_iterator&) = default;
-            json_location_iterator(json_location_iterator&&) = default;
-            json_location_iterator& operator=(const json_location_iterator&) = default;
-            json_location_iterator& operator=(json_location_iterator&&) = default;
-
-            template <class Iter,
-                      class=typename std::enable_if<!std::is_same<Iter,Iterator>::value && std::is_convertible<Iter,Iterator>::value>::type>
-            json_location_iterator(const json_location_iterator<Iter>& other)
-                : it_(other.it_)
+            json_location_parser(std::size_t line, std::size_t column, 
+                const allocator_type& alloc = allocator_type())
+                : alloc_(alloc), line_(line), column_(column),
+                  end_input_(nullptr),
+                  p_(nullptr)
             {
             }
 
-            operator Iterator() const
-            { 
-                return it_; 
+            std::size_t line() const
+            {
+                return line_;
             }
 
-            reference operator*() const 
+            std::size_t column() const
             {
-                return *(*it_);
+                return column_;
             }
 
-            pointer operator->() const 
+            path_type parse(const string_view_type& path)
             {
-                return (*it_);
+                std::error_code ec;
+                auto result = parse(path, ec);
+                if (ec)
+                {
+                    JSONCONS_THROW(jsonpath_error(ec, line_, column_));
+                }
+                return result;
             }
 
-            json_location_iterator& operator++() 
+            path_type parse(const string_view_type& path, std::error_code& ec)
             {
-                ++it_;
-                return *this;
+                std::vector<path_element_type> elements;
+
+                string_type buffer(alloc_);
+
+                end_input_ = path.data() + path.length();
+                p_ = path.data();
+
+
+                selector_separator_kind separator_kind = selector_separator_kind::bracket;
+
+                json_location_state state = json_location_state::start;
+
+                while (p_ < end_input_)
+                {
+                    switch (state)
+                    {
+                        case json_location_state::start: 
+                        {
+                            switch (*p_)
+                            {
+                                case ' ':case '\t':case '\r':case '\n':
+                                    advance_past_space_character();
+                                    break;
+                                case '$':
+                                case '@':
+                                {
+                                    state = json_location_state::relative_location;
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                }
+                                default:
+                                {
+                                    ec = jsonpath_errc::expected_root_or_current_node;
+                                    return path_type{};
+                                }
+                            }
+                            break;
+                        }
+                        case json_location_state::relative_location: 
+                            switch (*p_)
+                            {
+                                case ' ':case '\t':case '\r':case '\n':
+                                    advance_past_space_character();
+                                    break;
+                                case '[':
+                                    separator_kind = selector_separator_kind::bracket;
+                                    state = json_location_state::selector;
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                case '.':
+                                    separator_kind = selector_separator_kind::dot;
+                                    state = json_location_state::selector;
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                default:
+                                    ec = jsonpath_errc::expected_lbracket_or_dot;
+                                    return path_type();
+                            };
+                            break;
+                        case json_location_state::selector:
+                            switch (*p_)
+                            {
+                                case ' ':case '\t':case '\r':case '\n':
+                                    advance_past_space_character();
+                                    break;
+                                case '\'':
+                                    state = json_location_state::single_quoted_string;
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                case '\"':
+                                    state = json_location_state::double_quoted_string;
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
+                                    state = json_location_state::digit;
+                                    break;
+                                case '-':
+                                    ec = jsonpath_errc::expected_single_quote_or_digit;
+                                    return path_type();
+                                default:
+                                    if (separator_kind == selector_separator_kind::dot)
+                                    {
+                                        state = json_location_state::unquoted_string;
+                                    }
+                                    else
+                                    {
+                                        ec = jsonpath_errc::expected_single_quote_or_digit;
+                                        return path_type();
+                                    }
+                                    break;
+                            }
+                            break;
+                        case json_location_state::single_quoted_string:
+                            switch (*p_)
+                            {
+                                case '\'':
+                                    elements.emplace_back(buffer);
+                                    buffer.clear();
+                                    if (separator_kind == selector_separator_kind::bracket)
+                                    {
+                                        state = json_location_state::expect_rbracket;
+                                    }
+                                    else
+                                    {
+                                        state = json_location_state::relative_location;
+                                    }
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                case '\\':
+                                    state = json_location_state::quoted_string_escape_char;
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                default:
+                                    buffer.push_back(*p_);
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                            };
+                            break;
+                        case json_location_state::double_quoted_string:
+                            switch (*p_)
+                            {
+                                case '\"':
+                                    elements.emplace_back(buffer);
+                                    buffer.clear();
+                                    if (separator_kind == selector_separator_kind::bracket)
+                                    {
+                                        state = json_location_state::expect_rbracket;
+                                    }
+                                    else
+                                    {
+                                        state = json_location_state::relative_location;
+                                    }
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                case '\\':
+                                    state = json_location_state::quoted_string_escape_char;
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                default:
+                                    buffer.push_back(*p_);
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                            };
+                            break;
+                        case json_location_state::unquoted_string:
+                            switch (*p_)
+                            {
+                                case 'a':case 'b':case 'c':case 'd':case 'e':case 'f':case 'g':case 'h':case 'i':case 'j':case 'k':case 'l':case 'm':case 'n':case 'o':case 'p':case 'q':case 'r':case 's':case 't':case 'u':case 'v':case 'w':case 'x':case 'y':case 'z':
+                                case 'A':case 'B':case 'C':case 'D':case 'E':case 'F':case 'G':case 'H':case 'I':case 'J':case 'K':case 'L':case 'M':case 'N':case 'O':case 'P':case 'Q':case 'R':case 'S':case 'T':case 'U':case 'V':case 'W':case 'X':case 'Y':case 'Z':
+                                case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
+                                case '_':
+                                    buffer.push_back(*p_);
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                case '\\':
+                                    state = json_location_state::quoted_string_escape_char;
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                default:
+                                    if (typename std::make_unsigned<char_type>::type(*p_) > 127)
+                                    {
+                                        buffer.push_back(*p_);
+                                        ++p_;
+                                        ++column_;
+                                    }
+                                    else
+                                    {
+                                        elements.emplace_back(buffer);
+                                        buffer.clear();
+                                        advance_past_space_character();
+                                        state = json_location_state::relative_location;
+                                    }
+                                    break;
+                            };
+                            break;
+                        case json_location_state::expect_rbracket:
+                            switch (*p_)
+                            {
+                                case ' ':case '\t':case '\r':case '\n':
+                                    advance_past_space_character();
+                                    break;
+                                case ']':
+                                    state = json_location_state::relative_location;
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                default:
+                                    ec = jsonpath_errc::expected_rbracket;
+                                    return path_type(alloc_);
+                            }
+                            break;
+
+                        case json_location_state::digit:
+                            switch(*p_)
+                            {
+                                case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
+                                    buffer.push_back(*p_);
+                                    ++p_;
+                                    ++column_;
+                                    break;
+                                default:
+                                    std::size_t n{0};
+                                    auto r = jsoncons::detail::to_integer(buffer.data(), buffer.size(), n);
+                                    if (!r)
+                                    {
+                                        ec = jsonpath_errc::invalid_number;
+                                        return path_type(alloc_);
+                                    }
+                                    elements.emplace_back(n);
+                                    buffer.clear();
+                                    if (separator_kind == selector_separator_kind::bracket)
+                                    {
+                                        state = json_location_state::expect_rbracket;
+                                    }
+                                    else
+                                    {
+                                        state = json_location_state::relative_location;
+                                    }
+                                    break;
+                            }
+                            break;
+                        case json_location_state::quoted_string_escape_char:
+                            switch (*p_)
+                            {
+                                case '\"':
+                                    buffer.push_back('\"');
+                                    ++p_;
+                                    ++column_;
+                                    state = json_location_state::single_quoted_string;
+                                    break;
+                                case '\'':
+                                    buffer.push_back('\'');
+                                    ++p_;
+                                    ++column_;
+                                    state = json_location_state::single_quoted_string;
+                                    break;
+                                case '\\': 
+                                    buffer.push_back('\\');
+                                    ++p_;
+                                    ++column_;
+                                    state = json_location_state::single_quoted_string;
+                                    break;
+                                case '/':
+                                    buffer.push_back('/');
+                                    ++p_;
+                                    ++column_;
+                                    state = json_location_state::single_quoted_string;
+                                    break;
+                                case 'b':
+                                    buffer.push_back('\b');
+                                    ++p_;
+                                    ++column_;
+                                    state = json_location_state::single_quoted_string;
+                                    break;
+                                case 'f':
+                                    buffer.push_back('\f');
+                                    ++p_;
+                                    ++column_;
+                                    state = json_location_state::single_quoted_string;
+                                    break;
+                                case 'n':
+                                    buffer.push_back('\n');
+                                    ++p_;
+                                    ++column_;
+                                    state = json_location_state::single_quoted_string;
+                                    break;
+                                case 'r':
+                                    buffer.push_back('\r');
+                                    ++p_;
+                                    ++column_;
+                                    state = json_location_state::single_quoted_string;
+                                    break;
+                                case 't':
+                                    buffer.push_back('\t');
+                                    ++p_;
+                                    ++column_;
+                                    state = json_location_state::single_quoted_string;
+                                    break;
+                                case 'u':
+                                    ++p_;
+                                    ++column_;
+                                    state = json_location_state::single_quoted_string;
+                                    break;
+                                default:
+                                    ec = jsonpath_errc::illegal_escaped_character;
+                                    return path_type(alloc_);
+                            }
+                            break;
+                        default:
+                            ++p_;
+                            ++column_;
+                            break;
+                    }
+                }
+                if (state == json_location_state::unquoted_string)
+                {
+                    elements.emplace_back(buffer);
+                }
+                else if (state == json_location_state::digit)
+                {
+                    std::size_t n{ 0 };
+                    auto r = jsoncons::detail::to_integer(buffer.data(), buffer.size(), n);
+                    if (!r)
+                    {
+                        ec = jsonpath_errc::invalid_number;
+                        return path_type(alloc_);
+                    }
+                    elements.emplace_back(n);
+                }
+                else if (state != json_location_state::relative_location)
+                {
+                    ec = jsonpath_errc::unexpected_eof;
+                    return path_type();
+                }
+                return path_type(std::move(elements));
             }
 
-            json_location_iterator operator++(int) 
+            void advance_past_space_character()
             {
-                json_location_iterator temp = *this;
-                ++*this;
-                return temp;
-            }
-
-            json_location_iterator& operator--() 
-            {
-                --it_;
-                return *this;
-            }
-
-            json_location_iterator operator--(int) 
-            {
-                json_location_iterator temp = *this;
-                --*this;
-                return temp;
-            }
-
-            json_location_iterator& operator+=(const difference_type offset) 
-            {
-                it_ += offset;
-                return *this;
-            }
-
-            json_location_iterator operator+(const difference_type offset) const 
-            {
-                json_location_iterator temp = *this;
-                return temp += offset;
-            }
-
-            json_location_iterator& operator-=(const difference_type offset) 
-            {
-                return *this += -offset;
-            }
-
-            json_location_iterator operator-(const difference_type offset) const 
-            {
-                json_location_iterator temp = *this;
-                return temp -= offset;
-            }
-
-            difference_type operator-(const json_location_iterator& rhs) const noexcept
-            {
-                return it_ - rhs.it_;
-            }
-
-            reference operator[](const difference_type offset) const noexcept
-            {
-                return *(*(*this + offset));
-            }
-
-            bool operator==(const json_location_iterator& rhs) const noexcept
-            {
-                return it_ == rhs.it_;
-            }
-
-            bool operator!=(const json_location_iterator& rhs) const noexcept
-            {
-                return !(*this == rhs);
-            }
-
-            bool operator<(const json_location_iterator& rhs) const noexcept
-            {
-                return it_ < rhs.it_;
-            }
-
-            bool operator>(const json_location_iterator& rhs) const noexcept
-            {
-                return rhs < *this;
-            }
-
-            bool operator<=(const json_location_iterator& rhs) const noexcept
-            {
-                return !(rhs < *this);
-            }
-
-            bool operator>=(const json_location_iterator& rhs) const noexcept
-            {
-                return !(*this < rhs);
-            }
-
-            inline 
-            friend json_location_iterator<Iterator> operator+(
-                difference_type offset, json_location_iterator<Iterator> next) 
-            {
-                return next += offset;
+                switch (*p_)
+                {
+                    case ' ':case '\t':
+                        ++p_;
+                        ++column_;
+                        break;
+                    case '\r':
+                        if (p_+1 < end_input_ && *(p_+1) == '\n')
+                            ++p_;
+                        ++line_;
+                        column_ = 1;
+                        ++p_;
+                        break;
+                    case '\n':
+                        ++line_;
+                        column_ = 1;
+                        ++p_;
+                        break;
+                    default:
+                        break;
+                }
             }
         };
 
     } // namespace detail
 
-    template <class CharT>
-    class json_location
+    template <class CharT, class Allocator = std::allocator<CharT>>
+    class basic_json_location
     {
     public:
         using char_type = CharT;
-        using string_type = std::basic_string<CharT>;
-        using json_location_node_type = json_location_node<CharT>;
+        using allocator_type = Allocator;
+        using string_view_type = jsoncons::basic_string_view<char_type, std::char_traits<char_type>>;
+        using value_type = basic_path_element<CharT,Allocator>;
+        using const_iterator = typename std::vector<value_type>::const_iterator;
+        using iterator = const_iterator;
     private:
-        std::vector<const json_location_node_type*> nodes_;
+        using path_element_allocator_type = typename std::allocator_traits<allocator_type>:: template rebind_alloc<value_type>;
+        std::vector<value_type,path_element_allocator_type> elements_;
     public:
-        using iterator = typename detail::json_location_iterator<typename std::vector<const json_location_node_type*>::iterator>;
-        using const_iterator = typename detail::json_location_iterator<typename std::vector<const json_location_node_type*>::const_iterator>;
 
-        json_location(const json_location_node_type& node)
+        basic_json_location(const allocator_type& alloc=Allocator())
+            : elements_(alloc)
         {
-            const json_location_node_type* p = std::addressof(node);
-            do
+        }
+
+        explicit basic_json_location(const basic_path_node<char_type>& path, const allocator_type& alloc=Allocator())
+            : elements_(alloc)
+        {
+            auto p_node = std::addressof(path);
+            while (p_node != nullptr)
             {
-                nodes_.push_back(p);
-                p = p->parent_;
+                switch (p_node->node_kind())
+                {
+                    case path_node_kind::root:
+                        break;
+                    case path_node_kind::name:
+                        elements_.emplace_back(p_node->name().data(), p_node->name().size());
+                        break;
+                    case path_node_kind::index:
+                        elements_.emplace_back(p_node->index());
+                        break;
+                }
+                p_node = p_node->parent();
             }
-            while (p != nullptr);
-
-            std::reverse(nodes_.begin(), nodes_.end());
+            std::reverse(elements_.begin(), elements_.end());
         }
 
-        iterator begin()
+        basic_json_location(const basic_json_location&) = default;
+
+        basic_json_location(basic_json_location&&) = default;
+
+        explicit basic_json_location(std::vector<value_type,path_element_allocator_type>&& elements)
+            : elements_(std::move(elements))
         {
-            return iterator(nodes_.begin());
         }
 
-        iterator end()
-        {
-            return iterator(nodes_.end());
-        }
+        basic_json_location& operator=(const basic_json_location&) = default;
+
+        basic_json_location& operator=(basic_json_location&&) = default;
+
+        // Iterators
 
         const_iterator begin() const
         {
-            return const_iterator(nodes_.begin());
+            return elements_.begin();
         }
 
         const_iterator end() const
         {
-            return const_iterator(nodes_.end());
+            return elements_.end();
         }
 
-        const json_location_node_type& last() const
+        // Accessors
+
+        bool empty() const
         {
-            return *nodes_.back();
+            return elements_.empty();
         }
 
-        string_type to_string() const
+        std::size_t size() const
         {
-            string_type buffer;
-
-            for (const auto& node : nodes_)
-            {
-                switch (node->node_kind())
-                {
-                    case json_location_node_kind::root:
-                        buffer.append(node->name());
-                        break;
-                    case json_location_node_kind::name:
-                        buffer.push_back('[');
-                        buffer.push_back('\'');
-                        for (auto c : node->name())
-                        {
-                            if (c == '\'')
-                            {
-                                buffer.push_back('\\');
-                                buffer.push_back('\'');
-                            }
-                            else
-                            {
-                                buffer.push_back(c);
-                            }
-                        }
-                        buffer.push_back('\'');
-                        buffer.push_back(']');
-                        break;
-                    case json_location_node_kind::index:
-                        buffer.push_back('[');
-                        jsoncons::detail::from_integer(node->index(), buffer);
-                        buffer.push_back(']');
-                        break;
-                }
-            }
-
-            return buffer;
+            return elements_.size();
         }
 
-        int compare(const json_location& other) const
+        const value_type& operator[](std::size_t index) const
+        {
+            return elements_[index];
+        }
+
+        int compare(const basic_json_location& other) const
         {
             if (this == &other)
             {
                return 0;
             }
 
-            auto it1 = nodes_.begin();
-            auto it2 = other.nodes_.begin();
-            while (it1 != nodes_.end() && it2 != other.nodes_.end())
+            auto it1 = elements_.begin();
+            auto it2 = other.elements_.begin();
+            while (it1 != elements_.end() && it2 != other.elements_.end())
             {
-                int diff = (*it1)->compare_node(*(*it2));
+                int diff = it1->compare(*it2);
                 if (diff != 0)
                 {
                     return diff;
@@ -373,70 +643,239 @@ namespace jsonpath {
                 ++it1;
                 ++it2;
             }
-            return (nodes_.size() < other.nodes_.size()) ? -1 : (nodes_.size() == other.nodes_.size()) ? 0 : 1;
+            return (elements_.size() < other.elements_.size()) ? -1 : (elements_.size() == other.elements_.size()) ? 0 : 1;
         }
 
-        std::size_t hash() const
+        // Modifiers
+
+        void clear()
         {
-
-            auto it = nodes_.begin();
-            std::size_t hash = (*it).hash();
-            ++it;
-
-            while (it != nodes_.end())
-            {
-                hash += 17*(*it)->node_hash();
-                ++it;
-            }
-
-            return hash;
+            elements_.clear();
         }
 
-        friend bool operator==(const json_location& lhs, const json_location& rhs) 
+        basic_json_location& append(const string_view_type& s)
+        {
+            elements_.emplace_back(s.data(), s.size());
+            return *this;
+        }
+
+        template <class IntegerType>
+        typename std::enable_if<extension_traits::is_integer<IntegerType>::value, basic_json_location&>::type
+            append(IntegerType val)
+        {
+            elements_.emplace_back(static_cast<std::size_t>(val));
+
+            return *this;
+        }
+
+        basic_json_location& operator/=(const string_view_type& s)
+        {
+            elements_.emplace_back(s.data(), s.size());
+            return *this;
+        }
+
+        template <class IntegerType>
+        typename std::enable_if<extension_traits::is_integer<IntegerType>::value, basic_json_location&>::type
+            operator/=(IntegerType val)
+        {
+            elements_.emplace_back(static_cast<std::size_t>(val));
+
+            return *this;
+        }
+
+        friend bool operator==(const basic_json_location& lhs, const basic_json_location& rhs) 
         {
             return lhs.compare(rhs) == 0;
         }
 
-        friend bool operator!=(const json_location& lhs, const json_location& rhs)
+        friend bool operator!=(const basic_json_location& lhs, const basic_json_location& rhs)
         {
             return !(lhs == rhs);
         }
 
-        friend bool operator<(const json_location& lhs, const json_location& rhs) 
+        friend bool operator<(const basic_json_location& lhs, const basic_json_location& rhs) 
         {
             return lhs.compare(rhs) < 0;
         }
+
+        static basic_json_location parse(const jsoncons::basic_string_view<char_type>& normalized_path)
+        {
+            jsonpath::detail::json_location_parser<char,std::allocator<char>> parser;
+
+            std::vector<value_type> location = parser.parse(normalized_path);
+            return basic_json_location(std::move(location));
+        }
+
+        static basic_json_location parse(const jsoncons::basic_string_view<char_type>& normalized_path, 
+            std::error_code ec)
+        {
+            jsonpath::detail::json_location_parser<char,std::allocator<char>> parser;
+
+            std::vector<value_type> location = parser.parse(normalized_path, ec);
+            if (ec)
+            {
+                return basic_json_location();
+            }
+            return basic_json_location(std::move(location));
+        }
     };
 
-    template <class Json>
-    Json* select(Json& root, const json_location<typename Json::char_type>& path)
+    template<class Json>
+    std::size_t remove(Json& root_value, const basic_json_location<typename Json::char_type>& location)
     {
-        Json* current = std::addressof(root);
-        for (const auto& json_location_node : path)
+        std::size_t count = 0;
+
+        Json* p_current = std::addressof(root_value);
+
+        std::size_t last = location.size() == 0 ? 0 : location.size() - 1;
+        for (std::size_t i = 0; i < location.size(); ++i)
         {
-            if (json_location_node.node_kind() == json_location_node_kind::index)
+            const auto& element = location[i];
+            if (element.has_name())
             {
-                if (current->type() != json_type::array_value || json_location_node.index() >= current->size())
+                if (p_current->is_object())
                 {
-                    return nullptr; 
+                    auto it = p_current->find(element.name());
+                    if (it != p_current->object_range().end())
+                    {
+                        if (i < last)
+                        {
+                            p_current = std::addressof(it->value());
+                        }
+                        else
+                        {
+                            p_current->erase(it);
+                            count = 1;
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
-                current = std::addressof(current->at(json_location_node.index()));
+                else
+                {
+                    break;
+                }
             }
-            else if (json_location_node.node_kind() == json_location_node_kind::name)
+            else // if (element.has_index())
             {
-                if (current->type() != json_type::object_value)
+                if (p_current->is_array() && element.index() < p_current->size())
                 {
-                    return nullptr;
+                    if (i < last)
+                    {
+                        p_current = std::addressof(p_current->at(element.index()));
+                    }
+                    else
+                    {
+                        p_current->erase(p_current->array_range().begin()+element.index());
+                        count = 1;
+                    }
                 }
-                auto it = current->find(json_location_node.name());
-                if (it == current->object_range().end())
+                else
                 {
-                    return nullptr;
+                    break;
                 }
-                current = std::addressof(it->value());
             }
         }
-        return current;
+        return count;
+    }
+
+    template<class Json>
+    Json* get(Json& root_value, const basic_json_location<typename Json::char_type>& location)
+    {
+        Json* p_current = std::addressof(root_value);
+        bool found = false;
+
+        std::size_t last = location.size() == 0 ? 0 : location.size() - 1;
+        for (std::size_t i = 0; i < location.size(); ++i)
+        {
+            const auto& element = location[i];
+            if (element.has_name())
+            {
+                if (p_current->is_object())
+                {
+                    auto it = p_current->find(element.name());
+                    if (it != p_current->object_range().end())
+                    {
+                        p_current = std::addressof(it->value());
+                        if (i == last)
+                        {
+                            found = true;
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
+            else // if (element.has_index())
+            {
+                if (p_current->is_array() && element.index() < p_current->size())
+                {
+                    p_current = std::addressof(p_current->at(element.index()));
+                    if (i == last)
+                    {
+                        found = true;
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+        return found ? p_current : nullptr;
+    }
+
+    template <class CharT, class Allocator = std::allocator<CharT>>
+    std::basic_string<CharT, std::char_traits<CharT>, Allocator> to_basic_string(const basic_json_location<CharT,Allocator>& location, 
+        const Allocator& alloc = Allocator())
+    {
+        std::basic_string<CharT, std::char_traits<CharT>, Allocator> buffer(alloc);
+
+        buffer.push_back('$');
+        for (const auto& element : location)
+        {
+            if (element.has_name())
+            {
+                buffer.push_back('[');
+                buffer.push_back('\'');
+                jsoncons::jsonpath::escape_string(element.name().data(), element.name().size(), buffer);
+                buffer.push_back('\'');
+                buffer.push_back(']');
+            }
+            else
+            {
+                buffer.push_back('[');
+                jsoncons::detail::from_integer(element.index(), buffer);
+                buffer.push_back(']');
+            }
+        }
+
+        return buffer;
+    }
+
+    using json_location = basic_json_location<char>;
+    using wjson_location = basic_json_location<wchar_t>;
+    using path_element = basic_path_element<char,std::allocator<char>>;
+    using wpath_element = basic_path_element<wchar_t,std::allocator<char>>;
+
+    inline
+    std::string to_string(const json_location& location)
+    {
+        return to_basic_string(location);
+    }
+
+    inline
+    std::wstring to_wstring(const wjson_location& location)
+    {
+        return to_basic_string(location);
     }
 
 } // namespace jsonpath

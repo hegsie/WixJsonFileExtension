@@ -1,4 +1,4 @@
-/// Copyright 2021 Daniel Parker
+/// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -15,6 +15,9 @@ namespace jsoncons { namespace jsonpath {
     enum class jsonpath_errc 
     {
         success = 0,
+        expected_root_or_current_node,
+        expected_lbracket_or_dot,
+        expected_single_quote_or_digit,
         expected_root_or_function,
         expected_current_node,
         expected_rparen,
@@ -65,6 +68,12 @@ namespace jsoncons { namespace jsonpath {
         {
             switch (static_cast<jsonpath_errc>(ev))
             {
+                case jsonpath_errc::expected_root_or_current_node:
+                    return "Expected '$' or '@'";
+                case jsonpath_errc::expected_lbracket_or_dot:
+                    return "Expected '[' or '.'";
+                case jsonpath_errc::expected_single_quote_or_digit:
+                    return "Expected '\'' or digit";
                 case jsonpath_errc::expected_root_or_function:
                     return "Expected '$' or function expression";
                 case jsonpath_errc::expected_current_node:

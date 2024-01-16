@@ -1,4 +1,4 @@
-// Copyright 2017 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -59,7 +59,7 @@ public:
     template <class Sourceable>
         basic_ubjson_parser(Sourceable&& source,
                           const ubjson_decode_options& options = ubjson_decode_options(),
-                          const Allocator alloc = Allocator())
+                          const Allocator& alloc = Allocator())
        : source_(std::forward<Sourceable>(source)), 
          options_(options),
          more_(true), 

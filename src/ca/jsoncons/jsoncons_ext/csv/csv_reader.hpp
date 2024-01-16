@@ -1,4 +1,4 @@
-// Copyright 2013 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -40,7 +40,7 @@ namespace jsoncons { namespace csv {
         };
         using char_type = CharT;
         using temp_allocator_type = Allocator;
-        typedef typename std::allocator_traits<temp_allocator_type>:: template rebind_alloc<CharT> char_allocator_type;
+        using char_allocator_type = typename std::allocator_traits<temp_allocator_type>:: template rebind_alloc<CharT>;
 
         basic_csv_reader(const basic_csv_reader&) = delete; 
         basic_csv_reader& operator = (const basic_csv_reader&) = delete; 
@@ -183,7 +183,7 @@ namespace jsoncons { namespace csv {
         };
         using char_type = CharT;
         using temp_allocator_type = Allocator;
-        typedef typename std::allocator_traits<temp_allocator_type>:: template rebind_alloc<CharT> char_allocator_type;
+        using char_allocator_type = typename std::allocator_traits<temp_allocator_type>:: template rebind_alloc<CharT>;
 
         legacy_basic_csv_reader(const legacy_basic_csv_reader&) = delete; 
         legacy_basic_csv_reader& operator = (const legacy_basic_csv_reader&) = delete; 

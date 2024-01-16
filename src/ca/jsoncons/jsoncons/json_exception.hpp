@@ -1,4 +1,4 @@
-// Copyright 2013 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -12,7 +12,7 @@
 #include <system_error> // std::error_code
 #include <jsoncons/unicode_traits.hpp> // unicode_traits::convert
 #include <jsoncons/config/jsoncons_config.hpp>
-#include <jsoncons/traits_extension.hpp>
+#include <jsoncons/extension_traits.hpp>
 
 namespace jsoncons {
 
@@ -35,7 +35,7 @@ namespace jsoncons {
     template <class Base>
     class json_runtime_error<Base,
                              typename std::enable_if<std::is_convertible<Base*,std::exception*>::value &&
-                                                     traits_extension::is_constructible_from_string<Base>::value>::type> 
+                                                     extension_traits::is_constructible_from_string<Base>::value>::type> 
         : public Base, public virtual json_exception
     {
     public:

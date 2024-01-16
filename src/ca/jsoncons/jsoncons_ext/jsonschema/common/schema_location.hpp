@@ -1,11 +1,11 @@
-// Copyright 2020 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_JSONSCHEMA_SCHEMA_LOCATION_HPP
-#define JSONCONS_JSONSCHEMA_SCHEMA_LOCATION_HPP
+#ifndef JSONCONS_JSONSCHEMA_COMMON_SCHEMA_LOCATION_HPP
+#define JSONCONS_JSONSCHEMA_COMMON_SCHEMA_LOCATION_HPP
 
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/uri.hpp>
@@ -27,12 +27,17 @@ namespace jsonschema {
 
         schema_location(const std::string& uri)
         {
-            auto pos = uri.find('#');
-            if (pos != std::string::npos)
+            uri_ = jsoncons::uri(uri);
+            if (!uri_.fragment().empty())
             {
-                identifier_ = uri.substr(pos + 1); 
+                identifier_ = std::string(uri_.fragment().data(), uri_.fragment().size());
                 unescape_percent(identifier_);
             }
+        }
+
+        schema_location(const uri& uri)
+            : uri_{uri}
+        {
             uri_ = jsoncons::uri(uri);
         }
 
@@ -46,12 +51,12 @@ namespace jsonschema {
             return !identifier_.empty();
         }
 
-        bool has_identifier() const
+        bool has_plain_name_fragment() const
         {
             return !identifier_.empty() && identifier_.front() != '/';
         }
 
-        jsoncons::string_view base() const
+        jsoncons::uri base() const
         {
             return uri_.base();
         }
@@ -96,7 +101,7 @@ namespace jsonschema {
 
         schema_location append(const std::string& field) const
         {
-            if (has_identifier())
+            if (has_plain_name_fragment())
                 return *this;
 
             jsoncons::jsonpointer::json_pointer pointer(std::string(uri_.fragment()));
@@ -119,7 +124,7 @@ namespace jsonschema {
 
         schema_location append(std::size_t index) const
         {
-            if (has_identifier())
+            if (has_plain_name_fragment())
                 return *this;
 
             jsoncons::jsonpointer::json_pointer pointer(std::string(uri_.fragment()));
@@ -197,4 +202,4 @@ namespace jsonschema {
 } // namespace jsonschema
 } // namespace jsoncons
 
-#endif // JSONCONS_JSONSCHEMA_RULE_HPP
+#endif // JSONCONS_JSONSCHEMA_SCHEMA_LOCATION_HPP

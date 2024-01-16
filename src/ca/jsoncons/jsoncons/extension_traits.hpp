@@ -1,11 +1,11 @@
-// Copyright 2013 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_TRAITS_EXTENSION_HPP
-#define JSONCONS_TRAITS_EXTENSION_HPP
+#ifndef JSONCONS_EXTENSION_TRAITS_HPP
+#define JSONCONS_EXTENSION_TRAITS_HPP
 
 #include <stdexcept>
 #include <string>
@@ -20,8 +20,12 @@
 #include <climits> // CHAR_BIT
 #include <jsoncons/config/compiler_support.hpp>
 
+#if defined(JSONCONS_HAS_POLYMORPHIC_ALLOCATOR)
+#include <memory_resource> 
+#endif
+
 namespace jsoncons {
-namespace traits_extension {
+namespace extension_traits {
 
     // is_char8
     template <typename CharT, typename Enable=void>
@@ -266,6 +270,9 @@ namespace traits_extension {
     template <class T>
     struct is_character<T, 
            typename std::enable_if<std::is_same<T,char>::value ||
+#ifdef __cpp_char8_t
+                                   std::is_same<T,char8_t>::value ||
+#endif
                                    std::is_same<T,wchar_t>::value
     >::type> : std::true_type {};
 
@@ -303,6 +310,11 @@ namespace traits_extension {
 
     template<>
     struct is_cstring_impl<char*> : public std::true_type {};
+
+#ifdef __cpp_char8_t
+    template<>
+    struct is_cstring_impl<char8_t*> : public std::true_type {};
+#endif
 
     template<>
     struct is_cstring_impl<wchar_t*> : public std::true_type {};
@@ -878,7 +890,39 @@ namespace impl {
 
     #endif
 
-} // traits_extension
+    // is_propagating_allocator
+
+    template <class Allocator>
+    using 
+    allocator_outer_allocator_type_t = typename Allocator::outer_allocator_type;
+
+    template <class Allocator>
+    using 
+    allocator_inner_allocator_type_t = typename Allocator::inner_allocator_type;
+
+    template <class T, class Enable=void>
+    struct is_propagating_allocator : std::false_type {};
+
+    template <class T, class Enable=void>
+    struct is_polymorphic_allocator : std::false_type {};
+
+#if defined(JSONCONS_HAS_POLYMORPHIC_ALLOCATOR)
+    template<class T>
+    struct is_polymorphic_allocator
+    <
+        T, 
+        typename std::enable_if<(std::is_same<T,std::pmr::polymorphic_allocator<char>>::value) >::type
+    > : std::true_type{};
+#endif
+    template<class T>
+    struct is_propagating_allocator
+    <
+        T, 
+        typename std::enable_if<(is_polymorphic_allocator<T>::value) || 
+            (is_detected<allocator_outer_allocator_type_t,T>::value && is_detected<allocator_inner_allocator_type_t,T>::value)>::type
+    > : std::true_type{};
+
+} // extension_traits
 } // jsoncons
 
 #endif

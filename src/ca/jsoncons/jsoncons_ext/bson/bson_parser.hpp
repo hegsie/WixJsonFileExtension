@@ -1,4 +1,4 @@
-// Copyright 2017 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -44,34 +44,38 @@ struct parse_state
     parse_state& operator=(parse_state&&) = default;
 };
 
-template <class Source,class Allocator=std::allocator<char>>
+template <class Source,class TempAllocator=std::allocator<char>>
 class basic_bson_parser : public ser_context
 {
     using char_type = char;
     using char_traits_type = std::char_traits<char>;
-    using temp_allocator_type = Allocator;
+    using temp_allocator_type = TempAllocator;
     using char_allocator_type = typename std::allocator_traits<temp_allocator_type>:: template rebind_alloc<char_type>;                  
     using byte_allocator_type = typename std::allocator_traits<temp_allocator_type>:: template rebind_alloc<uint8_t>;                  
-    using parse_state_allocator_type = typename std::allocator_traits<temp_allocator_type>:: template rebind_alloc<parse_state>;                         
+    using parse_state_allocator_type = typename std::allocator_traits<temp_allocator_type>:: template rebind_alloc<parse_state>;
+    using string_type = std::basic_string<char,std::char_traits<char>,char_allocator_type>;
 
     Source source_;
     bson_decode_options options_;
     bool more_;
     bool done_;
     std::vector<uint8_t,byte_allocator_type> bytes_buffer_;
-    std::basic_string<char,std::char_traits<char>,char_allocator_type> text_buffer_;
+    string_type name_buffer_;
+    string_type text_buffer_;
     std::vector<parse_state,parse_state_allocator_type> state_stack_;
 public:
     template <class Sourceable>
     basic_bson_parser(Sourceable&& source,
                       const bson_decode_options& options = bson_decode_options(),
-                      const Allocator alloc = Allocator())
+                      const TempAllocator& temp_alloc = TempAllocator())
        : source_(std::forward<Sourceable>(source)), 
          options_(options),
          more_(true), 
          done_(false),
-         text_buffer_(alloc),
-         state_stack_(alloc)
+         bytes_buffer_(temp_alloc),
+         name_buffer_(temp_alloc),
+         text_buffer_(temp_alloc),
+         state_stack_(temp_alloc)
     {
         state_stack_.emplace_back(parse_mode::root,0,0);
     }
@@ -86,6 +90,7 @@ public:
         more_ = true;
         done_ = false;
         bytes_buffer_.clear();
+        name_buffer_.clear();
         text_buffer_.clear();
         state_stack_.clear();
         state_stack_.emplace_back(parse_mode::root,0,0);
@@ -292,22 +297,22 @@ private:
 
     void read_e_name(json_visitor& visitor, jsoncons::bson::bson_container_type type, std::error_code& ec)
     {
-        text_buffer_.clear();
-        read_cstring(ec);
+        name_buffer_.clear();
+        read_cstring(name_buffer_, ec);
         if (ec)
         {
             return;
         }
         if (type == jsoncons::bson::bson_container_type::document)
         {
-            auto result = unicode_traits::validate(text_buffer_.data(),text_buffer_.size());
+            auto result = unicode_traits::validate(name_buffer_.data(),name_buffer_.size());
             if (JSONCONS_UNLIKELY(result.ec != unicode_traits::conv_errc()))
             {
                 ec = bson_errc::invalid_utf8_text_string;
                 more_ = false;
                 return;
             }
-            more_ = visitor.key(jsoncons::basic_string_view<char>(text_buffer_.data(),text_buffer_.length()), *this, ec);
+            more_ = visitor.key(jsoncons::basic_string_view<char>(name_buffer_.data(),name_buffer_.length()), *this, ec);
         }
     }
 
@@ -336,7 +341,7 @@ private:
             case jsoncons::bson::bson_type::string_type:
             {
                 text_buffer_.clear();
-                read_string(ec);
+                read_string(text_buffer_, ec);
                 if (ec)
                 {
                     return;
@@ -354,7 +359,7 @@ private:
             case jsoncons::bson::bson_type::javascript_type:
             {
                 text_buffer_.clear();
-                read_string(ec);
+                read_string(text_buffer_, ec);
                 if (ec)
                 {
                     return;
@@ -373,13 +378,13 @@ private:
             {
                 text_buffer_.clear();
                 text_buffer_.push_back('/');
-                read_cstring(ec);
+                read_cstring(text_buffer_, ec);
                 if (ec)
                 {
                     return;
                 }
                 text_buffer_.push_back('/');
-                read_cstring(ec);
+                read_cstring(text_buffer_, ec);
                 if (ec)
                 {
                     return;
@@ -578,7 +583,7 @@ private:
         }
     }
 
-    void read_cstring(std::error_code& ec)
+    void read_cstring(string_type& buffer, std::error_code& ec)
     {
         uint8_t c = 0xff;
         while (true)
@@ -595,11 +600,11 @@ private:
             {
                 break;
             }
-            text_buffer_.push_back(c);
+            buffer.push_back(c);
         }
     }
 
-    void read_string(std::error_code& ec)
+    void read_string(string_type& buffer, std::error_code& ec)
     {
         uint8_t buf[sizeof(int32_t)]; 
         std::size_t n = source_.read(buf, sizeof(int32_t));
@@ -619,7 +624,7 @@ private:
         }
 
         std::size_t size = static_cast<std::size_t>(len) - static_cast<std::size_t>(1);
-        n = source_reader<Source>::read(source_, text_buffer_, size);
+        n = source_reader<Source>::read(source_, buffer, size);
         state_stack_.back().pos += n;
 
         if (JSONCONS_UNLIKELY(n != size))

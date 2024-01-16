@@ -44,11 +44,11 @@ namespace detail {
     private:
         basic_type_allocator_type alloc_;
     public:
-       using allocator_traits_type = std::allocator_traits<allocator_type>;
+       using allocator_traits_type = std::allocator_traits<basic_type_allocator_type>;
        using stored_allocator_type = allocator_type;
        using pointer = typename allocator_traits_type::pointer;
        using value_type = typename allocator_traits_type::value_type;
-       using size_type = typename allocator_traits_type::size_type;
+       using size_type = std::size_t;
        using pointer_traits = std::pointer_traits<pointer>;
 
         basic_bigint_base()
@@ -73,6 +73,7 @@ class basic_bigint : protected detail::basic_bigint_base<Allocator>
 {
     using base_t = detail::basic_bigint_base<Allocator>;
 
+    static constexpr uint64_t max_short_storage_size = 2;
 public:
 
     using size_type = typename base_t::size_type;
@@ -103,7 +104,7 @@ private:
         uint8_t is_dynamic_:1; 
         uint8_t is_negative_:1; 
         size_type length_;
-        uint64_t values_[2];
+        uint64_t values_[max_short_storage_size];
 
         short_storage()
             : is_dynamic_(false), 
@@ -146,7 +147,7 @@ private:
                                               std::is_signed<T>::value>::type* = 0)
             : is_dynamic_(false), 
               is_negative_(n < 0),
-              length_(n == 0 ? 0 : 2)
+              length_(n == 0 ? 0 : max_short_storage_size)
         {
             using unsigned_type = typename std::make_unsigned<T>::type;
 
@@ -163,7 +164,7 @@ private:
                                               !std::is_signed<T>::value>::type* = 0)
             : is_dynamic_(false), 
               is_negative_(false),
-              length_(n == 0 ? 0 : 2)
+              length_(n == 0 ? 0 : max_short_storage_size)
         {
             values_[0] = uint64_t(n & max_basic_type);;
             n >>= basic_type_bits;
@@ -210,7 +211,7 @@ private:
               data_(nullptr)
         {
             create(stor.length_, alloc);
-            std::memcpy(data_, stor.data_, stor.length_*sizeof(uint64_t));
+            std::memcpy(data_, stor.data_, size_type(stor.length_*sizeof(uint64_t)));
         }
 
         dynamic_storage(dynamic_storage&& stor) noexcept
@@ -231,7 +232,7 @@ private:
             data_ = std::allocator_traits<real_allocator_type>::allocate(alloc, capacity_);
             JSONCONS_TRY
             {
-                std::allocator_traits<real_allocator_type>::construct(alloc, traits_extension::to_plain_pointer(data_));
+                std::allocator_traits<real_allocator_type>::construct(alloc, extension_traits::to_plain_pointer(data_));
             }
             JSONCONS_CATCH(...)
             {
@@ -246,7 +247,7 @@ private:
             {
                 real_allocator_type alloc(a);
 
-                std::allocator_traits<real_allocator_type>::destroy(alloc, traits_extension::to_plain_pointer(data_));
+                std::allocator_traits<real_allocator_type>::destroy(alloc, extension_traits::to_plain_pointer(data_));
                 std::allocator_traits<real_allocator_type>::deallocate(alloc, data_,capacity_);
             }
         }
@@ -260,7 +261,7 @@ private:
             data_ = std::allocator_traits<real_allocator_type>::allocate(alloc, capacity_new);
             if (length_ > 0)
             {
-                std::memcpy( data_, data_old, length_*sizeof(uint64_t));
+                std::memcpy( data_, data_old, size_type(length_*sizeof(uint64_t)));
             }
             if (capacity_ > 0 && data_ != nullptr)
             {
@@ -346,7 +347,7 @@ public:
 
     constexpr size_type capacity() const
     {
-        return is_dynamic() ? dynamic_stor_.capacity_ : 2;
+        return is_dynamic() ? dynamic_stor_.capacity_ : max_short_storage_size;
     }
 
     bool is_negative() const
@@ -504,14 +505,26 @@ public:
     uint64_t* end() { return begin() + length(); }
     const uint64_t* end() const { return begin() + length(); }
 
-    void resize(size_type n)
+    void resize(size_type new_length)
     {
-        size_type len_old = common_stor_.length_;
-        reserve(n);
-        common_stor_.length_ = n;
-        if ( common_stor_.length_ > len_old )
+        size_type old_length = common_stor_.length_;
+        reserve(new_length);
+        common_stor_.length_ = new_length;
+
+        if (old_length < new_length)
         {
-            memset( data()+len_old, 0, (common_stor_.length_ - len_old)*sizeof(uint64_t) );
+            if (is_dynamic())
+            {
+                std::memset(dynamic_stor_.data_+old_length, 0, size_type((new_length-old_length)*sizeof(uint64_t)));
+            }
+            else
+            {
+                JSONCONS_ASSERT(new_length <= max_short_storage_size);
+                for (size_type i = old_length; i < max_short_storage_size; ++i)
+                {
+                    short_stor_.values_[i] = 0;
+                }
+            }
         }
     }
 
@@ -523,7 +536,7 @@ public:
            {
                size_type size = short_stor_.length_;
                size_type is_neg = short_stor_.is_negative_;
-               uint64_t values[2] = {short_stor_.values_[0], short_stor_.values_[1]};
+               uint64_t values[max_short_storage_size] = {short_stor_.values_[0], short_stor_.values_[1]};
 
                ::new (&dynamic_stor_) dynamic_storage();
                dynamic_stor_.reserve(n, get_allocator());
@@ -561,7 +574,7 @@ public:
             common_stor_.is_negative_ = y.is_negative();
             if ( y.length() > 0 )
             {
-                std::memcpy( data(), y.data(), y.length()*sizeof(uint64_t) );
+                std::memcpy( data(), y.data(), size_type(y.length()*sizeof(uint64_t)) );
             }
         }
         return *this;
@@ -658,13 +671,13 @@ public:
         if ( length() == 0 || y.length() == 0 )
                     return *this = 0;
         bool difSigns = is_negative() != y.is_negative();
-        if ( length() + y.length() == 2 ) // length() = y.length() = 1
+        if ( length() + y.length() == max_short_storage_size ) // length() = y.length() = 1
         {
             uint64_t a = data()[0], b = y.data()[0];
             data()[0] = a * b;
             if ( data()[0] / a != b )
             {
-                resize( 2 );
+                resize( max_short_storage_size );
                 DDproduct( a, b, data()[1], data()[0] );
             }
             common_stor_.is_negative_ = difSigns;
@@ -733,7 +746,7 @@ public:
 
     basic_bigint& operator<<=( uint64_t k )
     {
-        size_type q = (size_type)(k / basic_type_bits);
+        size_type q = size_type(k / basic_type_bits);
         if ( q ) // Increase common_stor_.length_ by q:
         {
             resize(length() + q);
@@ -759,7 +772,7 @@ public:
 
     basic_bigint& operator>>=(uint64_t k)
     {
-        size_type q = (size_type)(k / basic_type_bits);
+        size_type q = size_type(k / basic_type_bits);
         if ( q >= length() )
         {
             resize( 0 );
@@ -767,8 +780,8 @@ public:
         }
         if (q > 0)
         {
-            memmove( data(), data()+q, (size_type)((length() - q)*sizeof(uint64_t)) );
-            resize( length() - q );
+            memmove( data(), data()+q, size_type((length() - q)*sizeof(uint64_t)) );
+            resize( size_type(length() - q) );
             k %= basic_type_bits;
             if ( k == 0 )
             {
@@ -777,7 +790,7 @@ public:
             }
         }
 
-        size_type n = (size_type)(length() - 1);
+        size_type n = size_type(length() - 1);
         int64_t k1 = basic_type_bits - k;
         uint64_t mask = (uint64_t(1) << k) - 1;
         for (size_type i = 0; i <= n; i++)
@@ -873,9 +886,21 @@ public:
             *p-- &= *q--;
         }
 
-        if ( old_length > length() )
+        const size_type new_length = length();
+        if ( old_length > new_length )
         {
-            memset( data() + length(), 0, old_length - length() );
+            if (is_dynamic())
+            {
+                std::memset( dynamic_stor_.data_ + new_length, 0, size_type(old_length - new_length*sizeof(uint64_t)) );
+            }
+            else
+            {
+                JSONCONS_ASSERT(new_length <= max_short_storage_size);
+                for (size_type i = new_length; i < max_short_storage_size; ++i)
+                {
+                    short_stor_.values_[i] = 0;
+                }
+            }
         }
 
         reduce();

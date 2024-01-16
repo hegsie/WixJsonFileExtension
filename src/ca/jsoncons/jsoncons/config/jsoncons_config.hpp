@@ -1,4 +1,4 @@
-// Copyright 2019 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -16,8 +16,8 @@
 #include <jsoncons/detail/string_view.hpp>
 namespace jsoncons {
 using jsoncons::detail::basic_string_view;
-using string_view = basic_string_view<char, std::char_traits<char>>;
-using wstring_view = basic_string_view<wchar_t, std::char_traits<wchar_t>>;
+using string_view = jsoncons::detail::string_view;
+using wstring_view = jsoncons::detail::wstring_view;
 }
 #else 
 #include <string_view>
@@ -290,17 +290,22 @@ namespace jsoncons {
 
 #define JSONCONS_EXPAND(X) X    
 #define JSONCONS_QUOTE(Prefix, A) JSONCONS_EXPAND(Prefix ## #A)
+#define JSONCONS_WIDEN(A) JSONCONS_EXPAND(L ## A)
 
-#define JSONCONS_CSTRING_CONSTANT(CharT, Str) cstring_constant_of_type<CharT>(Str, JSONCONS_QUOTE(L, Str))
-#define JSONCONS_STRING_CONSTANT(CharT, Str) string_constant_of_type<CharT>(Str, JSONCONS_QUOTE(L, Str))
-#define JSONCONS_STRING_VIEW_CONSTANT(CharT, Str) string_view_constant_of_type<CharT>(Str, JSONCONS_QUOTE(L, Str))
+#define JSONCONS_CSTRING_CONSTANT(CharT, Str) cstring_constant_of_type<CharT>(Str, JSONCONS_WIDEN(Str))
+#define JSONCONS_STRING_CONSTANT(CharT, Str) string_constant_of_type<CharT>(Str, JSONCONS_WIDEN(Str))
+#define JSONCONS_STRING_VIEW_CONSTANT(CharT, Str) string_view_constant_of_type<CharT>(Str, JSONCONS_WIDEN(Str))
 
 #if defined(__clang__) 
 #define JSONCONS_HAS_STD_REGEX 1
+#define JSONCONS_HAS_STATEFUL_ALLOCATOR 1
 #elif (defined(__GNUC__) && (__GNUC__ == 4)) && (defined(__GNUC__) && __GNUC_MINOR__ < 9)
 // GCC 4.8 has broken regex support: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=53631
+// gcc 4.8 basic_string doesn't satisfy C++11 allocator requirements
+// and gcc doesn't support allocators with no default constructor
 #else
 #define JSONCONS_HAS_STD_REGEX 1
+#define JSONCONS_HAS_STATEFUL_ALLOCATOR 1
 #endif
 
 #endif // JSONCONS_CONFIG_JSONCONS_CONFIG_HPP

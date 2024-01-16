@@ -1,4 +1,4 @@
-// Copyright 2018 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -167,7 +167,7 @@ namespace jsoncons {
         bool byte_string_value(const Source& b, 
                                semantic_tag tag=semantic_tag::none, 
                                const ser_context& context=ser_context(),
-                               typename std::enable_if<traits_extension::is_byte_sequence<Source>::value,int>::type = 0)
+                               typename std::enable_if<extension_traits::is_byte_sequence<Source>::value,int>::type = 0)
         {
             std::error_code ec;
             bool more = visit_byte_string(byte_string_view(reinterpret_cast<const uint8_t*>(b.data()),b.size()), tag, context, ec);
@@ -182,7 +182,7 @@ namespace jsoncons {
         bool byte_string_value(const Source& b, 
                                uint64_t ext_tag, 
                                const ser_context& context=ser_context(),
-                               typename std::enable_if<traits_extension::is_byte_sequence<Source>::value,int>::type = 0)
+                               typename std::enable_if<extension_traits::is_byte_sequence<Source>::value,int>::type = 0)
         {
             std::error_code ec;
             bool more = visit_byte_string(byte_string_view(reinterpret_cast<const uint8_t*>(b.data()),b.size()), ext_tag, context, ec);
@@ -313,7 +313,7 @@ namespace jsoncons {
                                semantic_tag tag, 
                                const ser_context& context,
                                std::error_code& ec,
-                               typename std::enable_if<traits_extension::is_byte_sequence<Source>::value,int>::type = 0)
+                               typename std::enable_if<extension_traits::is_byte_sequence<Source>::value,int>::type = 0)
         {
             return visit_byte_string(byte_string_view(reinterpret_cast<const uint8_t*>(b.data()),b.size()), tag, context, ec);
         }
@@ -323,7 +323,7 @@ namespace jsoncons {
                                uint64_t ext_tag, 
                                const ser_context& context,
                                std::error_code& ec,
-                               typename std::enable_if<traits_extension::is_byte_sequence<Source>::value,int>::type = 0)
+                               typename std::enable_if<extension_traits::is_byte_sequence<Source>::value,int>::type = 0)
         {
             return visit_byte_string(byte_string_view(reinterpret_cast<const uint8_t*>(b.data()),b.size()), ext_tag, context, ec);
         }
@@ -1515,6 +1515,9 @@ namespace jsoncons {
         }
     };
 
+#if __cplusplus >= 201703L
+// not needed for C++17
+#else
     template <class C> constexpr C basic_json_diagnostics_visitor<C>::visit_begin_array_name[];
     template <class C> constexpr C basic_json_diagnostics_visitor<C>::visit_end_array_name[];
     template <class C> constexpr C basic_json_diagnostics_visitor<C>::visit_begin_object_name[];
@@ -1528,6 +1531,7 @@ namespace jsoncons {
     template <class C> constexpr C basic_json_diagnostics_visitor<C>::visit_int64_name[];
     template <class C> constexpr C basic_json_diagnostics_visitor<C>::visit_half_name[];
     template <class C> constexpr C basic_json_diagnostics_visitor<C>::visit_double_name[];
+#endif // C++17 check
 
     using json_visitor = basic_json_visitor<char>;
     using wjson_visitor = basic_json_visitor<wchar_t>;

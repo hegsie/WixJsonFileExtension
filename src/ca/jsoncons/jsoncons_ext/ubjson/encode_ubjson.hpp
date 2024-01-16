@@ -1,4 +1,4 @@
-// Copyright 2013 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -20,27 +20,27 @@
 namespace jsoncons { 
 namespace ubjson {
 
-    template<class T, class Container>
-    typename std::enable_if<traits_extension::is_basic_json<T>::value &&
-                            traits_extension::is_back_insertable_byte_container<Container>::value,void>::type 
+    template<class T, class ByteContainer>
+    typename std::enable_if<extension_traits::is_basic_json<T>::value &&
+                            extension_traits::is_back_insertable_byte_container<ByteContainer>::value,void>::type 
     encode_ubjson(const T& j, 
-                  Container& v, 
+                  ByteContainer& cont, 
                   const ubjson_encode_options& options = ubjson_encode_options())
     {
         using char_type = typename T::char_type;
-        basic_ubjson_encoder<jsoncons::bytes_sink<Container>> encoder(v, options);
+        basic_ubjson_encoder<jsoncons::bytes_sink<ByteContainer>> encoder(cont, options);
         auto adaptor = make_json_visitor_adaptor<basic_json_visitor<char_type>>(encoder);
         j.dump(adaptor);
     }
 
-    template<class T, class Container>
-    typename std::enable_if<!traits_extension::is_basic_json<T>::value &&
-                            traits_extension::is_back_insertable_byte_container<Container>::value,void>::type 
+    template<class T, class ByteContainer>
+    typename std::enable_if<!extension_traits::is_basic_json<T>::value &&
+                            extension_traits::is_back_insertable_byte_container<ByteContainer>::value,void>::type 
     encode_ubjson(const T& val, 
-                  Container& v, 
+                  ByteContainer& cont, 
                   const ubjson_encode_options& options = ubjson_encode_options())
     {
-        basic_ubjson_encoder<jsoncons::bytes_sink<Container>> encoder(v, options);
+        basic_ubjson_encoder<jsoncons::bytes_sink<ByteContainer>> encoder(cont, options);
         std::error_code ec;
         encode_traits<T,char>::encode(val, encoder, json(), ec);
         if (ec)
@@ -50,7 +50,7 @@ namespace ubjson {
     }
 
     template<class T>
-    typename std::enable_if<traits_extension::is_basic_json<T>::value,void>::type 
+    typename std::enable_if<extension_traits::is_basic_json<T>::value,void>::type 
     encode_ubjson(const T& j, 
                   std::ostream& os, 
                   const ubjson_encode_options& options = ubjson_encode_options())
@@ -62,7 +62,7 @@ namespace ubjson {
     }
 
     template<class T>
-    typename std::enable_if<!traits_extension::is_basic_json<T>::value,void>::type 
+    typename std::enable_if<!extension_traits::is_basic_json<T>::value,void>::type 
     encode_ubjson(const T& val, 
                   std::ostream& os, 
                   const ubjson_encode_options& options = ubjson_encode_options())
@@ -78,27 +78,27 @@ namespace ubjson {
 
     // with temp_allocator_arg_t
 
-    template<class T, class Container, class TempAllocator>
-    typename std::enable_if<traits_extension::is_basic_json<T>::value &&
-                            traits_extension::is_back_insertable_byte_container<Container>::value,void>::type 
-    encode_ubjson(temp_allocator_arg_t, const TempAllocator& temp_alloc,const T& j, 
-                  Container& v, 
+    template<class T, class ByteContainer, class Allocator, class TempAllocator>
+    typename std::enable_if<extension_traits::is_basic_json<T>::value &&
+                            extension_traits::is_back_insertable_byte_container<ByteContainer>::value,void>::type 
+    encode_ubjson(const allocator_set<Allocator,TempAllocator>& alloc_set,const T& j, 
+                  ByteContainer& cont, 
                   const ubjson_encode_options& options = ubjson_encode_options())
     {
         using char_type = typename T::char_type;
-        basic_ubjson_encoder<jsoncons::bytes_sink<Container>,TempAllocator> encoder(v, options, temp_alloc);
+        basic_ubjson_encoder<jsoncons::bytes_sink<ByteContainer>,TempAllocator> encoder(cont, options, alloc_set.get_temp_allocator());
         auto adaptor = make_json_visitor_adaptor<basic_json_visitor<char_type>>(encoder);
         j.dump(adaptor);
     }
 
-    template<class T, class Container, class TempAllocator>
-    typename std::enable_if<!traits_extension::is_basic_json<T>::value &&
-                            traits_extension::is_back_insertable_byte_container<Container>::value,void>::type 
-    encode_ubjson(temp_allocator_arg_t, const TempAllocator& temp_alloc,const T& val, 
-                  Container& v, 
+    template<class T, class ByteContainer, class Allocator, class TempAllocator>
+    typename std::enable_if<!extension_traits::is_basic_json<T>::value &&
+                            extension_traits::is_back_insertable_byte_container<ByteContainer>::value,void>::type 
+    encode_ubjson(const allocator_set<Allocator,TempAllocator>& alloc_set,const T& val, 
+                  ByteContainer& cont, 
                   const ubjson_encode_options& options = ubjson_encode_options())
     {
-        basic_ubjson_encoder<jsoncons::bytes_sink<Container>,TempAllocator> encoder(v, options, temp_alloc);
+        basic_ubjson_encoder<jsoncons::bytes_sink<ByteContainer>,TempAllocator> encoder(cont, options, alloc_set.get_temp_allocator());
         std::error_code ec;
         encode_traits<T,char>::encode(val, encoder, json(), ec);
         if (ec)
@@ -107,27 +107,27 @@ namespace ubjson {
         }
     }
 
-    template<class T,class TempAllocator>
-    typename std::enable_if<traits_extension::is_basic_json<T>::value,void>::type 
-    encode_ubjson(temp_allocator_arg_t, const TempAllocator& temp_alloc,
+    template<class T,class Allocator,class TempAllocator>
+    typename std::enable_if<extension_traits::is_basic_json<T>::value,void>::type 
+    encode_ubjson(const allocator_set<Allocator,TempAllocator>& alloc_set,
                   const T& j, 
                   std::ostream& os, 
                   const ubjson_encode_options& options = ubjson_encode_options())
     {
         using char_type = typename T::char_type;
-        basic_ubjson_encoder<jsoncons::binary_stream_sink,TempAllocator> encoder(os, options, temp_alloc);
+        basic_ubjson_encoder<jsoncons::binary_stream_sink,TempAllocator> encoder(os, options, alloc_set.get_temp_allocator());
         auto adaptor = make_json_visitor_adaptor<basic_json_visitor<char_type>>(encoder);
         j.dump(adaptor);
     }
 
-    template<class T,class TempAllocator>
-    typename std::enable_if<!traits_extension::is_basic_json<T>::value,void>::type 
-    encode_ubjson(temp_allocator_arg_t, const TempAllocator& temp_alloc,
+    template<class T,class Allocator,class TempAllocator>
+    typename std::enable_if<!extension_traits::is_basic_json<T>::value,void>::type 
+    encode_ubjson(const allocator_set<Allocator,TempAllocator>& alloc_set,
                   const T& val, 
                   std::ostream& os, 
                   const ubjson_encode_options& options = ubjson_encode_options())
     {
-        basic_ubjson_encoder<jsoncons::binary_stream_sink,TempAllocator> encoder(os, options, temp_alloc);
+        basic_ubjson_encoder<jsoncons::binary_stream_sink,TempAllocator> encoder(os, options, alloc_set.get_temp_allocator());
         std::error_code ec;
         encode_traits<T,char>::encode(val, encoder, json(), ec);
         if (ec)

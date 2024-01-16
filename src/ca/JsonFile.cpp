@@ -101,6 +101,7 @@ extern "C" UINT WINAPI JsonFile(
 
         WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile ElementPath for Id:%ls", sczId);
         hr = WcaGetRecordString(hRec, jfqElementPath, &sczElementPath);
+        WcaLog(LOGMSG_STANDARD, "Found Wix4JsonFile ElementPath for Id:%ls", sczElementPath);
         ExitOnFailure1(hr, "Failed to get ElementPath for Wix4JsonFile with Id: %s", sczId);
 
         WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile Value for Id:%ls", sczId);

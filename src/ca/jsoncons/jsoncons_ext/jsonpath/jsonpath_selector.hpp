@@ -1,4 +1,4 @@
-// Copyright 2021 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -113,7 +113,8 @@ namespace detail {
     public:
         using reference = JsonReference;
         using char_type = typename Json::char_type;
-        using json_location_node_type = json_location_node<char_type>;
+        using string_type = typename Json::string_type;
+        using path_node_type = basic_path_node<typename Json::char_type>;
 
         Json* val;
 
@@ -122,7 +123,7 @@ namespace detail {
         {
         }
 
-        void add(const json_location_node_type&, reference value) override
+        void add(const path_node_type&, reference value) override
         {
             val->emplace_back(value);
         }
@@ -132,13 +133,14 @@ namespace detail {
     struct path_generator
     {
         using char_type = typename Json::char_type;
-        using json_location_node_type = json_location_node<char_type>;
-        using string_type = std::basic_string<char_type>;
+        using string_view_type = typename Json::string_view_type;
+        using string_type = typename Json::string_type;
+        using path_node_type = basic_path_node<typename Json::char_type>;
 
-        static const json_location_node_type& generate(dynamic_resources<Json,JsonReference>& resources,
-                                                       const json_location_node_type& last, 
-                                                       std::size_t index, 
-                                                       result_options options) 
+        static const path_node_type& generate(dynamic_resources<Json,JsonReference>& resources,
+            const path_node_type& last, 
+            std::size_t index, 
+            result_options options) 
         {
             const result_options require_path = result_options::path | result_options::nodups | result_options::sort;
             if ((options & require_path) != result_options())
@@ -151,10 +153,10 @@ namespace detail {
             }
         }
 
-        static const json_location_node_type& generate(dynamic_resources<Json,JsonReference>& resources,
-                                                       const json_location_node_type& last, 
-                                                       const string_type& identifier, 
-                                                       result_options options) 
+        static const path_node_type& generate(dynamic_resources<Json,JsonReference>& resources,
+            const path_node_type& last, 
+            const string_view_type& identifier, 
+            result_options options) 
         {
             const result_options require_path = result_options::path | result_options::nodups | result_options::sort;
             if ((options & require_path) != result_options())
@@ -175,12 +177,13 @@ namespace detail {
 
         supertype* tail_;
     public:
+        using char_type = typename Json::char_type;
+        using string_type = typename Json::string_type;
         using value_type = typename supertype::value_type;
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
-        using json_location_type = typename supertype::json_location_type;
+        using path_node_type = typename supertype::path_node_type;
         using node_receiver_type = typename supertype::node_receiver_type;
         using selector_type = typename supertype::selector_type;
 
@@ -208,7 +211,7 @@ namespace detail {
 
         void tail_select(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference current,
                            node_receiver_type& receiver,
                            result_options options) const
@@ -225,7 +228,7 @@ namespace detail {
 
         reference evaluate_tail(dynamic_resources<Json,JsonReference>& resources,
                                 reference root,
-                                const json_location_node_type& last, 
+                                const path_node_type& last, 
                                 reference current, 
                                 result_options options,
                                 std::error_code& ec) const
@@ -262,37 +265,31 @@ namespace detail {
         using supertype = base_selector<Json,JsonReference>;
         using path_generator_type = path_generator<Json,JsonReference>;
     public:
+        using char_type = typename Json::char_type;
+        using string_type = typename Json::string_type;
+        using string_view_type = typename Json::string_view_type;
         using value_type = typename supertype::value_type;
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
-        using char_type = typename Json::char_type;
-        using string_type = std::basic_string<char_type>;
-        using string_view_type = basic_string_view<char_type>;
+        using path_node_type = typename supertype::path_node_type;
         using node_receiver_type = typename supertype::node_receiver_type;
     private:
         string_type identifier_;
     public:
 
-        identifier_selector(const string_view_type& identifier)
+        identifier_selector(const string_type& identifier)
             : base_selector<Json,JsonReference>(), identifier_(identifier)
         {
         }
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference current,
                     node_receiver_type& receiver,
                     result_options options) const override
         {
-            //std::string buf;
-            //buf.append("identifier selector: ");
-            //unicode_traits::convert(identifier_.data(),identifier_.size(),buf);
-
-            static const char_type length_name[] = {'l', 'e', 'n', 'g', 't', 'h', 0};
-
             if (current.is_object())
             {
                 auto it = current.find(identifier_);
@@ -317,20 +314,20 @@ namespace detail {
                                             current[index], receiver, options);
                     }
                 }
-                else if (identifier_ == length_name && current.size() > 0)
+                else if (identifier_ == resources.length_label() && current.size() >= 0)
                 {
-                    pointer ptr = resources.create_json(current.size());
+                    pointer ptr = resources.create_json(current.size(), semantic_tag::none, resources.get_allocator());
                     this->tail_select(resources, root, 
                                         path_generator_type::generate(resources, last, identifier_, options), 
                                         *ptr, 
                                         receiver, options);
                 }
             }
-            else if (current.is_string() && identifier_ == length_name)
+            else if (current.is_string() && identifier_ == resources.length_label())
             {
                 string_view_type sv = current.as_string_view();
                 std::size_t count = unicode_traits::count_codepoints(sv.data(), sv.size());
-                pointer ptr = resources.create_json(count);
+                pointer ptr = resources.create_json(count, semantic_tag::none, resources.get_allocator());
                 this->tail_select(resources, root, 
                                     path_generator_type::generate(resources, last, identifier_, options), 
                                     *ptr, receiver, options);
@@ -340,13 +337,11 @@ namespace detail {
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference current, 
                            result_options options,
                            std::error_code& ec) const override
         {
-            static const char_type length_name[] = {'l', 'e', 'n', 'g', 't', 'h', 0};
-
             if (current.is_object())
             {
                 auto it = current.find(identifier_);
@@ -379,9 +374,9 @@ namespace detail {
                         return resources.null_value();
                     }
                 }
-                else if (identifier_ == length_name && current.size() > 0)
+                else if (identifier_ == resources.length_label() && current.size() > 0)
                 {
-                    pointer ptr = resources.create_json(current.size());
+                    pointer ptr = resources.create_json(current.size(), semantic_tag::none, resources.get_allocator());
                     return this->evaluate_tail(resources, root, 
                                                path_generator_type::generate(resources, last, identifier_, options), 
                                                *ptr, 
@@ -392,11 +387,11 @@ namespace detail {
                     return resources.null_value();
                 }
             }
-            else if (current.is_string() && identifier_ == length_name)
+            else if (current.is_string() && identifier_ == resources.length_label())
             {
                 string_view_type sv = current.as_string_view();
                 std::size_t count = unicode_traits::count_codepoints(sv.data(), sv.size());
-                pointer ptr = resources.create_json(count);
+                pointer ptr = resources.create_json(count, semantic_tag::none, resources.get_allocator());
                 return this->evaluate_tail(resources, root, 
                                            path_generator_type::generate(resources, last, identifier_, options), 
                                            *ptr, options, ec);
@@ -436,7 +431,7 @@ namespace detail {
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
+        using path_node_type = typename supertype::path_node_type;
         using node_receiver_type = typename supertype::node_receiver_type;
 
         root_selector(std::size_t id)
@@ -446,7 +441,7 @@ namespace detail {
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference,
                     node_receiver_type& receiver,
                     result_options options) const override
@@ -456,7 +451,7 @@ namespace detail {
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference, 
                            result_options options,
                            std::error_code& ec) const override
@@ -502,7 +497,7 @@ namespace detail {
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
+        using path_node_type = typename supertype::path_node_type;
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
 
@@ -512,7 +507,7 @@ namespace detail {
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference current,
                     node_receiver_type& receiver,
                     result_options options) const override
@@ -523,7 +518,7 @@ namespace detail {
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference current, 
                            result_options options,
                            std::error_code& ec) const override
@@ -552,16 +547,17 @@ namespace detail {
     class parent_node_selector final : public base_selector<Json,JsonReference>
     {
         using supertype = base_selector<Json,JsonReference>;
+        using allocator_type = typename Json::allocator_type;
 
         int ancestor_depth_;
 
     public:
+        using char_type = typename Json::char_type;
         using value_type = typename supertype::value_type;
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
-        using json_location_type = typename supertype::json_location_type;
+        using path_node_type = typename supertype::path_node_type;
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
 
@@ -572,12 +568,12 @@ namespace detail {
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference,
                     node_receiver_type& receiver,
                     result_options options) const override
         {
-            const json_location_node_type* ancestor = std::addressof(last);
+            const path_node_type* ancestor = std::addressof(last);
             int index = 0;
             while (ancestor != nullptr && index < ancestor_depth_)
             {
@@ -587,23 +583,22 @@ namespace detail {
 
             if (ancestor != nullptr)
             {
-                json_location_type path(*ancestor);
-                pointer ptr = jsoncons::jsonpath::select(root,path);
+                pointer ptr = jsoncons::jsonpath::select(root,*ancestor);
                 if (ptr != nullptr)
                 {
-                    this->tail_select(resources, root, path.last(), *ptr, receiver, options);        
+                    this->tail_select(resources, root, *ancestor, *ptr, receiver, options);
                 }
             }
         }
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference, 
                            result_options options,
                            std::error_code& ec) const override
         {
-            const json_location_node_type* ancestor = std::addressof(last);
+            const path_node_type* ancestor = std::addressof(last);
             int index = 0;
             while (ancestor != nullptr && index < ancestor_depth_)
             {
@@ -613,11 +608,10 @@ namespace detail {
 
             if (ancestor != nullptr)
             {
-                json_location_type path(*ancestor);
-                pointer ptr = jsoncons::jsonpath::select(root,path);
+                pointer ptr = jsoncons::jsonpath::select(root, *ancestor);
                 if (ptr != nullptr)
                 {
-                    return this->evaluate_tail(resources, root, path.last(), *ptr, options, ec);        
+                    return this->evaluate_tail(resources, root, *ancestor, *ptr, options, ec);
                 }
                 else
                 {
@@ -656,7 +650,7 @@ namespace detail {
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
+        using path_node_type = typename supertype::path_node_type;
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
 
@@ -667,7 +661,7 @@ namespace detail {
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference current,
                     node_receiver_type& receiver,
                     result_options options) const override
@@ -698,7 +692,7 @@ namespace detail {
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference current, 
                            result_options options,
                            std::error_code& ec) const override
@@ -746,7 +740,7 @@ namespace detail {
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
+        using path_node_type = typename supertype::path_node_type;
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
 
@@ -757,7 +751,7 @@ namespace detail {
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference current,
                     node_receiver_type& receiver,
                     result_options options) const override
@@ -785,12 +779,12 @@ namespace detail {
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference current, 
                            result_options options,
                            std::error_code&) const override
         {
-            auto jptr = resources.create_json(json_array_arg);
+            auto jptr = resources.create_json(json_array_arg, semantic_tag::none, resources.get_allocator());
             json_array_receiver<Json,JsonReference> receiver(jptr);
             select(resources, root, last, current, receiver, options);
             return *jptr;
@@ -821,7 +815,7 @@ namespace detail {
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
+        using path_node_type = typename supertype::path_node_type;
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
 
@@ -832,7 +826,7 @@ namespace detail {
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference current,
                     node_receiver_type& receiver,
                     result_options options) const override
@@ -860,12 +854,12 @@ namespace detail {
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference current, 
                            result_options options,
                            std::error_code&) const override
         {
-            auto jptr = resources.create_json(json_array_arg);
+            auto jptr = resources.create_json(json_array_arg, semantic_tag::none, resources.get_allocator());
             json_array_receiver<Json,JsonReference> receiver(jptr);
             select(resources, root, last, current, receiver, options);
             return *jptr;
@@ -891,12 +885,12 @@ namespace detail {
     {
         using supertype = jsonpath_selector<Json,JsonReference>;
     public:
+        using char_type = typename Json::char_type;
         using value_type = typename supertype::value_type;
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
-        using json_location_type = typename supertype::json_location_type;
+        using path_node_type = typename supertype::path_node_type;
         using path_expression_type = path_expression<Json, JsonReference>;
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
@@ -928,7 +922,7 @@ namespace detail {
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference current, 
                     node_receiver_type& receiver,
                     result_options options) const override
@@ -941,12 +935,12 @@ namespace detail {
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference current, 
                            result_options options,
                            std::error_code&) const override
         {
-            auto jptr = resources.create_json(json_array_arg);
+            auto jptr = resources.create_json(json_array_arg, semantic_tag::none, resources.get_allocator());
             json_array_receiver<Json,JsonReference> receiver(jptr);
             select(resources,root,last,current,receiver,options);
             return *jptr;
@@ -983,7 +977,7 @@ namespace detail {
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
+        using path_node_type = typename supertype::path_node_type;
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
 
@@ -994,7 +988,7 @@ namespace detail {
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference current, 
                     node_receiver_type& receiver,
                     result_options options) const override
@@ -1033,12 +1027,12 @@ namespace detail {
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference current, 
                            result_options options,
                            std::error_code&) const override
         {
-            auto jptr = resources.create_json(json_array_arg);
+            auto jptr = resources.create_json(json_array_arg, semantic_tag::none, resources.get_allocator());
             json_array_receiver<Json,JsonReference> receiver(jptr);
             select(resources, root, last, current, receiver, options);
             return *jptr;
@@ -1063,6 +1057,8 @@ namespace detail {
     class index_expression_selector final : public base_selector<Json,JsonReference>
     {
         using supertype = base_selector<Json,JsonReference>;
+        using allocator_type = typename Json::allocator_type;
+        using string_type = typename Json::string_type;
 
         expression<Json,JsonReference> expr_;
 
@@ -1071,7 +1067,7 @@ namespace detail {
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
+        using path_node_type = typename supertype::path_node_type;
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
 
@@ -1082,7 +1078,7 @@ namespace detail {
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference current, 
                     node_receiver_type& receiver,
                     result_options options) const override
@@ -1101,8 +1097,9 @@ namespace detail {
                 }
                 else if (j.is_string() && current.is_object())
                 {
+                    auto sv = j.as_string_view();
                     this->tail_select(resources, root, 
-                                      path_generator_type::generate(resources, last, j.as_string(), options),
+                                      path_generator_type::generate(resources, last, sv, options),
                                       current.at(j.as_string_view()), receiver, options);
                 }
             }
@@ -1110,7 +1107,7 @@ namespace detail {
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference current, 
                            result_options options,
                            std::error_code& ec) const override
@@ -1169,7 +1166,7 @@ namespace detail {
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
+        using path_node_type = typename supertype::path_node_type;
         using node_receiver_type = typename supertype::node_receiver_type;
 
         slice_selector(const slice& slic)
@@ -1179,7 +1176,7 @@ namespace detail {
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference current,
                     node_receiver_type& receiver,
                     result_options options) const override
@@ -1233,12 +1230,12 @@ namespace detail {
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference current, 
                            result_options options,
                            std::error_code&) const override
         {
-            auto jptr = resources.create_json(json_array_arg);
+            auto jptr = resources.create_json(json_array_arg, semantic_tag::none, resources.get_allocator());
             json_array_receiver<Json,JsonReference> accum(jptr);
             select(resources, root, last, current, accum, options);
             return *jptr;
@@ -1257,7 +1254,7 @@ namespace detail {
         using reference = typename supertype::reference;
         using pointer = typename supertype::pointer;
         using path_value_pair_type = typename supertype::path_value_pair_type;
-        using json_location_node_type = typename supertype::json_location_node_type;
+        using path_node_type = typename supertype::path_node_type;
         using path_generator_type = path_generator<Json,JsonReference>;
         using node_receiver_type = typename supertype::node_receiver_type;
 
@@ -1268,7 +1265,7 @@ namespace detail {
 
         void select(dynamic_resources<Json,JsonReference>& resources,
                     reference root,
-                    const json_location_node_type& last, 
+                    const path_node_type& last, 
                     reference current, 
                     node_receiver_type& receiver,
                     result_options options) const override
@@ -1283,7 +1280,7 @@ namespace detail {
 
         reference evaluate(dynamic_resources<Json,JsonReference>& resources,
                            reference root,
-                           const json_location_node_type& last, 
+                           const path_node_type& last, 
                            reference current, 
                            result_options options,
                            std::error_code& ec) const override

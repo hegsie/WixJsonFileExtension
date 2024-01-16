@@ -1,11 +1,11 @@
-// Copyright 2020 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
 // See https://github.com/danielaparker/jsoncons for latest version
 
-#ifndef JSONCONS_URI_HPP
-#define JSONCONS_URI_HPP
+#ifndef JSONCONS_JSONSCHEMA_URI_HPP
+#define JSONCONS_JSONSCHEMA_URI_HPP
 
 #include <string> // std::string
 #include <algorithm> 
@@ -13,7 +13,7 @@
 #include <jsoncons/config/jsoncons_config.hpp>
 #include <jsoncons/json_exception.hpp>
 
-namespace jsoncons {
+namespace jsoncons { 
 
     class uri
     {
@@ -158,7 +158,7 @@ namespace jsoncons {
 
         bool is_absolute() const noexcept
         {
-            return scheme_.first != scheme_.second;
+            return scheme_.second > scheme_.first;
         }
 
         bool is_opaque() const noexcept 
@@ -166,7 +166,10 @@ namespace jsoncons {
           return is_absolute() && !authority().empty();
         }
 
-        string_view base() const noexcept { return string_view(uri_.data()+scheme_.first,(path_.second-scheme_.first)); }
+        uri base() const noexcept 
+        { 
+            return uri{ scheme(), userinfo(), host(), port(), path(), jsoncons::string_view(), jsoncons::string_view()};
+        }
 
         string_view scheme() const noexcept { return string_view(uri_.data()+scheme_.first,(scheme_.second-scheme_.first)); }
 

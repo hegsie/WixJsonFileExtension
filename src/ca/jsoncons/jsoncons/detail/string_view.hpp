@@ -1,4 +1,4 @@
-// Copyright 2019 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -531,7 +531,29 @@ namespace detail {
         return rhs.compare(lhs) < 0;
     }
 
+    using string_view = basic_string_view<char>;
+    using wstring_view = basic_string_view<wchar_t>;
+
 } // namespace detail
 } // namespace jsoncons
+
+namespace std {
+    template<class CharT,class Traits>
+    struct hash<jsoncons::detail::basic_string_view<CharT, Traits>>
+    {
+        size_t operator()(const jsoncons::detail::basic_string_view<CharT, Traits>& s) const noexcept
+        {
+            const int p = 53;
+            const int m = 1000000009;
+            size_t hash_value = 0;
+            size_t p_pow = 1;
+            for (CharT c : s) {
+                hash_value = (hash_value + (c - 'a' + 1) * p_pow) % m;
+                p_pow = (p_pow * p) % m;
+            }
+            return hash_value;
+        }
+    };
+} // namespace std
 
 #endif

@@ -1,4 +1,4 @@
-// Copyright 2013 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -75,25 +75,26 @@ namespace jsoncons {
               elements_(begin,end,value_allocator_type(alloc))
         {
         }
-        json_array(const json_array& val)
-            : allocator_holder<allocator_type>(val.get_allocator()),
-              elements_(val.elements_)
+
+        json_array(const json_array& other)
+            : allocator_holder<allocator_type>(other.get_allocator()),
+              elements_(other.elements_)
         {
         }
-        json_array(const json_array& val, const allocator_type& alloc)
+        json_array(const json_array& other, const allocator_type& alloc)
             : allocator_holder<allocator_type>(alloc), 
-              elements_(val.elements_,value_allocator_type(alloc))
+              elements_(other.elements_,value_allocator_type(alloc))
         {
         }
 
-        json_array(json_array&& val) noexcept
-            : allocator_holder<allocator_type>(val.get_allocator()), 
-              elements_(std::move(val.elements_))
+        json_array(json_array&& other) noexcept
+            : allocator_holder<allocator_type>(other.get_allocator()), 
+              elements_(std::move(other.elements_))
         {
         }
-        json_array(json_array&& val, const allocator_type& alloc)
+        json_array(json_array&& other, const allocator_type& alloc)
             : allocator_holder<allocator_type>(alloc), 
-              elements_(std::move(val.elements_),value_allocator_type(alloc))
+              elements_(std::move(other.elements_),value_allocator_type(alloc))
         {
         }
 
@@ -128,9 +129,9 @@ namespace jsoncons {
             return elements_.empty();
         }
 
-        void swap(json_array<Json>& val) noexcept
+        void swap(json_array& other) noexcept
         {
-            elements_.swap(val.elements_);
+            elements_.swap(other.elements_);
         }
 
         std::size_t size() const {return elements_.size();}
@@ -192,21 +193,21 @@ namespace jsoncons {
         // push_back
 
         template <class T, class A=allocator_type>
-        typename std::enable_if<traits_extension::is_stateless<A>::value,void>::type 
+        typename std::enable_if<extension_traits::is_stateless<A>::value,void>::type 
         push_back(T&& value)
         {
             elements_.emplace_back(std::forward<T>(value));
         }
 
         template <class T, class A=allocator_type>
-        typename std::enable_if<!traits_extension::is_stateless<A>::value,void>::type 
+        typename std::enable_if<!extension_traits::is_stateless<A>::value,void>::type 
         push_back(T&& value)
         {
-            elements_.emplace_back(std::forward<T>(value),get_allocator());
+            elements_.emplace_back(std::forward<T>(value));
         }
 
         template <class T, class A=allocator_type>
-        typename std::enable_if<traits_extension::is_stateless<A>::value,iterator>::type 
+        typename std::enable_if<extension_traits::is_stateless<A>::value,iterator>::type 
         insert(const_iterator pos, T&& value)
         {
     #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
@@ -217,14 +218,14 @@ namespace jsoncons {
     #endif
         }
         template <class T, class A=allocator_type>
-        typename std::enable_if<!traits_extension::is_stateless<A>::value,iterator>::type 
+        typename std::enable_if<!extension_traits::is_stateless<A>::value,iterator>::type 
         insert(const_iterator pos, T&& value)
         {
     #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
             iterator it = elements_.begin() + (pos - elements_.begin());
-            return elements_.emplace(it, std::forward<T>(value), get_allocator());
+            return elements_.emplace(it, std::forward<T>(value));
     #else
-            return elements_.emplace(pos, std::forward<T>(value), get_allocator());
+            return elements_.emplace(pos, std::forward<T>(value));
     #endif
         }
 
@@ -241,7 +242,7 @@ namespace jsoncons {
         }
 
         template <class A=allocator_type, class... Args>
-        typename std::enable_if<traits_extension::is_stateless<A>::value,iterator>::type 
+        typename std::enable_if<extension_traits::is_stateless<A>::value,iterator>::type 
         emplace(const_iterator pos, Args&&... args)
         {
     #if defined(JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR)
@@ -267,18 +268,18 @@ namespace jsoncons {
 
         const_iterator end() const {return elements_.end();}
 
-        bool operator==(const json_array<Json>& rhs) const noexcept
+        bool operator==(const json_array& rhs) const noexcept
         {
             return elements_ == rhs.elements_;
         }
 
-        bool operator<(const json_array<Json>& rhs) const noexcept
+        bool operator<(const json_array& rhs) const noexcept
         {
             return elements_ < rhs.elements_;
         }
     private:
 
-        json_array& operator=(const json_array<Json>&) = delete;
+        json_array& operator=(const json_array&) = delete;
 
         void flatten_and_destroy() noexcept
         {

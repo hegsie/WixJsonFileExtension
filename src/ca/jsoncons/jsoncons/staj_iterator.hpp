@@ -1,4 +1,4 @@
-// Copyright 2018 Daniel Parker
+// Copyright 2013-2023 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -156,8 +156,6 @@ namespace jsoncons {
 
         void next(std::error_code& ec)
         {
-            using char_type = typename Json::char_type;
-
             if (!done())
             {
                 view_->cursor_->next(ec);
@@ -321,8 +319,6 @@ namespace jsoncons {
 
         void next(std::error_code& ec)
         {
-            using char_type = typename Json::char_type;
-
             view_->cursor_->next(ec);
             if (ec)
             {
@@ -415,27 +411,27 @@ namespace jsoncons {
         }
     };
 
-    template <class T, class CharT, class Json=typename std::conditional<traits_extension::is_basic_json<T>::value,T,basic_json<CharT>>::type>
+    template <class T, class CharT, class Json=typename std::conditional<extension_traits::is_basic_json<T>::value,T,basic_json<CharT>>::type>
     staj_array_view<T, Json> staj_array(basic_staj_cursor<CharT>& cursor)
     {
         return staj_array_view<T, Json>(cursor);
     }
 
-    template <class Key, class T, class CharT, class Json=typename std::conditional<traits_extension::is_basic_json<T>::value,T,basic_json<CharT>>::type>
+    template <class Key, class T, class CharT, class Json=typename std::conditional<extension_traits::is_basic_json<T>::value,T,basic_json<CharT>>::type>
     staj_object_view<Key, T, Json> staj_object(basic_staj_cursor<CharT>& cursor)
     {
         return staj_object_view<Key, T, Json>(cursor);
     }
 
 #if !defined(JSONCONS_NO_DEPRECATED)
-    template <class T, class CharT, class Json=typename std::conditional<traits_extension::is_basic_json<T>::value,T,basic_json<CharT>>::type>
+    template <class T, class CharT, class Json=typename std::conditional<extension_traits::is_basic_json<T>::value,T,basic_json<CharT>>::type>
     JSONCONS_DEPRECATED_MSG("Instead, use staj_array()")
     staj_array_view<T, Json> make_array_iterator(basic_staj_cursor<CharT>& cursor)
     {
         return staj_array_view<T, Json>(cursor);
     }
 
-    template <class T, class CharT, class Json=typename std::conditional<traits_extension::is_basic_json<T>::value,T,basic_json<CharT>>::type>
+    template <class T, class CharT, class Json=typename std::conditional<extension_traits::is_basic_json<T>::value,T,basic_json<CharT>>::type>
     JSONCONS_DEPRECATED_MSG("Instead, use staj_object()")
     staj_object_view<std::basic_string<CharT>, T, Json> make_object_iterator(basic_staj_cursor<CharT>& cursor)
     {
