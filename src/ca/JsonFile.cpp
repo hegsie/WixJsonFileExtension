@@ -76,53 +76,47 @@ extern "C" UINT WINAPI JsonFile(
 
     int iFlags = 0;
         
-    ExitOnFailure(hr, "Failed to initialize Wix4JsonFile.");
+    ExitOnFailure(hr, "Failed to initialize Wix4JsonFile.")
 
     // anything to do?
     if (S_OK != WcaTableExists(L"Wix4JsonFile"))
     {
         WcaLog(LOGMSG_STANDARD, "Wix4JsonFile table doesn't exist, so there are no .json files to update.");
-        ExitFunction();
+        ExitFunction()
     }
 
     // query and loop through all the remove folders exceptions
     hr = WcaOpenExecuteView(vcsJsonFileQuery, &hView);
-    ExitOnFailure(hr, "Failed to open view on Wix4JsonFile table");
+    ExitOnFailure(hr, "Failed to open view on Wix4JsonFile table")
 
     while (S_OK == (hr = WcaFetchRecord(hView, &hRec)))
     {
-        WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile Id.");
         hr = WcaGetRecordString(hRec, jfqId, &sczId);
-        ExitOnFailure(hr, "Failed to get Wix4JsonFile identity.");
+        ExitOnFailure(hr, "Failed to get Wix4JsonFile identity.")
 
-        WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile File for Id:%ls", sczId);
         hr = WcaGetRecordFormattedString(hRec, jfqFile, &sczFile);
-        ExitOnFailure(hr, "failed to get File for Wix4JsonFile with Id: %s", sczId);
+        ExitOnFailure(hr, "failed to get File for Wix4JsonFile with Id: %s", sczId)
 
-        WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile ElementPath for Id:%ls", sczId);
         hr = WcaGetRecordString(hRec, jfqElementPath, &sczElementPath);
-        WcaLog(LOGMSG_STANDARD, "Found Wix4JsonFile ElementPath for Id:%ls", sczElementPath);
-        ExitOnFailure(hr, "Failed to get ElementPath for Wix4JsonFile with Id: %s", sczId);
+        WcaLog(LOGMSG_STANDARD, "Found ElementPath :%ls", sczElementPath);
+        ExitOnFailure(hr, "Failed to get ElementPath for Wix4JsonFile with Id: %s", sczId)
 
-        WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile Value for Id:%ls", sczId);
+        WcaLog(LOGMSG_STANDARD, "Getting Value :%ls", sczId);
         hr = WcaGetRecordFormattedString(hRec, jfqValue, &sczValue);
-        ExitOnFailure(hr, "Failed to get Value for Wix4JsonFile with Id: %s", sczId);
+        ExitOnFailure(hr, "Failed to get Value for Wix4JsonFile with Id: %s", sczId)
 
-        WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile Flags for Id:%ls", sczId);
         hr = WcaGetRecordInteger(hRec, jfqFlags, &iFlags);
-        ExitOnFailure(hr, "Failed to get Flags for Wix4JsonFile with Id: %s", sczId);
+        ExitOnFailure(hr, "Failed to get Flags for Wix4JsonFile with Id: %s", sczId)
 
-        WcaLog(LOGMSG_STANDARD, "Getting Wix4JsonFile Component for Id:%ls", sczId);
         hr = WcaGetRecordString(hRec, jfqComponent, &sczComponent);
-        ExitOnFailure(hr, "Failed to get Wix4JsonFile component.");
+        ExitOnFailure(hr, "Failed to get Wix4JsonFile component.")
 
         UINT er = ::MsiGetComponentStateW(hInstall, sczComponent, &isInstalled, &isAction);
-        ExitOnFailure(hr = HRESULT_FROM_WIN32(er), "failed to get install state for Component: %ls", sczComponent);
+        ExitOnFailure(hr = HRESULT_FROM_WIN32(er), "failed to get install state for Component: %ls", sczComponent)
         if (WcaIsInstalling(isInstalled, isAction))
         {
-            WcaLog(LOGMSG_STANDARD, "Updating Wix4JsonFile for Id:%ls", sczId);
             hr = UpdateJsonFile(sczId, sczFile, sczElementPath, sczValue, iFlags, sczComponent);
-            ExitOnFailure(hr, "Failed while navigating path: %S for row: %S", sczFile, sczId);
+            ExitOnFailure(hr, "Failed while navigating path: %S for row: %S", sczFile, sczId)
         }
         else if (WcaIsUninstalling(isInstalled, isAction)) {
             // Don't really worry about this yet as file is deleted on uninstall
@@ -134,14 +128,14 @@ extern "C" UINT WINAPI JsonFile(
     {
         hr = S_OK;
     }
-    ExitOnFailure(hr, "Failure occured while processing Wix4JsonFile table");
+    ExitOnFailure(hr, "Failure occured while processing Wix4JsonFile table")
 
 LExit:
-    ReleaseStr(sczId);
-    ReleaseStr(sczFile);
-    ReleaseStr(sczElementPath);
-    ReleaseStr(sczValue);
-    ReleaseStr(sczComponent);
+    ReleaseStr(sczId)
+    ReleaseStr(sczFile)
+    ReleaseStr(sczElementPath)
+    ReleaseStr(sczValue)
+    ReleaseStr(sczComponent)
 
     if (hView)
     {
@@ -280,6 +274,22 @@ static HRESULT UpdateJsonFile(
     return hr;
 }
 
+HRESULT ReturnLastError(std::string action)
+{
+    DWORD err = GetLastError();
+    if (err != 0)
+    {
+        std::string errorString = GetLastErrorAsString();
+        WcaLog(LOGMSG_STANDARD, "GetLastError returned %d, %s @ %s", err, errorString.c_str(), action.c_str());
+
+        HRESULT hr = HRESULT_FROM_WIN32(err);
+
+        WcaLog(LOGMSG_STANDARD, "HRESULT hr %d", hr);
+        return hr;
+    }
+    return S_OK;
+}
+
 HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue) {
 
     try
@@ -289,17 +299,19 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
 
         _bstr_t bValue(wzValue);
         char* cValue = bValue;
+        HRESULT hr = S_OK;
 
         if (fs::exists(fs::path (wzFile))) {
 
             std::ifstream is(cFile);
-            json j = json::parse(is);
 
-            if (is.fail())
+            if (!is.is_open())
             {
-                WcaLog(LOGMSG_STANDARD, "Unable to open the target file, either its missing or rights need adding/elevating");
-                return 1;
+                hr = ReturnLastError("Opening the file stream");
+                if (FAILED(hr)) return hr;
             }
+
+            json j = json::parse(is);
 
             if (createValue) {
                 std::error_code ec;
@@ -311,24 +323,19 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                 else {
                     std::ofstream os(wzFile,
                         std::ios_base::out | std::ios_base::trunc);
-                    WcaLog(LOGMSG_STANDARD, "created output stream");
 
                     pretty_print(j).dump(os);
-                    WcaLog(LOGMSG_STANDARD, "dumped output stream");
 
                     os.close();
-                    WcaLog(LOGMSG_STANDARD, "closed output stream");
                 }
             }
             else {
 
-                json result1 = jsonpath::json_query(j, sElementPath);
+                json query = jsonpath::json_query(j, sElementPath);
 
-                WcaLog(LOGMSG_STANDARD, "Found %d elements", result1.size());
+                WcaLog(LOGMSG_STANDARD, "Found %d elements", query.size());
 
-                if (result1.size() > 0) {
-                    WcaLog(LOGMSG_STANDARD, "About to replace value: |%s| {%s}", sElementPath.c_str(), cValue);
-
+                if (query.size() > 0) {
                     auto f = [cValue](const std::string& /*path*/, json& value)
                         {
                             value = cValue;
@@ -336,25 +343,22 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
 
                     jsonpath::json_replace(j, sElementPath, f);
 
+                    hr = ReturnLastError("Replacing elements in the json");
+                    if (FAILED(hr)) return hr;
+
                     WcaLog(LOGMSG_STANDARD, "Updating the json %s with values %s.", sElementPath.c_str(), cValue);
 
                     std::ofstream os(wzFile,
                         std::ios_base::out | std::ios_base::trunc);
-                    WcaLog(LOGMSG_STANDARD, "created output stream");
-
-                    DWORD err = GetLastError();
-                    if (err != 0)
+                     
+                    if (!os.is_open())
                     {
-                        std::string errorString = GetLastErrorAsString();
-                        WcaLog(LOGMSG_STANDARD, "GetLastError returned %d, %s", err, errorString.c_str());
-                        return HRESULT_FROM_WIN32(err);
+                        hr = ReturnLastError("creating the output stream");
+                        if (FAILED(hr)) return hr;
                     }
 
                     pretty_print(j).dump(os);
-                    WcaLog(LOGMSG_STANDARD, "dumped output stream");
-
                     os.close();
-                    WcaLog(LOGMSG_STANDARD, "closed output stream");
                 }
                 else {
                     WcaLog(LOGMSG_STANDARD, "No elements to update: %s", sElementPath.c_str());
@@ -382,20 +386,21 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
     {
         _bstr_t bFile(wzFile);
         char* cFile = bFile;
+        HRESULT hr = S_OK;
 
         if (fs::exists(fs::path(wzFile))) {
             json j;
             std::ifstream is(cFile);
 
-            if (is.fail())
+            if (!is.is_open())
             {
-                WcaLog(LOGMSG_STANDARD, "Unable to open the target file, either its missing or rights need adding/elevating");
-                return 1;
+                hr = ReturnLastError("Opening the file stream");
+                if (FAILED(hr)) return hr;
             }
 
             is >> j;
 
-            auto query = jsonpath::json_query(j, sElementPath.c_str());
+            auto query = jsonpath::json_query(j, sElementPath);
 /*
             MessageBox(
                 NULL,
@@ -404,7 +409,7 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
                 MB_OK
             );      */      
 
-            WcaLog(LOGMSG_STANDARD, "About to delete value: |%s| with value(s) %s ", sElementPath.c_str(),query.to_string().c_str());
+            WcaLog(LOGMSG_STANDARD, "About to delete value: $%s$ with value(s) %s ", sElementPath.c_str(),query.to_string().c_str());
 
             auto deleter = [](const json::string_view_type& path, json& val)
             {
@@ -414,29 +419,23 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
                     val.clear();
             };
 
-            jsonpath::json_replace(j, sElementPath.c_str(), deleter);
+            jsonpath::json_replace(j, sElementPath, deleter);
 
-            std::cout << j << std::endl;
+            std::cout << j << '\n';
 
             WcaLog(LOGMSG_STANDARD, "Deleted the json %s", sElementPath.c_str());
 
             std::ofstream os(wzFile,
                 std::ios_base::out | std::ios_base::trunc);
-            WcaLog(LOGMSG_STANDARD, "created output stream");
 
-            DWORD err = GetLastError();
-            if (err != 0)
+            if (!os.is_open())
             {
-                std::string errorString = GetLastErrorAsString();
-                WcaLog(LOGMSG_STANDARD, "GetLastError returned %d, %s", err, errorString.c_str());
-                return HRESULT_FROM_WIN32(err);
+                hr = ReturnLastError("creating the output stream");
+                if (FAILED(hr)) return hr;
             }
 
             pretty_print(j).dump(os);
-            WcaLog(LOGMSG_STANDARD, "dumped output stream");
-
             os.close();
-            WcaLog(LOGMSG_STANDARD, "closed output stream");
         }
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
@@ -459,20 +458,20 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_
 
         _bstr_t bValue(wzValue);
         char* cValue = bValue;
+        HRESULT hr = S_OK;
 
         if (fs::exists(fs::path(wzFile))) {
             json j;
             std::ifstream is(cFile);
 
             is >> j;
-            WcaLog(LOGMSG_STANDARD, "About to replace value: |%s| {%s}", sElementPath.c_str(), cValue);
 
             std::string s = cValue;
             json obj = json::parse(s);
 
-            WcaLog(LOGMSG_STANDARD, "Parsed the new value: |%s|", obj.to_string().c_str());
+            WcaLog(LOGMSG_STANDARD, "Parsed the new value: $%s$", obj.to_string().c_str());
 
-            auto query = jsonpath::json_query(j, sElementPath.c_str());
+            auto query = jsonpath::json_query(j, sElementPath);
 
             WcaLog(LOGMSG_STANDARD, "About to update the json %s with values %s.", sElementPath.c_str(), query.as_string().c_str());
             
@@ -481,27 +480,22 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_
                 value = obj;
             };
 
-            jsonpath::json_replace(j, sElementPath.c_str(), f);
+            jsonpath::json_replace(j, sElementPath, f);
 
             WcaLog(LOGMSG_STANDARD, "Updated the json %s with values %s.", sElementPath.c_str(), obj.as_string().c_str());
 
             std::ofstream os(wzFile,
                 std::ios_base::out | std::ios_base::trunc);
-            WcaLog(LOGMSG_STANDARD, "created output stream");
 
-            DWORD err = GetLastError();
-            if (err != 0)
+            if (!os.is_open())
             {
-                std::string errorString = GetLastErrorAsString();
-                WcaLog(LOGMSG_STANDARD, "GetLastError returned %d, %s", err, errorString.c_str());
-                return HRESULT_FROM_WIN32(err);
+                hr = ReturnLastError("creating the output stream");
+                if (FAILED(hr)) return hr;
             }
 
             pretty_print(j).dump(os);
-            WcaLog(LOGMSG_STANDARD, "dumped output stream");
 
             os.close();
-            WcaLog(LOGMSG_STANDARD, "closed output stream");
         }
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
