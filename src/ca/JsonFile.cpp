@@ -160,6 +160,30 @@ LExit:
 }
 
 
+std::string GetLastErrorAsString()
+{
+    //Get the error message ID, if any.
+    DWORD errorMessageID = ::GetLastError();
+    if (errorMessageID == 0) {
+        return std::string(); //No error message has been recorded
+    }
+
+    LPSTR messageBuffer = nullptr;
+
+    //Ask Win32 to give us the string version of that message ID.
+    //The parameters we pass in, tell Win32 to create the buffer that holds the message for us (because we don't yet know how long the message string will be).
+    size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL, errorMessageID, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+
+    //Copy the error message into a std::string.
+    std::string message(messageBuffer, size);
+
+    //Free the Win32's string's buffer.
+    LocalFree(messageBuffer);
+
+    return message;
+}
+
 static HRESULT UpdateJsonFile(
     __in_z LPCWSTR wzId,
     __in_z LPCWSTR wzFile,
@@ -318,6 +342,14 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                         std::ios_base::out | std::ios_base::trunc);
                     WcaLog(LOGMSG_STANDARD, "created output stream");
 
+                    DWORD err = GetLastError();
+                    if (err != 0)
+                    {
+                        std::string errorString = GetLastErrorAsString();
+                        WcaLog(LOGMSG_STANDARD, "GetLastError returned %d, %s", err, errorString.c_str());
+                        return HRESULT_FROM_WIN32(err);
+                    }
+
                     pretty_print(j).dump(os);
                     WcaLog(LOGMSG_STANDARD, "dumped output stream");
 
@@ -342,6 +374,7 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
         throw;
     }
 }
+
 
 HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
 {
@@ -390,6 +423,14 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
             std::ofstream os(wzFile,
                 std::ios_base::out | std::ios_base::trunc);
             WcaLog(LOGMSG_STANDARD, "created output stream");
+
+            DWORD err = GetLastError();
+            if (err != 0)
+            {
+                std::string errorString = GetLastErrorAsString();
+                WcaLog(LOGMSG_STANDARD, "GetLastError returned %d, %s", err, errorString.c_str());
+                return HRESULT_FROM_WIN32(err);
+            }
 
             pretty_print(j).dump(os);
             WcaLog(LOGMSG_STANDARD, "dumped output stream");
@@ -447,6 +488,14 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_
             std::ofstream os(wzFile,
                 std::ios_base::out | std::ios_base::trunc);
             WcaLog(LOGMSG_STANDARD, "created output stream");
+
+            DWORD err = GetLastError();
+            if (err != 0)
+            {
+                std::string errorString = GetLastErrorAsString();
+                WcaLog(LOGMSG_STANDARD, "GetLastError returned %d, %s", err, errorString.c_str());
+                return HRESULT_FROM_WIN32(err);
+            }
 
             pretty_print(j).dump(os);
             WcaLog(LOGMSG_STANDARD, "dumped output stream");
