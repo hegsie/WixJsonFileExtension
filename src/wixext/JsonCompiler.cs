@@ -163,7 +163,7 @@ namespace Hegsie.Wix.JsonExtension
 				symbol.Flags = attributes;
 			}
 
-			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "Wix4JsonFile", Context.Platform, CustomActionPlatforms.X64);
+			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "Wix4SchedJsonFile", Context.Platform, CustomActionPlatforms.X64);
 		}
 
 		private int ValidatePreserveModifiedDate(XElement node, SourceLineNumber sourceLineNumbers,

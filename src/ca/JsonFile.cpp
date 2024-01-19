@@ -9,17 +9,16 @@ using namespace jsoncons;
 namespace fs = std::filesystem;
 
 LPCWSTR vcsJsonFileQuery = L"SELECT `Wix4JsonFile`.`JsonConfig`, `Wix4JsonFile`.`File`, `Wix4JsonFile`.`ElementPath`, "
-L"`Wix4JsonFile`.`Value`, `Wix4JsonFile`.`Flags`, `Wix4JsonFile`.`Component_` FROM `Wix4JsonFile`,`Component`"
+L"`Wix4JsonFile`.`Value`, `Wix4JsonFile`.`Flags`, `Wix4JsonFile`.`Component_`, `Component`.`Attributes` FROM `Wix4JsonFile`,`Component`"
 L"WHERE `Wix4JsonFile`.`Component_`=`Component`.`Component` ORDER BY `File`, `Sequence`";
-enum eJsonFileQuery { jfqId = 1, jfqFile, jfqElementPath, jfqValue, jfqFlags, jfqComponent };
+enum eJsonFileQuery { jfqId = 1, jfqFile, jfqElementPath, jfqValue, jfqFlags, jfqComponent, jfqCompAttributes };
+
 
 static HRESULT UpdateJsonFile(
-    __in_z LPCWSTR wzId,
     __in_z LPCWSTR wzFile,
     __in_z LPCWSTR wzElementPath,
     __in_z LPCWSTR wzValue,
-    __in int iFlags,
-    __in_z LPCWSTR wzComponent
+    __in int iFlags
 );
 HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue);
 HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LPCWSTR wzValue);
@@ -30,6 +29,16 @@ const int FLAG_SETVALUE = 1;
 const int FLAG_ADDARRAYVALUE = 2;
 const int FLAG_CREATEVALUE = 3;
 
+
+enum eXmlAction
+{
+    jaDeleteValue = 1,
+    jaSetValue,
+    jaAddArrayValue,
+    jaCreateJsonPointerValue,
+};
+
+#define msierrJsonFileFailedRead         25530
 
 template<typename T>
 std::string ToString(const T& v)
@@ -48,22 +57,263 @@ T FromString(const std::string& str)
     return ret;
 }
 
-extern "C" UINT WINAPI JsonFile(
+
+#define MAX_DARWIN_KEY 73
+#define MAX_DARWIN_COLUMN 255
+
+struct JSON_FILE_CHANGE
+{
+    WCHAR wzId[MAX_DARWIN_KEY];
+
+    INSTALLSTATE isInstalled;
+    INSTALLSTATE isAction;
+
+    WCHAR wzFile[MAX_PATH];
+    LPWSTR pwzElementPath;
+    LPWSTR pwzValue;
+
+    int iJsonFlags;
+    int iCompAttributes;
+
+    JSON_FILE_CHANGE* pxfcPrev;
+    JSON_FILE_CHANGE* pxfcNext;
+};
+
+
+static HRESULT AddJsonFileChangeToList(
+    __inout JSON_FILE_CHANGE** ppxfcHead,
+    __inout JSON_FILE_CHANGE** ppxfcTail
+)
+{
+    Assert(ppxfcHead && ppxfcTail);
+
+    HRESULT hr = S_OK;
+
+    JSON_FILE_CHANGE* pxfc = static_cast<JSON_FILE_CHANGE*>(MemAlloc(sizeof(JSON_FILE_CHANGE), TRUE));
+    ExitOnNull(pxfc, hr, E_OUTOFMEMORY, "failed to allocate memory for new xml file change list element")
+
+    // Add it to the end of the list
+    if (NULL == *ppxfcHead)
+    {
+        *ppxfcHead = pxfc;
+        *ppxfcTail = pxfc;
+    }
+    else
+    {
+        Assert(*ppxfcTail && (*ppxfcTail)->pxfcNext == NULL);
+        (*ppxfcTail)->pxfcNext = pxfc;
+        pxfc->pxfcPrev = *ppxfcTail;
+        *ppxfcTail = pxfc;
+    }
+
+LExit:
+    return hr;
+}
+
+
+static HRESULT ReadJsonFileTable(
+    __inout JSON_FILE_CHANGE** ppxfcHead,
+    __inout JSON_FILE_CHANGE** ppxfcTail
+)
+{
+    Assert(ppxfcHead && ppxfcTail);
+
+    HRESULT hr = S_OK;
+    UINT er = ERROR_SUCCESS;
+
+    PMSIHANDLE hView = NULL;
+    PMSIHANDLE hRec = NULL;
+
+    LPWSTR pwzData = NULL;
+
+    // check to see if necessary tables are specified
+    if (S_FALSE == WcaTableExists(L"Wix4JsonFile"))
+    {
+        ExitFunction1(hr = S_FALSE)
+    }
+
+    // loop through all the xml configurations
+    hr = WcaOpenExecuteView(vcsJsonFileQuery, &hView);
+    ExitOnFailure(hr, "failed to open view on Wix4JsonFile table")
+
+    while (S_OK == (hr = WcaFetchRecord(hView, &hRec)))
+    {
+        hr = AddJsonFileChangeToList(ppxfcHead, ppxfcTail);
+        ExitOnFailure(hr, "failed to add xml file change to list")
+
+        // Get record Id
+        hr = WcaGetRecordString(hRec, jfqId, &pwzData);
+        ExitOnFailure(hr, "failed to get Wix4JsonFile record Id")
+        hr = StringCchCopyW((*ppxfcTail)->wzId, countof((*ppxfcTail)->wzId), pwzData);
+        ExitOnFailure(hr, "failed to copy Wix4JsonFile record Id")
+
+        // Get component name
+        hr = WcaGetRecordString(hRec, jfqComponent, &pwzData);
+        ExitOnFailure(hr, "failed to get component name for Wix4JsonFile: %ls", (*ppxfcTail)->wzId)
+
+        // Get the component's state
+        er = ::MsiGetComponentStateW(WcaGetInstallHandle(), pwzData, &(*ppxfcTail)->isInstalled, &(*ppxfcTail)->isAction);
+        ExitOnFailure(hr = HRESULT_FROM_WIN32(er), "failed to get install state for Component: %ls", pwzData)
+
+        // Get the xml file
+        hr = WcaGetRecordFormattedString(hRec, jfqFile, &pwzData);
+        ExitOnFailure(hr, "failed to get xml file for Wix4JsonFile: %ls", (*ppxfcTail)->wzId)
+        hr = StringCchCopyW((*ppxfcTail)->wzFile, countof((*ppxfcTail)->wzFile), pwzData);
+        ExitOnFailure(hr, "failed to copy xml file path")
+
+        // Get the Wix4JsonFile table flags
+        hr = WcaGetRecordInteger(hRec, jfqFlags, &(*ppxfcTail)->iJsonFlags);
+        ExitOnFailure(hr, "failed to get Wix4JsonFile flags for Wix4JsonFile: %ls", (*ppxfcTail)->wzId)
+
+        // Get the XPath
+        hr = WcaGetRecordFormattedString(hRec, jfqElementPath, &(*ppxfcTail)->pwzElementPath);
+        ExitOnFailure(hr, "failed to get XPath for Wix4JsonFile: %ls", (*ppxfcTail)->wzId)
+
+        // Get the value
+        hr = WcaGetRecordFormattedString(hRec, jfqValue, &pwzData);
+        ExitOnFailure(hr, "failed to get Value for Wix4JsonFile: %ls", (*ppxfcTail)->wzId)
+        hr = StrAllocString(&(*ppxfcTail)->pwzValue, pwzData, 0);
+        ExitOnFailure(hr, "failed to allocate buffer for value")
+
+        // Get the component attributes
+        hr = WcaGetRecordInteger(hRec, jfqCompAttributes, &(*ppxfcTail)->iCompAttributes);
+        ExitOnFailure(hr, "failed to get component attributes for Wix4JsonFile: %ls", (*ppxfcTail)->wzId)
+    }
+
+    // if we looped through all records all is well
+    if (E_NOMOREITEMS == hr)
+        hr = S_OK;
+    ExitOnFailure(hr, "failed while looping through all objects to secure")
+
+LExit:
+    ReleaseStr(pwzData)
+
+    return hr;
+}
+
+/******************************************************************
+ SchedJsonFile - entry point for JsonFile Custom Action
+
+********************************************************************/
+extern "C" UINT __stdcall SchedJsonFile(
     __in MSIHANDLE hInstall
 )
 {
     HRESULT hr = S_OK;
-    hr = WcaInitialize(hInstall, "Wix4JsonFile");
+    UINT er = ERROR_SUCCESS;
 
-    WcaLog(LOGMSG_STANDARD, "Entered Wix4JsonFile CA");
-        
-    WcaLog(LOGMSG_STANDARD, "Created PMSIHANDLE hView");
-    PMSIHANDLE hView;
+    LPWSTR pwzCurrentFile = NULL;
 
-    WcaLog(LOGMSG_STANDARD, "Created PMSIHANDLE hRec");
-    PMSIHANDLE hRec;
+    PMSIHANDLE hView = NULL;
+    PMSIHANDLE hRec = NULL;
 
-    WcaLog(LOGMSG_STANDARD, "MSIHANDLE's created for Wix4JsonFile CA");
+    JSON_FILE_CHANGE* pxfcHead = NULL;
+    JSON_FILE_CHANGE* pxfcTail = NULL;
+    JSON_FILE_CHANGE* pxfc = NULL;
+
+    LPWSTR pwzCustomActionData = NULL;
+
+    DWORD cFiles = 0;
+
+    // initialize
+    hr = WcaInitialize(hInstall, "SchedJsonFile");
+    ExitOnFailure(hr, "failed to initialize")
+
+    hr = ReadJsonFileTable(&pxfcHead, &pxfcTail);
+    if (S_FALSE == hr)
+    {
+        WcaLog(LOGMSG_VERBOSE, "Skipping SchedJsonFile because Wix4JsonFile table not present");
+        ExitFunction1(hr = S_OK)
+    }
+
+    MessageExitOnFailure(hr, msierrJsonFileFailedRead, "failed to read Wix4JsonFile table")
+
+    WcaLog(LOGMSG_STANDARD, "Finished Reading ReadJsonFileTable");
+    // loop through all the xml configurations
+    for (pxfc = pxfcHead; pxfc; pxfc = pxfc->pxfcNext)
+    {
+        // If it's being installed
+        if (WcaIsInstalling(pxfc->isInstalled, pxfc->isAction))
+        {
+            hr = WcaWriteStringToCaData(pxfc->wzFile, &pwzCustomActionData);
+            WcaLog(LOGMSG_STANDARD, "pxfc->wzFile");
+            ExitOnFailure(hr, "failed to write File to custom action data: %ls", pxfc->wzFile)
+
+            std::bitset<32> flags(pxfc->iJsonFlags);
+            // Install the change
+            if (flags.test(FLAG_DELETEVALUE))
+            {
+                hr = WcaWriteIntegerToCaData((int)jaDeleteValue, &pwzCustomActionData);
+                WcaLog(LOGMSG_STANDARD, "jaDeleteValue");
+                ExitOnFailure(hr, "failed to write create element action indicator to custom action data")
+            }
+            else if (flags.test(FLAG_SETVALUE))
+            {
+                hr = WcaWriteIntegerToCaData((int)jaSetValue, &pwzCustomActionData);
+                WcaLog(LOGMSG_STANDARD, "jaSetValue");
+                ExitOnFailure(hr, "failed to write file indicator to custom action data")
+            }
+            else if (flags.test(FLAG_ADDARRAYVALUE))
+            {
+                hr = WcaWriteIntegerToCaData((int)jaAddArrayValue, &pwzCustomActionData);
+                WcaLog(LOGMSG_STANDARD, "jaAddArrayValue");
+                ExitOnFailure(hr, "failed to write builkwrite value action indicator to custom action data")
+            }
+            else if (flags.test(FLAG_CREATEVALUE))
+            {
+                hr = WcaWriteIntegerToCaData((int)jaCreateJsonPointerValue, &pwzCustomActionData);
+                WcaLog(LOGMSG_STANDARD, "jaCreateJsonPointerValue");
+                ExitOnFailure(hr, "failed to write delete value action indicator to custom action data")
+            }
+
+            hr = WcaWriteStringToCaData(pxfc->pwzElementPath, &pwzCustomActionData);
+            WcaLog(LOGMSG_STANDARD, "pxfc->pwzElementPath");
+            ExitOnFailure(hr, "failed to write ElementPath to custom action data: %ls", pxfc->pwzElementPath)
+
+            hr = WcaWriteStringToCaData(pxfc->pwzValue, &pwzCustomActionData);
+            WcaLog(LOGMSG_STANDARD, "pxfc->pwzValue");
+            ExitOnFailure(hr, "failed to write Value to custom action data: %ls", pxfc->pwzValue)
+
+            ++cFiles;
+        }
+    }
+
+    WcaLog(LOGMSG_STANDARD, "Built File list!");
+
+    // If we looped through all records all is well
+    if (E_NOMOREITEMS == hr)
+        hr = S_OK;
+    ExitOnFailure(hr, "failed while looping through all objects to secure")
+
+    // Schedule the custom action and add to progress bar
+    if (pwzCustomActionData && *pwzCustomActionData)
+    {
+        Assert(0 < cFiles);
+
+        WcaLog(LOGMSG_STANDARD, "About to WcaDoDeferredAction");
+        hr = WcaDoDeferredAction(L"Wix4ExecJsonFile_X64", pwzCustomActionData, cFiles * 1000);
+        WcaLog(LOGMSG_STANDARD, "Finished WcaDoDeferredAction");
+        ExitOnFailure(hr, "failed to schedule ExecJsonFile action")
+    }
+
+LExit:
+    ReleaseStr(pwzCurrentFile)
+    ReleaseStr(pwzCustomActionData)
+
+    return WcaFinalize(FAILED(hr) ? ERROR_INSTALL_FAILURE : er);
+}
+
+/******************************************************************
+ * ExecJsonFile - entry point for JsonFile Custom Action
+ *****************************************************************/
+extern "C" UINT WINAPI ExecJsonFile(
+    __in MSIHANDLE hInstall
+)
+{
+    HRESULT hr = S_OK;
+
+    LPWSTR pwzCustomActionData = NULL;
+    LPWSTR pwz = NULL;
 
     LPWSTR sczId = NULL;
     LPWSTR sczFile = NULL;
@@ -71,56 +321,40 @@ extern "C" UINT WINAPI JsonFile(
     LPWSTR sczValue = NULL;
     LPWSTR sczComponent = NULL;
 
-    INSTALLSTATE isInstalled;
-    INSTALLSTATE isAction;
-
     int iFlags = 0;
-        
-    ExitOnFailure(hr, "Failed to initialize Wix4JsonFile.")
 
-    // anything to do?
-    if (S_OK != WcaTableExists(L"Wix4JsonFile"))
+    WcaLog(LOGMSG_STANDARD, "Entered Wix4JsonFile CA");
+
+    hr = WcaInitialize(hInstall, "ExecJsonFile");
+    WcaLog(LOGMSG_STANDARD, "Initialized ExecJsonFile CA");
+    ExitOnFailure(hr, "Failed to initialize ExecJsonFile.")
+
+    hr = WcaGetProperty(L"CustomActionData", &pwzCustomActionData);
+    WcaLog(LOGMSG_STANDARD, "CustomActionData: %ls", pwzCustomActionData);
+    ExitOnFailure(hr, "failed to get CustomActionData")
+
+    pwz = pwzCustomActionData;
+
+    // loop through all the passed in data
+    while (pwz && *pwz)
     {
-        WcaLog(LOGMSG_STANDARD, "Wix4JsonFile table doesn't exist, so there are no .json files to update.");
-        ExitFunction()
-    }
+        hr = WcaReadStringFromCaData(&pwz, &sczFile);
+        ExitOnFailure(hr, "failed to read file name from custom action data")
 
-    // query and loop through all the remove folders exceptions
-    hr = WcaOpenExecuteView(vcsJsonFileQuery, &hView);
-    ExitOnFailure(hr, "Failed to open view on Wix4JsonFile table")
+        WcaLog(LOGMSG_STANDARD, "Configuring Json File: %ls", sczFile);
 
-    while (S_OK == (hr = WcaFetchRecord(hView, &hRec)))
-    {
-        hr = WcaGetRecordString(hRec, jfqId, &sczId);
-        ExitOnFailure(hr, "Failed to get Wix4JsonFile identity.")
+        hr = WcaReadIntegerFromCaData(&pwz, &iFlags);
+        ExitOnFailure(hr, "Failed to get Flags for Wix4JsonFile")
 
-        hr = WcaGetRecordFormattedString(hRec, jfqFile, &sczFile);
-        ExitOnFailure(hr, "failed to get File for Wix4JsonFile with Id: %s", sczId)
+        // Get path, name, and value to be written
+        hr = WcaReadStringFromCaData(&pwz, &sczElementPath);
+        ExitOnFailure(hr, "Failed to get ElementPath for Wix4JsonFile ")
 
-        hr = WcaGetRecordString(hRec, jfqElementPath, &sczElementPath);
-        WcaLog(LOGMSG_STANDARD, "Found ElementPath :%ls", sczElementPath);
-        ExitOnFailure(hr, "Failed to get ElementPath for Wix4JsonFile with Id: %s", sczId)
+        hr = WcaReadStringFromCaData(&pwz, &sczValue);
+        ExitOnFailure(hr, "failed to process CustomActionData")
 
-        WcaLog(LOGMSG_STANDARD, "Getting Value :%ls", sczId);
-        hr = WcaGetRecordFormattedString(hRec, jfqValue, &sczValue);
-        ExitOnFailure(hr, "Failed to get Value for Wix4JsonFile with Id: %s", sczId)
-
-        hr = WcaGetRecordInteger(hRec, jfqFlags, &iFlags);
-        ExitOnFailure(hr, "Failed to get Flags for Wix4JsonFile with Id: %s", sczId)
-
-        hr = WcaGetRecordString(hRec, jfqComponent, &sczComponent);
-        ExitOnFailure(hr, "Failed to get Wix4JsonFile component.")
-
-        UINT er = ::MsiGetComponentStateW(hInstall, sczComponent, &isInstalled, &isAction);
-        ExitOnFailure(hr = HRESULT_FROM_WIN32(er), "failed to get install state for Component: %ls", sczComponent)
-        if (WcaIsInstalling(isInstalled, isAction))
-        {
-            hr = UpdateJsonFile(sczId, sczFile, sczElementPath, sczValue, iFlags, sczComponent);
-            ExitOnFailure(hr, "Failed while navigating path: %S for row: %S", sczFile, sczId)
-        }
-        else if (WcaIsUninstalling(isInstalled, isAction)) {
-            // Don't really worry about this yet as file is deleted on uninstall
-        }
+        hr = UpdateJsonFile(sczFile, sczElementPath, sczValue, iFlags);
+        ExitOnFailure(hr, "Failed while updating file: %S ", sczFile)
     }
 
     // reaching the end of the list is actually a good thing, not an error
@@ -128,26 +362,12 @@ extern "C" UINT WINAPI JsonFile(
     {
         hr = S_OK;
     }
-    ExitOnFailure(hr, "Failure occured while processing Wix4JsonFile table")
 
 LExit:
-    ReleaseStr(sczId)
     ReleaseStr(sczFile)
     ReleaseStr(sczElementPath)
     ReleaseStr(sczValue)
     ReleaseStr(sczComponent)
-
-    if (hView)
-    {
-        ::MsiCloseHandle(hView);
-        WcaLog(LOGMSG_STANDARD, "Closed PMSIHANDLE hView");
-    }
-
-    if (hRec)
-    {
-        ::MsiCloseHandle(hRec);
-        WcaLog(LOGMSG_STANDARD, "Closed PMSIHANDLE hRec");
-    }
 
     DWORD er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);
@@ -179,12 +399,10 @@ std::string GetLastErrorAsString()
 }
 
 static HRESULT UpdateJsonFile(
-    __in_z LPCWSTR wzId,
     __in_z LPCWSTR wzFile,
     __in_z LPCWSTR wzElementPath,
     __in_z LPCWSTR wzValue,
-    __in int iFlags,
-    __in_z LPCWSTR wzComponent
+    __in int iFlags
 )
 {
     HRESULT hr = S_OK;
@@ -301,9 +519,11 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
         char* cValue = bValue;
         HRESULT hr = S_OK;
 
+        WcaLog(LOGMSG_STANDARD, "Checking if %ls Exists", wzFile);
         if (fs::exists(fs::path (wzFile))) {
 
             std::ifstream is(cFile);
+            WcaLog(LOGMSG_STANDARD, "Opened %s", cFile);
 
             if (!is.is_open())
             {
@@ -312,6 +532,7 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
             }
 
             json j = json::parse(is);
+            WcaLog(LOGMSG_STANDARD, "Parsed File");
 
             if (createValue) {
                 std::error_code ec;

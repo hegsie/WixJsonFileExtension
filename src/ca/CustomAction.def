@@ -1,4 +1,6 @@
 LIBRARY "jsonca"
 
 EXPORTS
-	JsonFile
+; JsonFile.cpp
+	SchedJsonFile
+    ExecJsonFile

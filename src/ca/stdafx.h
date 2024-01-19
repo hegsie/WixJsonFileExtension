@@ -7,9 +7,13 @@
 #include <windows.h>
 #include <msiquery.h>
 #include <strsafe.h>
+#include <msidefs.h>
 
 // WiX Header Files:
 #include <wcautil.h>
+#include <memutil.h>
+#include <fileutil.h>
+
 #include <strutil.h>
 #include <iostream>
 #include <fstream>
@@ -17,6 +21,7 @@
 #include <regex>
 #include <cstdint>
 #include <filesystem>
+
 // TODO: reference additional headers your program requires here
 #include "jsoncons/jsoncons/json.hpp"
 #include "jsoncons/jsoncons_ext/jsonpath/jsonpath.hpp"
