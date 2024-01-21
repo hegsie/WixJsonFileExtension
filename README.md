@@ -35,7 +35,7 @@ Often used in networking scenarios (REST services, JQuery, etc.), it is also use
 Especially [.NET Core](https://github.com/dotnet/core) relies heavily on JSON-formatted configuration files, both during development and runtime.
 
 This extension for WiX provides methods to modify JSON files (\*.json) during a software installation.
-The new XML elements provided by this extension, JsonFile and JsonConfig, work very similar to the existing extensions for XML files, [XmlFile](http://wixtoolset.org/documentation/manual/v3/xsd/util/xmlfile.html) and [XmlConfig](http://wixtoolset.org/documentation/manual/v3/xsd/util/xmlconfig.html)
+The new XML elements provided by this extension - JsonFile, work very similar to the existing extensions for XML files, [XmlFile](http://wixtoolset.org/documentation/manual/v3/xsd/util/xmlfile.html)
 
 ## Acknowledgements
-WixJsonExtension uses [jsoncons](https://github.com/danielaparker/jsoncons) by Daniel Parker to read and manipulate JSON files.
+Wix4JsonFileExtension uses [jsoncons](https://github.com/danielaparker/jsoncons) by Daniel Parker to read and manipulate JSON files.
