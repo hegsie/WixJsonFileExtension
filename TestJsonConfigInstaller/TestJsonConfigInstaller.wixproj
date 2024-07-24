@@ -1,18 +1,21 @@
 ﻿<Project>
-  <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="4.0.1" />
+  <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="5.0.1" />
   <ItemGroup>
     <Content Include="appsettings.json" />
     <Content Include="install.cmd">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="4.0.1" />
+  <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="5.0.1" />
   <ItemGroup>
-    <PackageReference Include="WixToolset.Util.wixext" Version="4.0.1" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.1" />
   </ItemGroup>
   <ItemGroup>
-    <WixExtension Include="Wix4JsonFileExtension.dll" Condition=" Exists('Wix4JsonFileExtension.dll') " />
-    <UnsupportedWixExtension Include="$(MSBuildThisFileName)" Condition=" !Exists('Wix4JsonFileExtension.dll') " />
+    <ProjectReference Include="..\src\wixext\WixJsonFileExtension.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <WixExtension Include="WixJsonFileExtension.dll" Condition=" Exists('WixJsonFileExtension.dll') " />
+    <UnsupportedWixExtension Include="$(MSBuildThisFileName)" Condition=" !Exists('WixJsonFileExtension.dll') " />
   </ItemGroup>
   <PropertyGroup>
     <PostBuildEvent>xcopy /y $(ProjectDir)install.cmd $(TargetDir)</PostBuildEvent>

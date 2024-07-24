@@ -1,4 +1,4 @@
-﻿<Project Sdk="WixToolset.Sdk/4.0.1">
+﻿<Project Sdk="WixToolset.Sdk/5.0.1">
   <PropertyGroup>
     <OutputName>Hegsie.Wix.JsonExtension.Data.json</OutputName>
     <OutputType>Library</OutputType>

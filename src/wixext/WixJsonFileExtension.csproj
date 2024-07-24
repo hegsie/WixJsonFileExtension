@@ -22,7 +22,7 @@
   </ItemGroup>
   
     <ItemGroup>
-    <Content Include="Wix4JsonFileExtension.targets" PackagePath="build" />
+    <Content Include="WixJsonFileExtension.targets" PackagePath="build" />
     <Content Include="$(TargetPath)" PackagePath="wixext4" />
   </ItemGroup>
 
@@ -34,11 +34,11 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="WixToolset.Extensibility" Version="4.0.1" />
-    <PackageReference Include="WixToolset.Sdk" Version="4.0.1" />
+    <PackageReference Include="WixToolset.Extensibility" Version="5.0.1" />
+    <PackageReference Include="WixToolset.Sdk" Version="5.0.1" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy $(OutDir)\Wix4JsonFileExtension.dll $(SolutionDir)\TestJsonConfigInstaller  /K /D /H /Y" />
+    <Exec Command="xcopy $(OutDir)\WixJsonFileExtension.dll $(SolutionDir)\TestJsonConfigInstaller  /K /D /H /Y" />
   </Target>
 
 </Project>
