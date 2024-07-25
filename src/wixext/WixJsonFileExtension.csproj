@@ -3,30 +3,29 @@
 
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-	<TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>Hegsie.Wix.JsonExtension</RootNamespace>
     <Description>WiX Toolset Utility extension</Description>
     <Title>WiX JSON extension</Title>
     <DebugType>embedded</DebugType>
     <LangVersion>latest</LangVersion>
-    <AssemblyVersion>4.0.0.0</AssemblyVersion>
-    <FileVersion>4.0.0.0</FileVersion>
-	<IncludeBuildOutput>false</IncludeBuildOutput>
+    <AssemblyVersion>5.0.0.0</AssemblyVersion>
+    <FileVersion>5.0.0.0</FileVersion>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <Authors>hegsie</Authors>
+    <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Properties\**" />
     <EmbeddedResource Remove="Properties\**" />
     <None Remove="Properties\**" />
   </ItemGroup>
-  
-    <ItemGroup>
-    <Content Include="WixJsonFileExtension.targets" PackagePath="build" />
-    <Content Include="$(TargetPath)" PackagePath="wixext4" />
+
+  <ItemGroup>
+    <Content Include="$(MSBuildProjectName).targets" PackagePath="build" />
+    <Content Include="$(TargetPath)" PackagePath="$(WixExtensionPackageFolder)" />
   </ItemGroup>
-
-
   <ItemGroup>
     <EmbeddedResource Include="..\wixlib\bin\x64\$(Configuration)\Hegsie.Wix.JsonExtension.Data.json.wixlib">
       <LogicalName>Hegsie.Wix.JsonExtension.Data.json.wixlib</LogicalName>
@@ -40,5 +39,9 @@
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Exec Command="xcopy $(OutDir)\WixJsonFileExtension.dll $(SolutionDir)\TestJsonConfigInstaller  /K /D /H /Y" />
   </Target>
-
+  <ItemGroup>
+    <None Include="$(OutDir)WixJsonFileExtension.dll" Pack="true" PackagePath="wixext5\">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

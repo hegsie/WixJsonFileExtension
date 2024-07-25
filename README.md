@@ -4,7 +4,7 @@
 ## Status: JSONPath supported for install only applications
 
 To Use this Wix Extension
-1. Add a package reference to your project with `dotnet add package Wix4JsonFileExtension`
+1. Add a package reference to your project with `dotnet add package WixJsonFileExtension`
 2. Add a schema reference inside your wxs file to 
 ```xml
 xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension"
@@ -38,4 +38,4 @@ This extension for WiX provides methods to modify JSON files (\*.json) during a 
 The new XML elements provided by this extension - JsonFile, work very similar to the existing extensions for XML files, [XmlFile](http://wixtoolset.org/documentation/manual/v3/xsd/util/xmlfile.html)
 
 ## Acknowledgements
-Wix4JsonFileExtension uses [jsoncons](https://github.com/danielaparker/jsoncons) by Daniel Parker to read and manipulate JSON files.
+WixJsonFileExtension uses [jsoncons](https://github.com/danielaparker/jsoncons) by Daniel Parker to read and manipulate JSON files.

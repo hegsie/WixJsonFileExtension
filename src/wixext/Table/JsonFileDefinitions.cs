@@ -10,7 +10,7 @@ namespace Hegsie.Wix.JsonExtension.Table
 
     public static partial class JsonFileDefinitions
     {
-        public static readonly Version Version = new Version("4.0.0");
+        public static readonly Version Version = new Version("5.0.0");
 
         public static IntermediateSymbolDefinition ByName(string name)
         {
