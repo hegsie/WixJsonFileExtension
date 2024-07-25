@@ -20,6 +20,8 @@
     <Compile Remove="Properties\**" />
     <EmbeddedResource Remove="Properties\**" />
     <None Remove="Properties\**" />
+
+    <None Include="$(OutDir)WixJsonFileExtension.dll" Pack="true" PackagePath="wixext5\"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -37,11 +39,8 @@
     <PackageReference Include="WixToolset.Sdk" Version="5.0.1" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+
     <Exec Command="xcopy $(OutDir)\WixJsonFileExtension.dll $(SolutionDir)\TestJsonConfigInstaller  /K /D /H /Y" />
   </Target>
-  <ItemGroup>
-    <None Include="$(OutDir)WixJsonFileExtension.dll" Pack="true" PackagePath="wixext5\">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+
 </Project>
