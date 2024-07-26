@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -13,7 +13,7 @@
 
 namespace jsoncons {
 
-template <class CharT>
+template <typename CharT>
 class basic_json_filter : public basic_json_visitor<CharT>
 {
 public:
@@ -22,49 +22,16 @@ public:
 private:
     basic_json_visitor<char_type>* destination_;
 
-    // noncopyable 
-    basic_json_filter(const basic_json_filter&) = delete;
-    basic_json_filter& operator=(const basic_json_filter&) = delete;
 public:
     basic_json_filter(basic_json_visitor<char_type>& visitor)
         : destination_(std::addressof(visitor))
     {
     }
 
-    // moveable
-    basic_json_filter(basic_json_filter&&) = default;
-    basic_json_filter& operator=(basic_json_filter&&) = default;
-
     basic_json_visitor<char_type>& destination()
     {
         return *destination_;
     }
-
-#if !defined(JSONCONS_NO_DEPRECATED)
-
-    JSONCONS_DEPRECATED_MSG("Instead, use destination()")
-    basic_json_visitor<char_type>& to_handler()
-    {
-        return destination_;
-    }
-    JSONCONS_DEPRECATED_MSG("Instead, use destination") 
-    basic_json_visitor<char_type>& input_handler()
-    {
-        return destination_;
-    }
-
-    JSONCONS_DEPRECATED_MSG("Instead, use destination") 
-    basic_json_visitor<char_type>& downstream_handler()
-    {
-        return destination_;
-    }
-
-    JSONCONS_DEPRECATED_MSG("Instead, use destination") 
-    basic_json_visitor<char_type>& destination_handler()
-    {
-        return destination_;
-    }
-#endif
 
 private:
     void visit_flush() override
@@ -267,7 +234,7 @@ private:
     }
 };
 
-template <class CharT>
+template <typename CharT>
 class basic_rename_object_key_filter : public basic_json_filter<CharT>
 {
 public:
@@ -301,7 +268,7 @@ private:
     }
 };
 
-template <class From,class To>
+template <typename From,typename To>
 class json_visitor_adaptor_base : public From
 {
 public:
@@ -524,12 +491,12 @@ private:
 
 };
 
-template <class From,class To,class Enable=void>
+template <typename From,typename To,typename Enable=void>
 class json_visitor_adaptor 
 {
 };
 
-template <class From,class To>
+template <typename From,typename To>
 class json_visitor_adaptor<From,To,typename std::enable_if<extension_traits::is_narrow_character<typename From::char_type>::value &&
                                                            extension_traits::is_narrow_character<typename To::char_type>::value>::type> : public json_visitor_adaptor_base<From,To>
 {
@@ -572,7 +539,7 @@ private:
     }
 };
 
-template <class From,class To>
+template <typename From,typename To>
 class json_visitor_adaptor<From,To,typename std::enable_if<!(extension_traits::is_narrow_character<typename From::char_type>::value &&
                                                              extension_traits::is_narrow_character<typename To::char_type>::value)>::type> : public json_visitor_adaptor_base<From,To>
 {
@@ -626,7 +593,7 @@ private:
     }
 };
 
-template <class From,class To>
+template <typename From,typename To>
 json_visitor_adaptor<From,To> make_json_visitor_adaptor(To& to)
 {
     return json_visitor_adaptor<From, To>(to);
@@ -636,17 +603,6 @@ using json_filter = basic_json_filter<char>;
 using wjson_filter = basic_json_filter<wchar_t>;
 using rename_object_key_filter = basic_rename_object_key_filter<char>;
 using wrename_object_key_filter = basic_rename_object_key_filter<wchar_t>;
-
-#if !defined(JSONCONS_NO_DEPRECATED)
-template <class CharT>
-using basic_json_content_filter = basic_json_filter<CharT>;
-JSONCONS_DEPRECATED_MSG("Instead, use json_filter") typedef basic_json_filter<char> json_content_filter;
-JSONCONS_DEPRECATED_MSG("Instead, use wjson_filter") typedef basic_json_filter<wchar_t> wjson_content_filter;
-JSONCONS_DEPRECATED_MSG("Instead, use rename_object_key_filter") typedef basic_rename_object_key_filter<char> rename_name_filter;
-JSONCONS_DEPRECATED_MSG("Instead, use wrename_object_key_filter") typedef basic_rename_object_key_filter<wchar_t> wrename_name_filter;
-JSONCONS_DEPRECATED_MSG("Instead, use rename_object_key_filter") typedef basic_rename_object_key_filter<char> rename_object_member_filter;
-JSONCONS_DEPRECATED_MSG("Instead, use wrename_object_key_filter") typedef basic_rename_object_key_filter<wchar_t> wrename_object_member_filter;
-#endif
 
 }
 

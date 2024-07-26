@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -20,7 +20,7 @@ namespace jsoncons { namespace jsonpatch {
 
 namespace detail {
 
-    template <class CharT>
+    template <typename CharT>
     struct jsonpatch_names
     {
         static std::basic_string<CharT> test_name()
@@ -80,7 +80,7 @@ namespace detail {
         }
     };
 
-    template<class Json>
+    template <typename Json>
     jsonpointer::basic_json_pointer<typename Json::char_type> definite_path(const Json& root, jsonpointer::basic_json_pointer<typename Json::char_type>& location)
     {
         using char_type = typename Json::char_type;
@@ -121,7 +121,7 @@ namespace detail {
     enum class op_type {add,remove,replace};
     enum class state_type {begin,abort,commit};
 
-    template <class Json>
+    template <typename Json>
     struct operation_unwinder
     {
         using char_type = typename Json::char_type;
@@ -196,7 +196,7 @@ namespace detail {
         }
     };
 
-    template <class Json>
+    template <typename Json>
     Json from_diff(const Json& source, const Json& target, const typename Json::string_view_type& path)
     {
         using char_type = typename Json::char_type;
@@ -295,9 +295,15 @@ namespace detail {
     }
 }
 
-template <class Json>
+template <typename Json>
 void apply_patch(Json& target, const Json& patch, std::error_code& ec)
 {
+    if (!patch.is_array())
+    {
+        ec = jsonpatch_errc::invalid_patch;
+        return;
+    }
+
     using char_type = typename Json::char_type;
     using string_type = std::basic_string<char_type>;
     using json_pointer_type = jsonpointer::basic_json_pointer<char_type>;
@@ -305,7 +311,7 @@ void apply_patch(Json& target, const Json& patch, std::error_code& ec)
    jsoncons::jsonpatch::detail::operation_unwinder<Json> unwinder(target);
    std::error_code local_ec;
 
-    // Validate
+    // Validate  
      
     for (const auto& operation : patch.array_range())
     {
@@ -556,14 +562,14 @@ void apply_patch(Json& target, const Json& patch, std::error_code& ec)
     }
 }
 
-template <class Json>
+template <typename Json>
 Json from_diff(const Json& source, const Json& target)
 {
     std::basic_string<typename Json::char_type> path;
     return jsoncons::jsonpatch::detail::from_diff(source, target, path);
 }
 
-template <class Json>
+template <typename Json>
 void apply_patch(Json& target, const Json& patch)
 {
     std::error_code ec;

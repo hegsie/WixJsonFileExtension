@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -10,8 +10,8 @@
 #include <iostream>
     
 #define JSONCONS_VERSION_MAJOR 0
-#define JSONCONS_VERSION_MINOR 173
-#define JSONCONS_VERSION_PATCH 2
+#define JSONCONS_VERSION_MINOR 176
+#define JSONCONS_VERSION_PATCH 0
 
 namespace jsoncons {
 

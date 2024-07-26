@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -13,12 +13,12 @@ namespace jsoncons {
 namespace jsonschema {
 namespace draft7 {
     
-    template <class Json>
+    template <typename Json>
     struct schema_draft7
     {
         static Json get_schema() 
         {
-            static Json schema = Json::parse(R"(
+            static Json sch = Json::parse(R"(
     {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "$id": "http://json-schema.org/draft-07/schema#",
@@ -187,9 +187,9 @@ namespace draft7 {
         },
         "default": true
     } 
-            )"); 
+ )"); 
 
-            return schema;
+            return sch;
         }
     };
 

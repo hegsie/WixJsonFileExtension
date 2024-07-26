@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -15,7 +15,7 @@
 #include <memory> // std::allocator
 #include <jsoncons/config/compiler_support.hpp>
 
-namespace jsoncons { 
+namespace jsoncons {
 namespace detail {
 
     inline char*
@@ -25,13 +25,13 @@ namespace detail {
             (reinterpret_cast<uintptr_t>(ptr) + alignment - 1));
     }
 
-    template <class Extra,class Allocator>
+    template <typename Extra,typename Allocator>
     struct heap_string_base
     {
         Extra extra_;
         Allocator alloc_;
-    
-        Allocator& get_allocator() 
+
+        Allocator& get_allocator()
         {
             return alloc_;
         }
@@ -49,19 +49,20 @@ namespace detail {
         ~heap_string_base() noexcept = default;
     };
 
-    template <class CharT, class Extra, class Allocator>
+    template <typename CharT,typename Extra,typename Allocator>
     struct heap_string : public heap_string_base<Extra,Allocator>
     {
         using char_type = CharT;
-        using allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<CharT>;  
+        using allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<CharT>;
         using allocator_traits_type = std::allocator_traits<allocator_type>;
         using pointer = typename allocator_traits_type::pointer;
 
         pointer p_;
         std::size_t length_;
         uint8_t offset_;
+        uint8_t align_pad_;
 
-        ~heap_string() noexcept = default; 
+        ~heap_string() noexcept = default;
 
         const char_type* c_str() const { return extension_traits::to_plain_pointer(p_); }
         const char_type* data() const { return extension_traits::to_plain_pointer(p_); }
@@ -88,7 +89,7 @@ namespace detail {
     };
 
     // From boost 1_71
-    template <class T, class U>
+    template <typename T,typename U>
     T launder_cast(U* u)
     {
     #if defined(__cpp_lib_launder) && __cpp_lib_launder >= 201606
@@ -102,7 +103,7 @@ namespace detail {
 
     // heap_string_factory
 
-    template <class CharT,class Extra,class Allocator>
+    template <typename CharT,typename Extra,typename Allocator>
     class heap_string_factory
     {
     public:
@@ -110,10 +111,10 @@ namespace detail {
         using heap_string_type = heap_string<CharT,Extra,Allocator>;
     private:
 
-        using byte_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<char>;  
+        using byte_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<char>;
         using byte_pointer = typename std::allocator_traits<byte_allocator_type>::pointer;
 
-        using heap_string_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<heap_string_type>;  
+        using heap_string_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<heap_string_type>;
     public:
         using pointer = typename std::allocator_traits<heap_string_allocator_type>::pointer;
 
@@ -136,20 +137,33 @@ namespace detail {
             std::size_t len = aligned_size(length*sizeof(char_type));
 
             std::size_t align = alignof(storage_type);
-            std::size_t mem_len = (align-1)+len;
-
+            char* q = nullptr;
+            char* storage = nullptr;
             byte_allocator_type byte_alloc(alloc);
-            byte_pointer ptr = byte_alloc.allocate(mem_len);
+            uint8_t align_pad = 0;
 
-            char* q = extension_traits::to_plain_pointer(ptr);
+            if (align <= 8) {
+                byte_pointer ptr = byte_alloc.allocate(len);
+                q = extension_traits::to_plain_pointer(ptr);
 
-            char* storage = align_up(q, align);
+                if (reinterpret_cast<uintptr_t>(q) % align == 0) {
+                    storage = q;
+                } else {
+                    byte_alloc.deallocate(ptr, len);
+                }
+            }
 
-            JSONCONS_ASSERT(storage >= q);
+            if (storage == nullptr) {
+                align_pad = uint8_t(align-1);
+                byte_pointer ptr = byte_alloc.allocate(align_pad+len);
+                q = extension_traits::to_plain_pointer(ptr);
+                storage = align_up(q, align);
+                JSONCONS_ASSERT(storage >= q);
+            }
 
             heap_string_type* ps = new(storage)heap_string_type(extra, byte_alloc);
 
-            auto psa = launder_cast<storage_t*>(storage); 
+            auto psa = launder_cast<storage_t*>(storage);
 
             CharT* p = new(&psa->c)char_type[length + 1];
             std::memcpy(p, s, length*sizeof(char_type));
@@ -157,6 +171,7 @@ namespace detail {
             ps->p_ = std::pointer_traits<typename heap_string_type::pointer>::pointer_to(*p);
             ps->length_ = length;
             ps->offset_ = (uint8_t)(storage - q);
+            ps->align_pad_ = align_pad;
             return std::pointer_traits<pointer>::pointer_to(*ps);
         }
 
@@ -170,7 +185,7 @@ namespace detail {
 
                 char* p = q - ptr->offset_;
 
-                std::size_t mem_size = (alignof(storage_type)-1)+ aligned_size(ptr->length_*sizeof(char_type));
+                std::size_t mem_size = ptr->align_pad_ + aligned_size(ptr->length_*sizeof(char_type));
                 byte_allocator_type byte_alloc(ptr->get_allocator());
                 byte_alloc.deallocate(p,mem_size + ptr->offset_);
             }

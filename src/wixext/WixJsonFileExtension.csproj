@@ -15,7 +15,7 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <Authors>hegsie</Authors>
     <PlatformTarget>x64</PlatformTarget>
-    <Platforms>x64</Platforms>
+    <Platforms>AnyCPU</Platforms>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Properties\**" />

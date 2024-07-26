@@ -1,4 +1,4 @@
-/// Copyright 2013-2023 Daniel Parker
+/// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -85,13 +85,6 @@ std::error_code make_error_code(cbor_errc e)
     return std::error_code(static_cast<int>(e),cbor_error_category());
 }
 
-
-#if !defined(JSONCONS_NO_DEPRECATED)
-
-JSONCONS_DEPRECATED_MSG("Instead, use ser_error") typedef ser_error cbor_error;
-JSONCONS_DEPRECATED_MSG("Instead, use ser_error") typedef ser_error cbor_decode_error;
-JSONCONS_DEPRECATED_MSG("Instead, use ser_error") typedef ser_error cbor_reader_errc;
-#endif
 
 }}
 

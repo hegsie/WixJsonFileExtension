@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -18,7 +18,7 @@
 
 namespace jsoncons { namespace jsonpath {
 
-    template <class CharT, class Sink>
+    template <typename CharT,typename Sink>
     std::size_t escape_string(const CharT* s, std::size_t length, Sink& sink)
     {
         std::size_t count = 0;

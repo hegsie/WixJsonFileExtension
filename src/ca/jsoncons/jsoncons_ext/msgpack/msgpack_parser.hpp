@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -40,7 +40,7 @@ struct parse_state
     parse_state(parse_state&&) = default;
 };
 
-template <class Source,class Allocator=std::allocator<char>>
+template <typename Source,typename Allocator=std::allocator<char>>
 class basic_msgpack_parser : public ser_context
 {
     using char_type = char;
@@ -63,7 +63,7 @@ class basic_msgpack_parser : public ser_context
     int nesting_depth_;
 
 public:
-    template <class Sourceable>
+    template <typename Sourceable>
     basic_msgpack_parser(Sourceable&& source,
                          const msgpack_decode_options& options = msgpack_decode_options(),
                          const Allocator& alloc = Allocator())
@@ -95,7 +95,7 @@ public:
         nesting_depth_ = 0;
     }
 
-    template <class Sourceable>
+    template <typename Sourceable>
     void reset(Sourceable&& source)
     {
         source_ = std::forward<Sourceable>(source);
@@ -728,7 +728,7 @@ private:
             default:
                 if ((type > 0x8f && type <= 0x9f) // fixarray
                     || (type > 0x7f && type <= 0x8f) // fixmap
-                   )
+        )
                 {
                     return type & 0x0f;
                 }

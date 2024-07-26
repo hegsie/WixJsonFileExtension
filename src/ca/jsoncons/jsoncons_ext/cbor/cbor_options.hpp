@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -98,15 +98,6 @@ public:
         this->use_typed_arrays_ = value;
         return *this;
     }
-
-#if !defined(JSONCONS_NO_DEPRECATED)
-    JSONCONS_DEPRECATED_MSG("Instead, use use_typed_arrays(bool)")
-    cbor_options& enable_typed_arrays(bool value)
-    {
-        this->use_typed_arrays_ = value;
-        return *this;
-    }
-#endif
 };
 
 }}

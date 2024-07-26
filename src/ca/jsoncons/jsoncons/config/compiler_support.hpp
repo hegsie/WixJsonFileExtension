@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -13,8 +13,26 @@
 #include <exception>
 #include <ostream>
 
-#if defined (__clang__)
-#define JSONCONS_CLANG_VERSION (__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__)
+#if defined(__GNUC__)
+#   if defined(__GNUC_PATCHLEVEL__)
+#       define JSONCONS_GCC_AVAILABLE(major, minor, patch) \
+            ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__) \
+            >= (major * 10000 + minor * 100 + patch))
+#   else
+#       define JSONCONS_GCC_AVAILABLE(major, minor, patch) \
+            ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100) \
+            >= (major * 10000 + minor * 100 + patch))
+#   endif
+#   else
+#       define JSONCONS_GCC_AVAILABLE(major, minor, patch) 0
+#endif
+
+#if defined(__clang__)
+#   define JSONCONS_CLANG_AVAILABLE(major, minor, patch) \
+            ((__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__) \
+            >= (major * 10000 + minor * 100 + patch))
+#   else
+#       define JSONCONS_CLANG_AVAILABLE(major, minor, patch) 0
 #endif
 
 // Uncomment the following line to suppress deprecated names (recommended for new code)
@@ -24,11 +42,6 @@
 // MIT license
 
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54577
-#if defined(__clang__) 
-#elif defined(__GNUC__) && (__GNUC__ == 4 && __GNUC_MINOR__ < 9)
-#define JSONCONS_NO_VECTOR_ERASE_TAKES_CONST_ITERATOR 1
-#define JSONCONS_NO_MAP_CONS_TAKES_ALLOCATOR 1
-#endif
 
 #if defined(__clang__)
 #  define JSONCONS_FALLTHROUGH [[clang::fallthrough]]
@@ -147,11 +160,12 @@
     #define JSONCONS_IF_CONSTEXPR if 
 #endif
 
-
+#if !defined(JSONCONS_HAS_POLYMORPHIC_ALLOCATOR)
 #if defined(JSONCONS_HAS_2017)
 #      if __has_include(<memory_resource>)
 #        define JSONCONS_HAS_POLYMORPHIC_ALLOCATOR 1
 #     endif // __has_include(<string_view>)
+#endif
 #endif
 
 #if !defined(JSONCONS_HAS_STD_STRING_VIEW)
@@ -188,8 +202,8 @@
 #  if (defined JSONCONS_HAS_2017)
 #    if defined(__clang__)
 #      if defined(__APPLE__)
-#        if JSONCONS_CLANG_VERSION >=  100001
-#        define JSONCONS_HAS_STD_VARIANT 1
+#        if JSONCONS_CLANG_AVAILABLE(10,0,1)
+#          define JSONCONS_HAS_STD_VARIANT 1
 #        endif
 #      elif __has_include(<variant>)
 #        define JSONCONS_HAS_STD_VARIANT 1
@@ -286,6 +300,7 @@
 // Follows boost
 
 // gcc and clang
+#if !defined(__CUDA_ARCH__)
 #if (defined(__clang__) || defined(__GNUC__)) && defined(__cplusplus)
 #if defined(__SIZEOF_INT128__) && !defined(_MSC_VER)
 #  define JSONCONS_HAS_INT128
@@ -315,6 +330,7 @@
 #endif
 #endif
 #endif
+#endif // __CUDA_ARCH__
 
 // Follows boost config/detail/suffix.hpp
 #if defined(JSONCONS_HAS_INT128) && defined(__cplusplus)
@@ -344,10 +360,28 @@ namespace jsoncons {
     #define JSONCONS_COPY(first,last,d_first) std::copy(first, last, d_first)
 #endif
 
-#if defined(_MSC_VER) && _MSC_VER <= 1900 
-#define JSONCONS_CONSTEXPR
-#else
+#if defined(JSONCONS_HAS_CP14)
 #define JSONCONS_CONSTEXPR constexpr
+#else
+#define JSONCONS_CONSTEXPR
+#endif
+
+#if !defined(JSONCONS_HAS_STD_REGEX)
+#if defined(__clang__) 
+#define JSONCONS_HAS_STD_REGEX 1
+#elif (defined(__GNUC__) && (__GNUC__ == 4)) && (defined(__GNUC__) && __GNUC_MINOR__ < 9)
+// GCC 4.8 has broken regex support: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=53631
+#else
+#define JSONCONS_HAS_STD_REGEX 1
+#endif
+#endif
+
+#if !defined(JSONCONS_HAS_STATEFUL_ALLOCATOR)
+#if defined(__clang__) && !JSONCONS_CLANG_AVAILABLE(11,0,0)
+#elif defined(__GNUC__) && !JSONCONS_GCC_AVAILABLE(10,0,0)
+#else
+#define JSONCONS_HAS_STATEFUL_ALLOCATOR 1
+#endif
 #endif
 
 namespace jsoncons {

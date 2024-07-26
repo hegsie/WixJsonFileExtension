@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -26,7 +26,7 @@ namespace msgpack {
 
     enum class msgpack_container_type {object, array};
 
-    template<class Sink=jsoncons::binary_stream_sink,class Allocator=std::allocator<char>>
+    template <typename Sink=jsoncons::binary_stream_sink,typename Allocator=std::allocator<char>>
     class basic_msgpack_encoder final : public basic_json_visitor<char>
     {
         enum class decimal_parse_state { start, integer, exp1, exp2, fraction1 };
@@ -115,18 +115,18 @@ namespace msgpack {
     private:
         // Implementing methods
 
-        void visit_flush() override
+        void visit_flush() final
         {
             sink_.flush();
         }
 
-        bool visit_begin_object(semantic_tag, const ser_context&, std::error_code& ec) override
+        bool visit_begin_object(semantic_tag, const ser_context&, std::error_code& ec) final
         {
             ec = msgpack_errc::object_length_required;
             return false;
         }
 
-        bool visit_begin_object(std::size_t length, semantic_tag, const ser_context&, std::error_code& ec) override
+        bool visit_begin_object(std::size_t length, semantic_tag, const ser_context&, std::error_code& ec) final
         {
             if (JSONCONS_UNLIKELY(++nesting_depth_ > options_.max_nesting_depth()))
             {
@@ -147,7 +147,7 @@ namespace msgpack {
                 binary::native_to_big(static_cast<uint16_t>(length), 
                                       std::back_inserter(sink_));
             }
-            else if (length <= 4294967295)
+            else if (length <= (std::numeric_limits<uint32_t>::max)())
             {
                 // map 32
                 sink_.push_back(jsoncons::msgpack::msgpack_type::map32_type);
@@ -158,7 +158,7 @@ namespace msgpack {
             return true;
         }
 
-        bool visit_end_object(const ser_context&, std::error_code& ec) override
+        bool visit_end_object(const ser_context&, std::error_code& ec) final
         {
             JSONCONS_ASSERT(!stack_.empty());
             --nesting_depth_;
@@ -179,13 +179,13 @@ namespace msgpack {
             return true;
         }
 
-        bool visit_begin_array(semantic_tag, const ser_context&, std::error_code& ec) override
+        bool visit_begin_array(semantic_tag, const ser_context&, std::error_code& ec) final
         {
             ec = msgpack_errc::array_length_required;
             return false;
         }
 
-        bool visit_begin_array(std::size_t length, semantic_tag, const ser_context&, std::error_code& ec) override
+        bool visit_begin_array(std::size_t length, semantic_tag, const ser_context&, std::error_code& ec) final
         {
             if (JSONCONS_UNLIKELY(++nesting_depth_ > options_.max_nesting_depth()))
             {
@@ -213,7 +213,7 @@ namespace msgpack {
             return true;
         }
 
-        bool visit_end_array(const ser_context&, std::error_code& ec) override
+        bool visit_end_array(const ser_context&, std::error_code& ec) final
         {
             JSONCONS_ASSERT(!stack_.empty());
 
@@ -235,13 +235,13 @@ namespace msgpack {
             return true;
         }
 
-        bool visit_key(const string_view_type& name, const ser_context&, std::error_code&) override
+        bool visit_key(const string_view_type& name, const ser_context&, std::error_code&) final
         {
             write_string_value(name);
             return true;
         }
 
-        bool visit_null(semantic_tag, const ser_context&, std::error_code&) override
+        bool visit_null(semantic_tag, const ser_context&, std::error_code&) final
         {
             // nil
             sink_.push_back(jsoncons::msgpack::msgpack_type::nil_type);
@@ -280,7 +280,7 @@ namespace msgpack {
             }
         }
 
-        bool visit_string(const string_view_type& sv, semantic_tag tag, const ser_context&, std::error_code& ec) override
+        bool visit_string(const string_view_type& sv, semantic_tag tag, const ser_context&, std::error_code& ec) final
         {
             switch (tag)
             {
@@ -392,7 +392,7 @@ namespace msgpack {
         bool visit_byte_string(const byte_string_view& b, 
                                semantic_tag, 
                                const ser_context&,
-                               std::error_code&) override
+                               std::error_code&) final
         {
 
             const std::size_t length = b.size();
@@ -427,7 +427,7 @@ namespace msgpack {
         bool visit_byte_string(const byte_string_view& b, 
                                uint64_t ext_tag, 
                                const ser_context&,
-                               std::error_code&) override
+                               std::error_code&) final
         {
             const std::size_t length = b.size();
             switch (length)
@@ -486,7 +486,7 @@ namespace msgpack {
         bool visit_double(double val, 
                              semantic_tag,
                              const ser_context&,
-                             std::error_code&) override
+                             std::error_code&) final
         {
             float valf = (float)val;
             if ((double)valf == val)
@@ -511,7 +511,7 @@ namespace msgpack {
         bool visit_int64(int64_t val, 
                          semantic_tag tag, 
                          const ser_context&,
-                         std::error_code&) override
+                         std::error_code&) final
         {
             switch (tag)
             {
@@ -632,7 +632,7 @@ namespace msgpack {
         bool visit_uint64(uint64_t val, 
                           semantic_tag tag, 
                           const ser_context&,
-                          std::error_code&) override
+                          std::error_code&) final
         {
             switch (tag)
             {
@@ -715,7 +715,7 @@ namespace msgpack {
             return true;
         }
 
-        bool visit_bool(bool val, semantic_tag, const ser_context&, std::error_code&) override
+        bool visit_bool(bool val, semantic_tag, const ser_context&, std::error_code&) final
         {
             // true and false
             sink_.push_back(static_cast<uint8_t>(val ? jsoncons::msgpack::msgpack_type::true_type : jsoncons::msgpack::msgpack_type::false_type));
@@ -735,17 +735,6 @@ namespace msgpack {
 
     using msgpack_stream_encoder = basic_msgpack_encoder<jsoncons::binary_stream_sink>;
     using msgpack_bytes_encoder = basic_msgpack_encoder<jsoncons::bytes_sink<std::vector<uint8_t>>>;
-
-    #if !defined(JSONCONS_NO_DEPRECATED)
-    JSONCONS_DEPRECATED_MSG("Instead, use msgpack_bytes_encoder") typedef msgpack_bytes_encoder msgpack_bytes_serializer;
-
-    template<class Sink=jsoncons::binary_stream_sink>
-    using basic_msgpack_serializer = basic_msgpack_encoder<Sink>; 
-
-    JSONCONS_DEPRECATED_MSG("Instead, use msgpack_stream_encoder") typedef msgpack_stream_encoder msgpack_encoder;
-    JSONCONS_DEPRECATED_MSG("Instead, use msgpack_stream_encoder") typedef msgpack_stream_encoder msgpack_serializer;
-    JSONCONS_DEPRECATED_MSG("Instead, use msgpack_bytes_encoder") typedef msgpack_bytes_encoder msgpack_buffer_serializer;
-    #endif
 
 } // namespace msgpack
 } // namespace jsoncons

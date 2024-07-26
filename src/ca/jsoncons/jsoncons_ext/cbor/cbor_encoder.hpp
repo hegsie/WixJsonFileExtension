@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -24,7 +24,7 @@ namespace jsoncons { namespace cbor {
 
 enum class cbor_container_type {object, indefinite_length_object, array, indefinite_length_array};
 
-template<class Sink=jsoncons::binary_stream_sink,class Allocator=std::allocator<char>>
+template <typename Sink=jsoncons::binary_stream_sink,typename Allocator=std::allocator<char>>
 class basic_cbor_encoder final : public basic_json_visitor<char>
 {
     using super_type = basic_json_visitor<char>;
@@ -111,10 +111,8 @@ public:
          options_(options), 
          alloc_(alloc),
          stack_(alloc),
-#if !defined(JSONCONS_NO_MAP_CONS_TAKES_ALLOCATOR) 
          stringref_map_(alloc),
          bytestringref_map_(alloc),
-#endif 
          nesting_depth_(0)        
     {
         if (options.pack_strings())
@@ -205,7 +203,7 @@ private:
             binary::native_to_big(static_cast<uint32_t>(length), 
                                   std::back_inserter(sink_));
         } 
-        else if (length <= 0xffffffffffffffff)
+        else if (uint64_t(length) <= (std::numeric_limits<std::uint64_t>::max)())
         {
             binary::native_to_big(static_cast<uint8_t>(0xbb), 
                                   std::back_inserter(sink_));
@@ -291,7 +289,7 @@ private:
             binary::native_to_big(static_cast<uint32_t>(length), 
                                   std::back_inserter(sink_));
         } 
-        else if (length <= 0xffffffffffffffff)
+        else if (uint64_t(length) <= (std::numeric_limits<std::uint64_t>::max)())
         {
             binary::native_to_big(static_cast<uint8_t>(0x9b), 
                                   std::back_inserter(sink_));
@@ -411,7 +409,7 @@ private:
             binary::native_to_big(static_cast<uint32_t>(length), 
                                             std::back_inserter(sink_));
         }
-        else if (length <= 0xffffffffffffffff)
+        else if (uint64_t(length) <= (std::numeric_limits<std::uint64_t>::max)())
         {
             binary::native_to_big(static_cast<uint8_t>(0x7b), 
                                             std::back_inserter(sink_));
@@ -474,7 +472,7 @@ private:
             binary::native_to_big(static_cast<uint32_t>(length), 
                                   std::back_inserter(sink_));
         }
-        else if (length <= 0xffffffffffffffff)
+        else if (uint64_t(length) <= (std::numeric_limits<std::uint64_t>::max)())
         {
             binary::native_to_big(static_cast<uint8_t>(0x5b), 
                                   std::back_inserter(sink_));
@@ -777,7 +775,7 @@ private:
         if (exponent.length() > 0)
         {
             int64_t val{ 0 };
-            auto r = jsoncons::detail::base16_to_integer(exponent.data(), exponent.length(), val);
+            auto r = jsoncons::detail::hex_to_integer(exponent.data(), exponent.length(), val);
             if (!r)
             {
                 ec = r.error_code();
@@ -789,7 +787,7 @@ private:
         if (!more) return more;
 
         int64_t val{ 0 };
-        auto r = jsoncons::detail::base16_to_integer(s.data(),s.length(), val);
+        auto r = jsoncons::detail::hex_to_integer(s.data(),s.length(), val);
         if (r)
         {
             more = visit_int64(val, semantic_tag::none, context, ec);
@@ -1741,17 +1739,6 @@ private:
 
 using cbor_stream_encoder = basic_cbor_encoder<jsoncons::binary_stream_sink>;
 using cbor_bytes_encoder = basic_cbor_encoder<jsoncons::bytes_sink<std::vector<uint8_t>>>;
-
-#if !defined(JSONCONS_NO_DEPRECATED)
-JSONCONS_DEPRECATED_MSG("Instead, use cbor_bytes_encoder") typedef cbor_bytes_encoder cbor_bytes_serializer;
-
-template<class Sink=jsoncons::binary_stream_sink>
-using basic_cbor_serializer = basic_cbor_encoder<Sink>; 
-
-JSONCONS_DEPRECATED_MSG("Instead, use cbor_stream_encoder") typedef cbor_stream_encoder cbor_encoder;
-JSONCONS_DEPRECATED_MSG("Instead, use cbor_stream_encoder") typedef cbor_stream_encoder cbor_serializer;
-JSONCONS_DEPRECATED_MSG("Instead, use cbor_bytes_encoder") typedef cbor_bytes_encoder cbor_buffer_serializer;
-#endif
 
 }}
 #endif

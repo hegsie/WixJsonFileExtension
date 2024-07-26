@@ -1,4 +1,4 @@
-// Copyright 2013-2023 Daniel Parker
+// Copyright 2013-2024 Daniel Parker
 // Distributed under the Boost license, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
@@ -25,7 +25,7 @@
 namespace jsoncons { 
 namespace ubjson {
 
-template<class Source=jsoncons::binary_stream_source,class Allocator=std::allocator<char>>
+template <typename Source=jsoncons::binary_stream_source,typename Allocator=std::allocator<char>>
 class basic_ubjson_cursor : public basic_staj_cursor<char>, private virtual ser_context
 {
 public:
@@ -44,7 +44,7 @@ private:
 public:
     using string_view_type = string_view;
 
-    template <class Sourceable>
+    template <typename Sourceable>
     basic_ubjson_cursor(Sourceable&& source,
                       const ubjson_decode_options& options = ubjson_decode_options(),
                       const Allocator& alloc = Allocator())
@@ -60,7 +60,7 @@ public:
 
     // Constructors that set parse error codes
 
-    template <class Sourceable>
+    template <typename Sourceable>
     basic_ubjson_cursor(Sourceable&& source, 
                         std::error_code& ec)
        : basic_ubjson_cursor(std::allocator_arg, Allocator(),
@@ -70,7 +70,7 @@ public:
     {
     }
 
-    template <class Sourceable>
+    template <typename Sourceable>
     basic_ubjson_cursor(Sourceable&& source, 
                         const ubjson_decode_options& options,
                         std::error_code& ec)
@@ -81,7 +81,7 @@ public:
     {
     }
 
-    template <class Sourceable>
+    template <typename Sourceable>
     basic_ubjson_cursor(std::allocator_arg_t, const Allocator& alloc, 
                         Sourceable&& source,
                         const ubjson_decode_options& options,
@@ -107,7 +107,7 @@ public:
         }
     }
 
-    template <class Sourceable>
+    template <typename Sourceable>
     void reset(Sourceable&& source)
     {
         parser_.reset(std::forward<Sourceable>(source));
@@ -130,7 +130,7 @@ public:
         }
     }
 
-    template <class Sourceable>
+    template <typename Sourceable>
     void reset(Sourceable&& source, std::error_code& ec)
     {
         parser_.reset(std::forward<Sourceable>(source));
@@ -165,7 +165,7 @@ public:
     void read_to(basic_json_visitor<char_type>& visitor,
                 std::error_code& ec) override
     {
-        if (send_json_event(cursor_visitor_.event(), visitor, *this, ec))
+        if (cursor_visitor_.event().send_json_event(visitor, *this, ec))
         {
             read_next(visitor, ec);
         }
@@ -213,63 +213,6 @@ public:
         return staj_filter_view(cursor, pred);
     }
 
-#if !defined(JSONCONS_NO_DEPRECATED)
-
-    template <class Sourceable>
-    JSONCONS_DEPRECATED_MSG("Instead, use pipe syntax for filter")
-    basic_ubjson_cursor(Sourceable&& source,
-                      std::function<bool(const staj_event&, const ser_context&)> filter,
-                      const ubjson_decode_options& options = ubjson_decode_options(),
-                      const Allocator& alloc = Allocator())
-       : parser_(std::forward<Sourceable>(source), options, alloc), 
-         cursor_visitor_(filter), 
-         eof_(false)
-    {
-        if (!done())
-        {
-            next();
-        }
-    }
-
-    template <class Sourceable>
-    JSONCONS_DEPRECATED_MSG("Instead, use pipe syntax for filter")
-    basic_ubjson_cursor(Sourceable&& source, 
-                        std::function<bool(const staj_event&, const ser_context&)> filter,
-                        std::error_code& ec)
-       : basic_ubjson_cursor(std::allocator_arg, Allocator(),
-                             std::forward<Sourceable>(source), filter, ec)
-    {
-    }
-
-    template <class Sourceable>
-    JSONCONS_DEPRECATED_MSG("Instead, use pipe syntax for filter")
-    basic_ubjson_cursor(std::allocator_arg_t, const Allocator& alloc, 
-                        Sourceable&& source,
-                        std::function<bool(const staj_event&, const ser_context&)> filter,
-                        std::error_code& ec)
-       : parser_(std::forward<Sourceable>(source), alloc), 
-         cursor_visitor_(filter),
-         eof_(false)
-    {
-        if (!done())
-        {
-            next(ec);
-        }
-    }
-
-    JSONCONS_DEPRECATED_MSG("Instead, use read_to(basic_json_visitor<char_type>&)")
-    void read(basic_json_visitor<char_type>& visitor)
-    {
-        read_to(visitor);
-    }
-
-    JSONCONS_DEPRECATED_MSG("Instead, use read_to(basic_json_visitor<char_type>&, std::error_code&)")
-    void read(basic_json_visitor<char_type>& visitor,
-                 std::error_code& ec) 
-    {
-        read_to(visitor, ec);
-    }
-#endif
 private:
     static bool accept_all(const staj_event&, const ser_context&) 
     {
