@@ -15,13 +15,14 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <Authors>hegsie</Authors>
     <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Properties\**" />
     <EmbeddedResource Remove="Properties\**" />
     <None Remove="Properties\**" />
 
-    <None Include="$(OutDir)WixJsonFileExtension.dll" Pack="true" PackagePath="wixext5\"/>
+    <None Include="$(OutDir)WixJsonFileExtension.dll" Pack="true" PackagePath="wixext5\" />
   </ItemGroup>
 
   <ItemGroup>
