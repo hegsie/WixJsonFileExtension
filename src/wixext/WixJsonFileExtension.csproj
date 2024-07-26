@@ -37,7 +37,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="WixToolset.Extensibility" Version="5.0.1" />
-    <PackageReference Include="WixToolset.Sdk" Version="5.0.1" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
 
