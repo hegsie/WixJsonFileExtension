@@ -11,9 +11,6 @@
     <PackageReference Include="WixToolset.Util.wixext" Version="5.0.1" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\src\wixext\WixJsonFileExtension.csproj" />
-  </ItemGroup>
-  <ItemGroup>
     <WixExtension Include="WixJsonFileExtension.dll" Condition=" Exists('WixJsonFileExtension.dll') " />
     <UnsupportedWixExtension Include="$(MSBuildThisFileName)" Condition=" !Exists('WixJsonFileExtension.dll') " />
   </ItemGroup>
