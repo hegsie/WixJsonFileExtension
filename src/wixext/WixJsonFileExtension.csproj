@@ -24,7 +24,7 @@
     <EmbeddedResource Remove="Properties\**" />
     <None Remove="Properties\**" />
 
-    <None Include="$(OutDir)WixJsonFileExtension.dll" Pack="true" PackagePath="$(WixExtensionPackageFolder)" />
+    <None Include="$(OutDir)WixJsonFileExtension.dll" Pack="true" PackagePath="wixext5/" />
 
     <None Include="..\..\LICENSE">
       <Pack>True</Pack>
