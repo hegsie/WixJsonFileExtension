@@ -7,7 +7,7 @@ namespace Hegsie.Wix.JsonExtension
 	{
 		DeleteValue = 1,
 		SetValue = 2,
-		AddArrayValue = 4,
+		replaceJsonValue = 4,
 		Uninstall = 8,
 		PreserveDate = 16,
 		JsonPointer = 32

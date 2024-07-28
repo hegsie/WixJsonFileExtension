@@ -263,7 +263,7 @@ namespace Hegsie.Wix.JsonExtension
 			const string ActionDeleteValue = "deleteValue";
 			const string ActionSetValue = "setValue";
 			const string ActionCreateValue = "createJsonPointerValue";
-			const string ActionAddArrayValue = "addArrayValue";
+			const string ActionReplaceJsonValue = "replaceJsonValue";
 
 			int action;
 			string actionValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
@@ -283,7 +283,7 @@ namespace Hegsie.Wix.JsonExtension
 						flags |= 2;
 						action = 2;
 						break;
-					case ActionAddArrayValue:
+					case ActionReplaceJsonValue:
 						flags |= 4;
 						action = 3;
 						break;
@@ -293,7 +293,7 @@ namespace Hegsie.Wix.JsonExtension
 						break;
 					default:
 						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
-							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionAddArrayValue));
+							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue));
 						action = CompilerConstants.IllegalInteger;
 						break;
 				}

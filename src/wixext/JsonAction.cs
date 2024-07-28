@@ -4,6 +4,6 @@
 	{
 		DeleteValue = 1,
 		SetValue = 2,
-		AddArrayValue = 4,
+		replaceJsonValue = 4,
 	}
 }

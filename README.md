@@ -1,4 +1,4 @@
-# WixJsonFileExtension (4+)
+# WixJsonFileExtension (5+)
 #### An extension to Windows&reg; installer XML (WiX) to create or modify JSON-formatted files during an installation.
 
 ## Status: JSONPath supported for install only applications
@@ -11,13 +11,13 @@ xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension"
 ```
 3. Use the JsonFile XML element inside your wxs to update your target jaon file: 
 ```xml
-<Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="addArrayValue" />
+<Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" />
 ```
 
 Possible Actions include
  - deleteValue
  - setValue (this is the default if one isn't specified)
- - addArrayValue
+ - replaceJsonValue
  - createJsonPointerValue
 
  All actions use JSONPaths in their ElementPaths unless specified in their action i.e. createJsonPointerValue

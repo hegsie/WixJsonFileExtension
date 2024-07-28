@@ -15,13 +15,22 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <Authors>hegsie</Authors>
     <Platforms>AnyCPU</Platforms>
+	<PackageReadmeFile>README.md</PackageReadmeFile>
+	<PackageLicenseExpression>MIT</PackageLicenseExpression>
+	<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Properties\**" />
     <EmbeddedResource Remove="Properties\**" />
     <None Remove="Properties\**" />
 
-    <None Include="$(OutDir)WixJsonFileExtension.dll" Pack="true" PackagePath="wixext5\" />
+    <None Include="$(OutDir)WixJsonFileExtension.dll" Pack="true" PackagePath="$(WixExtensionPackageFolder)" />
+
+    <None Include="..\..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+	<None Include="..\..\README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
   <ItemGroup>
@@ -34,6 +43,7 @@
       <Link>Hegsie.Wix.JsonExtension.Data.json.wixlib</Link>
     </EmbeddedResource>
   </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="WixToolset.Extensibility" Version="5.0.1" />
   </ItemGroup>

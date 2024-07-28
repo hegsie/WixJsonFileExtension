@@ -23,9 +23,9 @@
       <Component Id="ProductComponent" Guid="{51CDDB12-E903-436C-9371-2E4E93D3B109}">
         <File Id="JsonConfig" Name="appsettings.json" Source="appsettings.json" />
 
-        <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="addArrayValue" />
+        <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" />
 
-        <Json:JsonFile Id="appSettingsDeletePrices" File="[#JsonConfig]" ElementPath="$..book[\[]*[\]].price" Action="deleteValue" />
+        <Json:JsonFile Id="appSettingsDeletePrices" File="[#JsonConfig]" ElementPath="$..book[\[]*[\]].OldPrice" Action="deleteValue" />
 
         <Json:JsonFile Id="appSettingsUpdatePrice" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].price" Value="1.67" Action="setValue" />
         <Json:JsonFile Id="appSettingsUpdateCategory" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].category" Value="[MY_VALUE]" Action="setValue" />

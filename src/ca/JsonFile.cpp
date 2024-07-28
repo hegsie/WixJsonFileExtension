@@ -24,18 +24,19 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
 HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LPCWSTR wzValue);
 HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath);
 
+// These are bit positions
 const int FLAG_DELETEVALUE = 0;
 const int FLAG_SETVALUE = 1;
-const int FLAG_ADDARRAYVALUE = 2;
+const int FLAG_REPLACEJSONVALUE = 2;
 const int FLAG_CREATEVALUE = 3;
 
-
+// These are bits
 enum eXmlAction
 {
     jaDeleteValue = 1,
-    jaSetValue,
-    jaAddArrayValue,
-    jaCreateJsonPointerValue,
+    jaSetValue = 2,
+    jaReplaceJsonValue = 4,
+    jaCreateJsonPointerValue = 8,
 };
 
 #define msierrJsonFileFailedRead         25530
@@ -253,10 +254,10 @@ extern "C" UINT __stdcall SchedJsonFile(
                 WcaLog(LOGMSG_STANDARD, "jaSetValue");
                 ExitOnFailure(hr, "failed to write file indicator to custom action data")
             }
-            else if (flags.test(FLAG_ADDARRAYVALUE))
+            else if (flags.test(FLAG_REPLACEJSONVALUE))
             {
-                hr = WcaWriteIntegerToCaData((int)jaAddArrayValue, &pwzCustomActionData);
-                WcaLog(LOGMSG_STANDARD, "jaAddArrayValue");
+                hr = WcaWriteIntegerToCaData((int)jaReplaceJsonValue, &pwzCustomActionData);
+                WcaLog(LOGMSG_STANDARD, "jaReplaceJsonValue");
                 ExitOnFailure(hr, "failed to write builkwrite value action indicator to custom action data")
             }
             else if (flags.test(FLAG_CREATEVALUE))
@@ -455,10 +456,10 @@ static HRESULT UpdateJsonFile(
     //    MB_OK
     //);
 
-    WcaLog(LOGMSG_STANDARD, "Found ElementPath as %s", elementPath.c_str());
+    //WcaLog(LOGMSG_STANDARD, "Found ElementPath as %s", std::string(elementPath).c_str());
     
-    elementPath = std::regex_replace(elementPath, std::regex(R"(\[(\\\[)\])"), "[");
-    WcaLog(LOGMSG_STANDARD, "Updated ElementPath [ to %s", elementPath.c_str());
+    //elementPath = std::regex_replace(elementPath, std::regex(R"(\[(\\\[)\])"), "[");
+    WcaLog(LOGMSG_STANDARD, "[Found ElementPath to %ls", wzElementPath);
 
     //MessageBox(
     //    NULL,
@@ -467,8 +468,8 @@ static HRESULT UpdateJsonFile(
     //    MB_OK
     //);
 
-    elementPath = std::regex_replace(elementPath, std::regex(R"(\[(\\\])\])"), "]");
-    WcaLog(LOGMSG_STANDARD, "Updated ElementPath ] to %s", elementPath.c_str());
+    //elementPath = std::regex_replace(elementPath, std::regex(R"(\[(\\\])\])"), "]");
+    //WcaLog(LOGMSG_STANDARD, "Updated ElementPath ] to %s", elementPath.c_str());
 
     //MessageBox(
     //    NULL,
@@ -480,12 +481,15 @@ static HRESULT UpdateJsonFile(
     bool create = flags.test(FLAG_CREATEVALUE);
     WcaLog(LOGMSG_STANDARD, "Found create set to %s", create ? "true" : "false");
     if (flags.test(FLAG_SETVALUE) || create) {
+        WcaLog(LOGMSG_STANDARD, "FLAG_SETVALUE");
         hr = SetJsonPathValue(wzFile, elementPath, wzValue, create);
     }
     else if (flags.test(FLAG_DELETEVALUE)) {
+        WcaLog(LOGMSG_STANDARD, "FLAG_DELETEVALUE");
         hr = DeleteJsonPath(wzFile, elementPath);
     }
-    else if (flags.test(FLAG_ADDARRAYVALUE)) {
+    else if (flags.test(FLAG_REPLACEJSONVALUE)) {
+        WcaLog(LOGMSG_STANDARD, "FLAG_REPLACEJSONVALUE");
         hr = SetJsonPathObject(wzFile, elementPath, wzValue);
     }
 
@@ -621,26 +625,26 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
 
             is >> j;
 
-            auto query = jsonpath::json_query(j, sElementPath);
-/*
-            MessageBox(
-                NULL,
-                std::wstring(CA2W(std::string(sElementPath).c_str())).c_str(),
-                L"DeleteJsonPath ELem Path Contains...",
-                MB_OK
-            );      */      
+            //MessageBox(
+            //    NULL,
+            //    std::wstring(CA2W(std::string(sElementPath).c_str())).c_str(),
+            //    L"DeleteJsonPath ELem Path Contains...",
+            //    MB_OK
+            //);
 
-            WcaLog(LOGMSG_STANDARD, "About to delete value: $%s$ with value(s) %s ", sElementPath.c_str(),query.to_string().c_str());
+            auto expr = jsonpath::make_expression<json>(sElementPath);
+            std::vector<jsonpath::json_location> locations = expr.select_paths(j,
+                jsonpath::result_options::sort_descending | jsonpath::result_options::sort_descending);
 
-            auto deleter = [](const json::string_view_type& path, json& val)
+            //for (const jsonpath::json_location& location : locations)
+            //{
+            //    WcaLog(LOGMSG_STANDARD, "About to delete value: %s ", to_basic_string(location).c_str());
+            //}
+
+            for (const auto& location : locations)
             {
-                if (val.is_object())
-                    val.erase(val.object_range().begin(), val.object_range().end());
-                else
-                    val.clear();
-            };
-
-            jsonpath::json_replace(j, sElementPath, deleter);
+                jsonpath::remove(j, location);
+            }
 
             std::cout << j << '\n';
 
