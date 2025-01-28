@@ -47,7 +47,7 @@ namespace Hegsie.Wix.JsonExtension
 		}
 
 		/// <summary>
-		/// Parses a Wix4JsonFile element.
+		/// Parses a WixJsonFile element.
 		/// </summary>
 		/// <param name="node">Element to parse.</param>
 		/// <param name="componentId">Identifier of parent component.</param>
@@ -61,6 +61,8 @@ namespace Hegsie.Wix.JsonExtension
 			string file = null;
 			string elementPath = null;
 			string value = null;
+			string defaultValue = null;
+			string property = null;
 			int attributes = 0;
 			int on = CompilerConstants.IntegerNotSet;
 			int flags = 0;
@@ -96,6 +98,11 @@ namespace Hegsie.Wix.JsonExtension
 								// <html:a href="http://msdn.microsoft.com/library/aa368609(VS.85).aspx" target="_blank">Formatted topic</html:a> for information how to escape square brackets in the value.
 								value = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
 								break;
+							case "DefaultValue":
+								// The value to set. May be one of the simple JSON types, or a JSON-formatted object. See the
+								// <html:a href="http://msdn.microsoft.com/library/aa368609(VS.85).aspx" target="_blank">Formatted topic</html:a> for information how to escape square brackets in the value.
+								defaultValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+								break;
 							case "Action":
 								// The type of modification to be made to the JSON file when the component is installed or un-installed.
 								action = ValidateAction(node, sourceLineNumbers, attribute, ref flags);
@@ -103,6 +110,13 @@ namespace Hegsie.Wix.JsonExtension
 							case "On":
 								// Defines when the specified changes to the JSON file are to be done.
 								on = ValidateOn(node, sourceLineNumbers, attribute, ref flags);
+								break;
+							case "Property":
+								// The path to the parent element of the element to be modified. The semantic can be either JSON Path or JSON Pointer language, as specified in the
+								// SelectionLanguage attribute. Note that this is a formatted field and therefore, square brackets in the path must be escaped. In addition, JSON Path
+								// and Pointer allow backslashes to be used to escape characters, so if you intend to include literal backslashes, you must escape them as well by doubling
+								// them in this attribute. The string is formatted by MSI first, and the result is consumed as the JSON Path or Pointer.
+								property = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
 								break;
 							case "Sequence":
 								// Specifies the order in which the modification is to be attempted on the JSON file.  It is important to ensure that new elements are created before you attempt to modify them.
@@ -153,9 +167,11 @@ namespace Hegsie.Wix.JsonExtension
 				File = file,
 				ElementPath = elementPath,
 				Value = value,
+				DefaultValue = defaultValue,
 				Flags = flags,
 				ComponentRef = componentId,
-				Sequence = sequence
+				Sequence = sequence,
+				Property = property
 			});
 
 			if (0 != attributes)
@@ -163,33 +179,9 @@ namespace Hegsie.Wix.JsonExtension
 				symbol.Flags = attributes;
 			}
 
-			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "Wix4SchedJsonFile", Context.Platform, CustomActionPlatforms.X64);
-		}
-
-		private int ValidatePreserveModifiedDate(XElement node, SourceLineNumber sourceLineNumbers,
-			XAttribute attribute, int flags)
-		{
-			string preserveModifiedDateValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
-			if (preserveModifiedDateValue.Length == 0)
-			{
-			}
-			else
-			{
-				switch (preserveModifiedDateValue)
-				{
-					case "yes":
-						flags |= 16;
-						break;
-					case "no":
-						break;
-					default:
-						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
-							"PreserveModifiedDate", preserveModifiedDateValue, "yes", "no"));
-						break;
-				}
-			}
-
-			return flags;
+			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section,
+				action == (int)JsonAction.ReadValue ? "WixPropertyJsonFile" : "WixSchedJsonFile", Context.Platform,
+				CustomActionPlatforms.X64);
 		}
 
 		private int ValidateSelectionLanguage(XElement node, SourceLineNumber sourceLineNumbers,
@@ -264,6 +256,7 @@ namespace Hegsie.Wix.JsonExtension
 			const string ActionSetValue = "setValue";
 			const string ActionCreateValue = "createJsonPointerValue";
 			const string ActionReplaceJsonValue = "replaceJsonValue";
+			const string ActionReadValue = "readValue";
 
 			int action;
 			string actionValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
@@ -276,24 +269,28 @@ namespace Hegsie.Wix.JsonExtension
 				switch (actionValue)
 				{
 					case ActionDeleteValue:
-						flags |= 1;
-						action = 1;
+						flags |= (int)JsonFlags.DeleteValue;
+						action = (int)JsonAction.DeleteValue;
 						break;
 					case ActionSetValue:
-						flags |= 2;
-						action = 2;
+						flags |= (int)JsonFlags.SetValue;
+						action = (int)JsonAction.SetValue;
 						break;
 					case ActionReplaceJsonValue:
-						flags |= 4;
-						action = 3;
+						flags |= (int)JsonFlags.ReplaceJsonValue;
+						action = (int)JsonAction.ReplaceJsonValue;
 						break;
 					case ActionCreateValue:
-						flags |= 8;
-						action = 4;
+						flags |= (int)JsonFlags.CreateJsonPointerValue;
+						action = (int)JsonAction.CreateJsonPointerValue;
+						break;
+					case ActionReadValue:
+						flags |= (int)JsonFlags.ReadValue;
+						action = (int)JsonAction.ReadValue;
 						break;
 					default:
 						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
-							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue));
+							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue, ActionReadValue));
 						action = CompilerConstants.IllegalInteger;
 						break;
 				}
