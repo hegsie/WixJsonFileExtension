@@ -16,8 +16,8 @@ static HRESULT AddJsonFileChangeToList(
     JSON_FILE_CHANGE *pxfc = static_cast<JSON_FILE_CHANGE *>(MemAlloc(sizeof(JSON_FILE_CHANGE), TRUE));
     ExitOnNull(pxfc, hr, E_OUTOFMEMORY, "failed to allocate memory for new xml file change list element")
 
-        // Add it to the end of the list
-        if (NULL == *ppxfcHead)
+    // Add it to the end of the list
+    if (NULL == *ppxfcHead)
     {
         *ppxfcHead = pxfc;
         *ppxfcTail = pxfc;

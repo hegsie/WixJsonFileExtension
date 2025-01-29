@@ -49,7 +49,7 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
 
                 WcaLog(LOGMSG_STANDARD, "Found %d elements", query.size());
 
-                if (query.size() > 0) {
+                if (!query.empty()) {
                     auto f = [cValue](const std::string& /*path*/, json& value)
                         {
                             value = cValue;
@@ -62,8 +62,7 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
 
                     WcaLog(LOGMSG_STANDARD, "Updating the json %s with values %s.", sElementPath.c_str(), cValue);
 
-                    std::ofstream os(wzFile,
-                        std::ios_base::out | std::ios_base::trunc);
+                    std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
 
                     if (!os.is_open())
                     {

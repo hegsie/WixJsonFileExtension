@@ -35,13 +35,13 @@ extern "C" UINT WINAPI ExecJsonFile(
     // loop through all the passed in data
     while (pwz && *pwz)
     {
+        hr = WcaReadIntegerFromCaData(&pwz, &iFlags);
+        ExitOnFailure(hr, "Failed to get Flags for WixJsonFile")
+
         hr = WcaReadStringFromCaData(&pwz, &sczFile);
         ExitOnFailure(hr, "failed to read file name from custom action data")
 
         WcaLog(LOGMSG_STANDARD, "Configuring Json File: %ls", sczFile);
-
-        hr = WcaReadIntegerFromCaData(&pwz, &iFlags);
-        ExitOnFailure(hr, "Failed to get Flags for WixJsonFile")
 
         // Get path, name, and value to be written
         hr = WcaReadStringFromCaData(&pwz, &sczElementPath);
