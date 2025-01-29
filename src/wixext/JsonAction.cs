@@ -4,6 +4,8 @@
 	{
 		DeleteValue = 1,
 		SetValue = 2,
-		replaceJsonValue = 4,
+		ReplaceJsonValue = 4,
+		CreateJsonPointerValue = 8,
+		ReadValue = 16
 	}
 }
