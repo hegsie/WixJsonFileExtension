@@ -23,9 +23,9 @@
       <Component Id="ProductComponent" Guid="{51CDDB12-E903-436C-9371-2E4E93D3B109}">
         <File Id="JsonConfig" Name="appsettings.json" Source="appsettings.json" />
 
-        <Json:JsonFile Id="appSettingsReadValue" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].category" DefaultValue="Empty" Action="readValue" Property="MY_PROPERTY" />
+        <!--<Json:JsonFile Id="appSettingsReadValue" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].category" DefaultValue="Empty" Action="readValue" Property="MY_PROPERTY" />
 
-        <Json:JsonFile Id="appSettingsReadMissingValue" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-5')[\]].category" DefaultValue="Empty" Action="readValue" Property="MY_MISSING_PROPERTY" />
+        <Json:JsonFile Id="appSettingsReadMissingValue" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-5')[\]].category" DefaultValue="Empty" Action="readValue" Property="MY_MISSING_PROPERTY" />-->
         
         <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" />
 

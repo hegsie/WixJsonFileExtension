@@ -19,7 +19,7 @@ HRESULT UpdateJsonFile(
     char* cValue = bValue;
 
     std::ifstream is(cFile);
-    WcaLog(LOGMSG_STANDARD, "Created wifstream, %s", cFile);
+    WcaLog(LOGMSG_STANDARD, "Created input file stream, %ls", wzFile);
 
     if (is.fail())
     {

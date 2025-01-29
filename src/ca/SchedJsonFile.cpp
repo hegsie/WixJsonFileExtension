@@ -28,7 +28,7 @@ extern "C" UINT __stdcall SchedJsonFile(
     hr = WcaInitialize(hInstall, "SchedJsonFile");
     ExitOnFailure(hr, "failed to initialize")
 
-        hr = ReadJsonFileTable(&pxfcHead, &pxfcTail);
+    hr = ReadJsonFileTable(&pxfcHead, &pxfcTail);
     if (S_FALSE == hr)
     {
         WcaLog(LOGMSG_VERBOSE, "Skipping SchedJsonFile because WixJsonFile table not present");
@@ -37,18 +37,14 @@ extern "C" UINT __stdcall SchedJsonFile(
 
     MessageExitOnFailure(hr, msierrJsonFileFailedRead, "failed to read WixJsonFile table")
 
-        WcaLog(LOGMSG_STANDARD, "Finished Reading WixJsonFile");
+    WcaLog(LOGMSG_STANDARD, "Finished Reading WixJsonFile");
     // loop through all the xml configurations
     for (pxfc = pxfcHead; pxfc; pxfc = pxfc->pxfcNext)
     {
         // If it's being installed
         if (WcaIsInstalling(pxfc->isInstalled, pxfc->isAction))
         {
-            hr = WcaWriteStringToCaData(pxfc->wzFile, &pwzCustomActionData);
-            WcaLog(LOGMSG_STANDARD, "pxfc->wzFile");
-            ExitOnFailure(hr, "failed to write File to custom action data: %ls", pxfc->wzFile)
-
-                std::bitset<32> flags(pxfc->iJsonFlags);
+            std::bitset<32> flags(pxfc->iJsonFlags);
             // Install the change
             if (flags.test(FLAG_DELETEVALUE))
             {
@@ -79,6 +75,10 @@ extern "C" UINT __stdcall SchedJsonFile(
                 continue;
             }
 
+            hr = WcaWriteStringToCaData(pxfc->wzFile, &pwzCustomActionData);
+            WcaLog(LOGMSG_STANDARD, "pxfc->wzFile");
+            ExitOnFailure(hr, "failed to write File to custom action data: %ls", pxfc->wzFile)
+
             hr = WcaWriteStringToCaData(pxfc->pwzElementPath, &pwzCustomActionData);
             WcaLog(LOGMSG_STANDARD, "pxfc->pwzElementPath");
             ExitOnFailure(hr, "failed to write ElementPath to custom action data: %ls", pxfc->pwzElementPath)
@@ -87,7 +87,7 @@ extern "C" UINT __stdcall SchedJsonFile(
             WcaLog(LOGMSG_STANDARD, "pxfc->pwzValue");
             ExitOnFailure(hr, "failed to write Value to custom action data: %ls", pxfc->pwzValue)
 
-                ++cFiles;
+            ++cFiles;
         }
     }
 
@@ -98,20 +98,20 @@ extern "C" UINT __stdcall SchedJsonFile(
         hr = S_OK;
     ExitOnFailure(hr, "failed while looping through all objects to secure")
 
-        // Schedule the custom action and add to progress bar
-        if (pwzCustomActionData && *pwzCustomActionData)
-        {
-            Assert(0 < cFiles);
+    // Schedule the custom action and add to progress bar
+    if (pwzCustomActionData && *pwzCustomActionData)
+    {
+        Assert(0 < cFiles);
 
-            WcaLog(LOGMSG_STANDARD, "About to WcaDoDeferredAction");
-            hr = WcaDoDeferredAction(L"WixExecJsonFile_X64", pwzCustomActionData, cFiles * 1000);
-            WcaLog(LOGMSG_STANDARD, "Finished WcaDoDeferredAction");
-            ExitOnFailure(hr, "failed to schedule ExecJsonFile action")
-        }
+        WcaLog(LOGMSG_STANDARD, "About to WcaDoDeferredAction");
+        hr = WcaDoDeferredAction(L"WixExecJsonFile_X64", pwzCustomActionData, cFiles * 1000);
+        WcaLog(LOGMSG_STANDARD, "Finished WcaDoDeferredAction");
+        ExitOnFailure(hr, "failed to schedule ExecJsonFile action")
+    }
 
 LExit:
     ReleaseStr(pwzCurrentFile)
-        ReleaseStr(pwzCustomActionData)
+    ReleaseStr(pwzCustomActionData)
 
-        return WcaFinalize(FAILED(hr) ? ERROR_INSTALL_FAILURE : er);
+    return WcaFinalize(FAILED(hr) ? ERROR_INSTALL_FAILURE : er);
 }

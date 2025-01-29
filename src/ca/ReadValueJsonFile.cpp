@@ -26,7 +26,7 @@ extern "C" UINT WINAPI ReadValueJsonFile(
     hr = WcaInitialize(hInstall, "ReadValueJsonFile");
     ExitOnFailure(hr, "failed to initialize")
 
-        hr = ReadJsonFileTable(&pxfcHead, &pxfcTail);
+    hr = ReadJsonFileTable(&pxfcHead, &pxfcTail);
     if (S_FALSE == hr)
     {
         WcaLog(LOGMSG_VERBOSE, "Skipping ReadValueJsonFile because WixJsonFile table not present");
@@ -35,7 +35,7 @@ extern "C" UINT WINAPI ReadValueJsonFile(
 
     MessageExitOnFailure(hr, msierrJsonFileFailedRead, "failed to read WixJsonFile table")
 
-        WcaLog(LOGMSG_STANDARD, "Finished Reading WixJsonFile");
+    WcaLog(LOGMSG_STANDARD, "Finished Reading WixJsonFile");
     // loop through all the json configurations
     for (pxfc = pxfcHead; pxfc; pxfc = pxfc->pxfcNext)
     {
