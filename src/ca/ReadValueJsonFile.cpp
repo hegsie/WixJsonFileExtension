@@ -52,10 +52,41 @@ extern "C" UINT WINAPI ReadValueJsonFile(
             }
             else if (flags.test(FLAG_READVALUE))
             {
-                WcaSetProperty(pxfc->pwzProperty, pxfc->pwzDefaultValue);
-                // Update property with value
-            }
+                WcaLog(LOGMSG_STANDARD, "Updating property %ls from file %ls with path %ls", 
+                    pxfc->pwzProperty, pxfc->wzFile, pxfc->pwzElementPath);
 
+                if (fs::exists(fs::path(pxfc->wzFile)))
+                {
+                    std::ifstream is(pxfc->wzFile);
+                    auto fileJson = jsoncons::json::parse(is);
+
+                    WcaLog(LOGMSG_STANDARD, "Parsed File");
+
+                    _bstr_t bElementPath(pxfc->pwzElementPath);
+                    char* cElementPath = bElementPath;
+
+                    std::string elementPath(cElementPath);
+
+                    WcaLog(LOGMSG_STANDARD, "Converted element path to std string");
+
+                    jsoncons::json result = jsonpath::json_query(fileJson, elementPath);
+
+                    WcaLog(LOGMSG_STANDARD, "Completed query of json file");
+
+                    if (result.empty()) {
+                        WcaLog(LOGMSG_STANDARD, "No results found for %s, setting default", elementPath.c_str());
+                        WcaSetProperty(pxfc->pwzProperty, pxfc->pwzDefaultValue);
+                    }
+                    else {
+                        WcaLog(LOGMSG_STANDARD, "Found %d results for %s", result.size(), elementPath.c_str());
+                        WcaSetProperty(pxfc->pwzProperty, CA2W(result.as_cstring()));
+                    }
+                }
+                else
+                {
+                    WcaLog(LOGMSG_STANDARD, "File %ls not found", pxfc->wzFile);
+                }
+            }
             ++cFiles;
         }
     }

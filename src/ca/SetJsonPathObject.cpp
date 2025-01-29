@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "JsonFile.h"
 
-HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LPCWSTR wzValue) {
+HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue) {
 
     try
     {

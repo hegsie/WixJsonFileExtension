@@ -80,7 +80,7 @@ HRESULT UpdateJsonFile(
     __in int iFlags
 );
 HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue);
-HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, std::string sElementPath, __in_z LPCWSTR wzValue);
+HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue);
 HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath);
 
 std::string GetLastErrorAsString();
