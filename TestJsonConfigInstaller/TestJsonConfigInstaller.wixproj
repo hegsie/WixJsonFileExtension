@@ -1,5 +1,5 @@
 ﻿<Project>
-  <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="5.0.1" />
+  <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="6.0.1" />
   <ItemGroup>
     <Content Include="appsettings.json" />
     <Content Include="install.cmd">
@@ -8,7 +8,7 @@
   </ItemGroup>
   <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="5.0.1" />
   <ItemGroup>
-    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.1" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="6.0.1" />
   </ItemGroup>
   <ItemGroup>
     <WixExtension Include="WixJsonFileExtension.dll" Condition=" Exists('WixJsonFileExtension.dll') " />
