@@ -3,12 +3,21 @@
   <ItemGroup>
     <ClCompile Include="CustomAction.cpp" />
     <ClCompile Include="stdafx.cpp" />
-    <ClCompile Include="JsonFile.cpp" />
+    <ClCompile Include="SchedJsonFile.cpp" />
+    <ClCompile Include="ReadJsonFileTable.cpp" />
+    <ClCompile Include="ReadValueJsonFile.cpp" />
+    <ClCompile Include="ExecJsonFile.cpp" />
+    <ClCompile Include="UpdateJsonFile.cpp" />
+    <ClCompile Include="SetJsonPathValue.cpp" />
+    <ClCompile Include="DeleteJsonPath.cpp" />
+    <ClCompile Include="SetJsonPathObject.cpp" />
+    <ClCompile Include="Errors.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="JsonFile.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CustomAction.def" />

@@ -1,10 +1,13 @@
 ﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment Id="JsonFile">
-    <CustomAction Id="Wix4SchedJsonFile_X64" DllEntry="SchedJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca.dll" Impersonate="no" />
-    <CustomAction Id="Wix4ExecJsonFile_X64" DllEntry="ExecJsonFile" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca.dll" />
+    <CustomAction Id="WixPropertyJsonFile_X64" DllEntry="ReadValueJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca.dll" Impersonate="no" />
+    
+    <CustomAction Id="WixSchedJsonFile_X64" DllEntry="SchedJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca.dll" Impersonate="no" />
+    <CustomAction Id="WixExecJsonFile_X64" DllEntry="ExecJsonFile" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca.dll" />
     
     <InstallExecuteSequence>
-      <Custom Action="Wix4SchedJsonFile_X64" After="InstallFiles" />
+      <Custom Action="WixPropertyJsonFile_X64" After="CostFinalize" />
+      <Custom Action="WixSchedJsonFile_X64" After="InstallFiles" />
     </InstallExecuteSequence>
   </Fragment>
 

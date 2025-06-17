@@ -94,17 +94,26 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CustomAction.cpp" />
-    <ClCompile Include="JsonFile.cpp" />
+    <ClCompile Include="DeleteJsonPath.cpp" />
+    <ClCompile Include="Errors.cpp" />
+    <ClCompile Include="ExecJsonFile.cpp" />
+    <ClCompile Include="ReadJsonFileTable.cpp" />
+    <ClCompile Include="ReadValueJsonFile.cpp" />
+    <ClCompile Include="SchedJsonFile.cpp" />
+    <ClCompile Include="SetJsonPathObject.cpp" />
+    <ClCompile Include="SetJsonPathValue.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="UpdateJsonFile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CustomAction.def" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="JsonFile.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />

@@ -11,9 +11,11 @@ public static partial class JsonFileDefinitions
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.File), IntermediateFieldType.String),
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.ElementPath), IntermediateFieldType.String),
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.Value), IntermediateFieldType.String),
+			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.DefaultValue), IntermediateFieldType.String),
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.Flags), IntermediateFieldType.Number),
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.ComponentRef), IntermediateFieldType.String),
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.Sequence), IntermediateFieldType.Number),
+			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.Property), IntermediateFieldType.String)
 		},
 		typeof(JsonFileSymbol));
 }
@@ -23,9 +25,11 @@ public enum JsonFileSymbolFields
 	File,
 	ElementPath,
 	Value,
+	DefaultValue,
 	Flags,
 	ComponentRef,
-	Sequence	
+	Sequence,
+	Property
 }
 
 public class JsonFileSymbol : IntermediateSymbol
@@ -58,6 +62,12 @@ public class JsonFileSymbol : IntermediateSymbol
 		set => this.Set((int)JsonFileSymbolFields.Value, value);
 	}
 
+	public string DefaultValue
+	{
+		get => this.Fields[(int)JsonFileSymbolFields.DefaultValue].AsString();
+		set => this.Set((int)JsonFileSymbolFields.DefaultValue, value);
+	}
+
 	public int Flags
 	{
 		get => this.Fields[(int)JsonFileSymbolFields.Flags].AsNumber();
@@ -73,5 +83,11 @@ public class JsonFileSymbol : IntermediateSymbol
 	{
 		get => this.Fields[(int)JsonFileSymbolFields.Sequence].AsNullableNumber();
 		set => this.Set((int)JsonFileSymbolFields.Sequence, value);
+	}
+
+	public string Property
+	{
+		get => this.Fields[(int)JsonFileSymbolFields.Property].AsString();
+		set => this.Set((int)JsonFileSymbolFields.Property, value);
 	}
 }
