@@ -15,8 +15,9 @@ xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension"
 ```
 
 Possible Actions include
- - deleteValue
+ - readValue
  - setValue (this is the default if one isn't specified)
+ - deleteValue
  - replaceJsonValue
  - createJsonPointerValue
 
