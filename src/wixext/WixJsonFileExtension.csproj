@@ -15,9 +15,10 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <Authors>hegsie</Authors>
     <Platforms>AnyCPU</Platforms>
-	<PackageReadmeFile>README.md</PackageReadmeFile>
-	<PackageLicenseExpression>MIT</PackageLicenseExpression>
-	<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+    <WixExtensionPackageFolder>wixext6</WixExtensionPackageFolder>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Properties\**" />
@@ -30,7 +31,7 @@
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
-	<None Include="..\..\README.md" Pack="true" PackagePath="" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
   <ItemGroup>
