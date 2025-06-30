@@ -1,4 +1,4 @@
-# WixJsonFileExtension (5+)
+# WixJsonFileExtension
 #### An extension to Windows&reg; installer XML (WiX) to create or modify JSON-formatted files during an installation.
 
 ## Status: JSONPath supported for install only applications
