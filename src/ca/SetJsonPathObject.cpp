@@ -16,6 +16,12 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
             json j;
             std::ifstream is(cFile);
 
+            if (!is.is_open())
+            {
+                hr = ReturnLastError("Opening the file stream");
+                if (FAILED(hr)) return hr;
+            }
+
             is >> j;
 
             std::string s = cValue;

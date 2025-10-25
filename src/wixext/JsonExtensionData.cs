@@ -5,7 +5,7 @@ using WixToolset.Extensibility;
 namespace Hegsie.Wix.JsonExtension
 {
 	/// <summary>
-	/// The WiX Toolset SQL Server Extension.
+	/// The WiX Toolset JSON Extension.
 	/// </summary>
 	public sealed class JsonExtensionData : BaseExtensionData
 	{

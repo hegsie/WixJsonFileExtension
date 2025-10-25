@@ -63,7 +63,6 @@ namespace Hegsie.Wix.JsonExtension
 			string value = null;
 			string defaultValue = null;
 			string property = null;
-			int attributes = 0;
 			int on = CompilerConstants.IntegerNotSet;
 			int flags = 0;
 			int action = CompilerConstants.IntegerNotSet;
@@ -83,7 +82,6 @@ namespace Hegsie.Wix.JsonExtension
 								break;
 							case "File":
 								// Path of the .json file to modify.
-								Debugger.Break();
 								file = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
 								break;
 							case "ElementPath":
@@ -173,11 +171,6 @@ namespace Hegsie.Wix.JsonExtension
 				Sequence = sequence,
 				Property = property
 			});
-
-			if (0 != attributes)
-			{
-				symbol.Flags = attributes;
-			}
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section,
 				action == (int)JsonAction.ReadValue ? "WixPropertyJsonFile" : "WixSchedJsonFile", Context.Platform,
@@ -290,7 +283,7 @@ namespace Hegsie.Wix.JsonExtension
 						break;
 					default:
 						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
-							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue, ActionReadValue));
+							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue, ActionCreateValue, ActionReadValue));
 						action = CompilerConstants.IllegalInteger;
 						break;
 				}
@@ -301,6 +294,10 @@ namespace Hegsie.Wix.JsonExtension
 
 		public int? ToNullableInt(string s)
 		{
+			if (string.IsNullOrEmpty(s))
+			{
+				return null;
+			}
 			if (int.TryParse(s, out int i))
 			{
 				return i;

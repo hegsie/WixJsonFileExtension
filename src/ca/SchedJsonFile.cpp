@@ -74,6 +74,11 @@ extern "C" UINT __stdcall SchedJsonFile(
             {
                 continue;
             }
+            else
+            {
+                WcaLog(LOGMSG_STANDARD, "Unknown or no action flag set, skipping entry");
+                continue;
+            }
 
             hr = WcaWriteStringToCaData(pxfc->wzFile, &pwzCustomActionData);
             WcaLog(LOGMSG_STANDARD, "pxfc->wzFile");

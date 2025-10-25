@@ -51,34 +51,7 @@ HRESULT UpdateJsonFile(
 
     std::string elementPath(cElementPath);
 
-    //MessageBox(
-    //    NULL,
-    //    wzElementPath,
-    //    L"ELem Path Contains...",
-    //    MB_OK
-    //);
-
-    //WcaLog(LOGMSG_STANDARD, "Found ElementPath as %s", std::string(elementPath).c_str());
-
-    //elementPath = std::regex_replace(elementPath, std::regex(R"(\[(\\\[)\])"), "[");
-    WcaLog(LOGMSG_STANDARD, "[Found ElementPath to %ls", wzElementPath);
-
-    //MessageBox(
-    //    NULL,
-    //    std::wstring(CA2W(std::string(elementPath).c_str())).c_str(),
-    //    L"ELem Path Contains...",
-    //    MB_OK
-    //);
-
-    //elementPath = std::regex_replace(elementPath, std::regex(R"(\[(\\\])\])"), "]");
-    //WcaLog(LOGMSG_STANDARD, "Updated ElementPath ] to %s", elementPath.c_str());
-
-    //MessageBox(
-    //    NULL,
-    //    std::wstring(CA2W(std::string(elementPath).c_str())).c_str(),
-    //    L"ELem Path Contains...",
-    //    MB_OK
-    //);
+    WcaLog(LOGMSG_STANDARD, "Found ElementPath: %ls", wzElementPath);
 
     bool create = flags.test(FLAG_CREATEVALUE);
     WcaLog(LOGMSG_STANDARD, "Found create set to %s", create ? "true" : "false");
