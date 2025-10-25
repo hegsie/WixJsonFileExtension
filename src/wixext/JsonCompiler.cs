@@ -83,7 +83,6 @@ namespace Hegsie.Wix.JsonExtension
 								break;
 							case "File":
 								// Path of the .json file to modify.
-								Debugger.Break();
 								file = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
 								break;
 							case "ElementPath":
@@ -290,7 +289,7 @@ namespace Hegsie.Wix.JsonExtension
 						break;
 					default:
 						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
-							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue, ActionReadValue));
+							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue, ActionCreateValue, ActionReadValue));
 						action = CompilerConstants.IllegalInteger;
 						break;
 				}

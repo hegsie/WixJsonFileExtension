@@ -21,21 +21,9 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
 
             is >> j;
 
-            //MessageBox(
-            //    NULL,
-            //    std::wstring(CA2W(std::string(sElementPath).c_str())).c_str(),
-            //    L"DeleteJsonPath ELem Path Contains...",
-            //    MB_OK
-            //);
-
             auto expr = jsonpath::make_expression<json>(sElementPath);
             std::vector<jsonpath::json_location> locations = expr.select_paths(j,
                 jsonpath::result_options::sort_descending | jsonpath::result_options::sort_descending);
-
-            //for (const jsonpath::json_location& location : locations)
-            //{
-            //    WcaLog(LOGMSG_STANDARD, "About to delete value: %s ", to_basic_string(location).c_str());
-            //}
 
             for (const auto& location : locations)
             {

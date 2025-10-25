@@ -9,7 +9,7 @@ To Use this Wix Extension
 ```xml
 xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension"
 ```
-3. Use the JsonFile XML element inside your wxs to update your target jaon file: 
+3. Use the JsonFile XML element inside your wxs to update your target json file: 
 ```xml
 <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" />
 ```
