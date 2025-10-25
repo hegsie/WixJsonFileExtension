@@ -23,7 +23,7 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
 
             auto expr = jsonpath::make_expression<json>(sElementPath);
             std::vector<jsonpath::json_location> locations = expr.select_paths(j,
-                jsonpath::result_options::sort_descending | jsonpath::result_options::sort_descending);
+                jsonpath::result_options::sort_descending);
 
             for (const auto& location : locations)
             {

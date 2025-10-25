@@ -294,6 +294,10 @@ namespace Hegsie.Wix.JsonExtension
 
 		public int? ToNullableInt(string s)
 		{
+			if (string.IsNullOrEmpty(s))
+			{
+				return null;
+			}
 			if (int.TryParse(s, out int i))
 			{
 				return i;
