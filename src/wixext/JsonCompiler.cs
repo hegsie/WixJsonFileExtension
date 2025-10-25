@@ -63,7 +63,6 @@ namespace Hegsie.Wix.JsonExtension
 			string value = null;
 			string defaultValue = null;
 			string property = null;
-			int attributes = 0;
 			int on = CompilerConstants.IntegerNotSet;
 			int flags = 0;
 			int action = CompilerConstants.IntegerNotSet;
@@ -172,11 +171,6 @@ namespace Hegsie.Wix.JsonExtension
 				Sequence = sequence,
 				Property = property
 			});
-
-			if (0 != attributes)
-			{
-				symbol.Flags = attributes;
-			}
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section,
 				action == (int)JsonAction.ReadValue ? "WixPropertyJsonFile" : "WixSchedJsonFile", Context.Platform,

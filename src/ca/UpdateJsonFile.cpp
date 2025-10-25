@@ -51,7 +51,7 @@ HRESULT UpdateJsonFile(
 
     std::string elementPath(cElementPath);
 
-    WcaLog(LOGMSG_STANDARD, "Found ElementPath to %ls", wzElementPath);
+    WcaLog(LOGMSG_STANDARD, "Found ElementPath: %ls", wzElementPath);
 
     bool create = flags.test(FLAG_CREATEVALUE);
     WcaLog(LOGMSG_STANDARD, "Found create set to %s", create ? "true" : "false");
