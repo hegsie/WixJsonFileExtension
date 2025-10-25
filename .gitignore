@@ -288,3 +288,7 @@ __pycache__/
 *.xsd.cs
 TestJsonConfigInstaller/WixJsonExtension.dll
 /TestJsonConfigInstaller/WixJsonFileExtension.dll
+
+# CodeQL and build artifacts
+_codeql_*
+.nuget/nuget.exe
