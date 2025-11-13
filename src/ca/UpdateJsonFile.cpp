@@ -11,6 +11,19 @@ HRESULT UpdateJsonFile(
     HRESULT hr = S_OK;
     ::SetLastError(0);
 
+    // Input validation
+    if (NULL == wzFile || L'\0' == *wzFile)
+    {
+        WcaLog(LOGMSG_STANDARD, "Invalid file path parameter");
+        return E_INVALIDARG;
+    }
+
+    if (NULL == wzElementPath || L'\0' == *wzElementPath)
+    {
+        WcaLog(LOGMSG_STANDARD, "Invalid element path parameter");
+        return E_INVALIDARG;
+    }
+
     _bstr_t bFile(wzFile);
     char* cFile = bFile;
 

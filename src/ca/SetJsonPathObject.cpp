@@ -5,6 +5,25 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
 
     try
     {
+        // Input validation
+        if (NULL == wzFile || L'\0' == *wzFile)
+        {
+            WcaLog(LOGMSG_STANDARD, "Invalid file path parameter");
+            return E_INVALIDARG;
+        }
+
+        if (sElementPath.empty())
+        {
+            WcaLog(LOGMSG_STANDARD, "Invalid element path parameter");
+            return E_INVALIDARG;
+        }
+
+        if (NULL == wzValue || L'\0' == *wzValue)
+        {
+            WcaLog(LOGMSG_STANDARD, "Invalid value parameter");
+            return E_INVALIDARG;
+        }
+
         _bstr_t bFile(wzFile);
         char* cFile = bFile;
 

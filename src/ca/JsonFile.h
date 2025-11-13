@@ -84,7 +84,7 @@ HRESULT UpdateJsonFile(
 );
 HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue);
 HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue);
-HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath);
+HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath);
 
 std::string GetLastErrorAsString();
-HRESULT ReturnLastError(std::string action);
+HRESULT ReturnLastError(const std::string& action);

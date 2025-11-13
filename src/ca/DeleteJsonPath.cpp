@@ -1,10 +1,23 @@
 #include "stdafx.h"
 #include "JsonFile.h"
 
-HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
+HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath)
 {
     try
     {
+        // Input validation
+        if (NULL == wzFile || L'\0' == *wzFile)
+        {
+            WcaLog(LOGMSG_STANDARD, "Invalid file path parameter");
+            return E_INVALIDARG;
+        }
+
+        if (sElementPath.empty())
+        {
+            WcaLog(LOGMSG_STANDARD, "Invalid element path parameter");
+            return E_INVALIDARG;
+        }
+
         _bstr_t bFile(wzFile);
         char* cFile = bFile;
         HRESULT hr = S_OK;
