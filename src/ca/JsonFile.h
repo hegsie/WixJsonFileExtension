@@ -6,6 +6,20 @@
 using namespace jsoncons;
 namespace fs = std::filesystem;
 
+// Custom action decoration for multi-architecture support (following WiX Toolset pattern)
+#if defined(_M_AMD64)
+#define JSON_CUSTOM_ACTION_DECORATION(f) L"Wix" f L"_X64"
+#elif defined(_M_IX86)
+#define JSON_CUSTOM_ACTION_DECORATION(f) L"Wix" f L"_X86"
+#elif defined(_M_ARM64)
+#define JSON_CUSTOM_ACTION_DECORATION(f) L"Wix" f L"_A64"
+#else
+#define JSON_CUSTOM_ACTION_DECORATION(f) f
+#endif
+
+// Cost for progress bar calculations
+#define COST_JSONFILE 1000
+
 enum eJsonFileQuery { jfqId = 1, jfqFile, jfqElementPath, jfqValue, jfqDefaultValue, jfqFlags, jfqComponent, jfqProperty, jfqCompAttributes };
 
 
@@ -73,6 +87,9 @@ HRESULT ReadJsonFileTable(
     __inout JSON_FILE_CHANGE** ppxfcHead,
     __inout JSON_FILE_CHANGE** ppxfcTail
 );
+void FreeJsonFileChangeList(
+    __in JSON_FILE_CHANGE* pxfcHead
+);
 HRESULT UpdateJsonFile(
     __in_z LPCWSTR wzFile,
     __in_z LPCWSTR wzElementPath,
@@ -81,7 +98,7 @@ HRESULT UpdateJsonFile(
 );
 HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue);
 HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue);
-HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath);
+HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath);
 
 std::string GetLastErrorAsString();
-HRESULT ReturnLastError(std::string action);
+HRESULT ReturnLastError(const std::string& action);

@@ -26,7 +26,7 @@ std::string GetLastErrorAsString()
 }
 
 
-HRESULT ReturnLastError(std::string action)
+HRESULT ReturnLastError(const std::string& action)
 {
     DWORD err = GetLastError();
     if (err != 0)

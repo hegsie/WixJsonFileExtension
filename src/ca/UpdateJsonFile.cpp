@@ -9,62 +9,52 @@ HRESULT UpdateJsonFile(
 )
 {
     HRESULT hr = S_OK;
-    ojson j = NULL;
     ::SetLastError(0);
+
+    // Input validation
+    if (NULL == wzFile || L'\0' == *wzFile)
+    {
+        WcaLog(LOGMSG_STANDARD, "Invalid file path parameter");
+        return E_INVALIDARG;
+    }
+
+    if (NULL == wzElementPath || L'\0' == *wzElementPath)
+    {
+        WcaLog(LOGMSG_STANDARD, "Invalid element path parameter");
+        return E_INVALIDARG;
+    }
 
     _bstr_t bFile(wzFile);
     char* cFile = bFile;
 
-    _bstr_t bValue(wzValue);
-    char* cValue = bValue;
-
-    std::ifstream is(cFile);
-    WcaLog(LOGMSG_STANDARD, "Created input file stream, %ls", wzFile);
-
-    if (is.fail())
+    // Check if file exists before attempting to parse
+    if (!fs::exists(fs::path(wzFile)))
     {
-        WcaLog(LOGMSG_STANDARD, "Unable to open the target file, either its missing or rights need adding/elevating");
-        return 1;
+        WcaLog(LOGMSG_STANDARD, "File not found: %ls", wzFile);
+        return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
     }
-
-    json_stream_reader reader(is);
-
-    std::error_code ec;
-    reader.read(ec);
-
-    if (ec)
-    {
-        WcaLog(LOGMSG_STANDARD, "%s on line %i and column %i", ec.message().c_str(), reader.line(), reader.column());
-        std::cout << ec.message()
-            << " on line " << reader.line()
-            << " and column " << reader.column()
-            << std::endl;
-    }
-
-    is.close();
 
     std::bitset<32> flags(iFlags);
-    WcaLog(LOGMSG_STANDARD, "Using the following flags, %i, %s", iFlags, flags.test(FLAG_SETVALUE) ? "true" : "false");
+    WcaLog(LOGMSG_VERBOSE, "Processing file with flags: %i", iFlags);
 
     _bstr_t bElementPath(wzElementPath);
     char* cElementPath = bElementPath;
 
     std::string elementPath(cElementPath);
 
-    WcaLog(LOGMSG_STANDARD, "Found ElementPath: %ls", wzElementPath);
+    WcaLog(LOGMSG_VERBOSE, "Element path: %ls", wzElementPath);
 
     bool create = flags.test(FLAG_CREATEVALUE);
-    WcaLog(LOGMSG_STANDARD, "Found create set to %s", create ? "true" : "false");
     if (flags.test(FLAG_SETVALUE) || create) {
-        WcaLog(LOGMSG_STANDARD, "FLAG_SETVALUE");
+        WcaLog(LOGMSG_VERBOSE, "Setting JSON value (create=%s)", create ? "true" : "false");
         hr = SetJsonPathValue(wzFile, elementPath, wzValue, create);
     }
     else if (flags.test(FLAG_DELETEVALUE)) {
-        WcaLog(LOGMSG_STANDARD, "FLAG_DELETEVALUE");
+        WcaLog(LOGMSG_VERBOSE, "Deleting JSON value");
         hr = DeleteJsonPath(wzFile, elementPath);
     }
     else if (flags.test(FLAG_REPLACEJSONVALUE)) {
-        WcaLog(LOGMSG_STANDARD, "FLAG_REPLACEJSONVALUE");
+        WcaLog(LOGMSG_VERBOSE, "Replacing JSON object");
         hr = SetJsonPathObject(wzFile, elementPath, wzValue);
     }
 

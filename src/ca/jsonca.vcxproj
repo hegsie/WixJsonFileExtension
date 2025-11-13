@@ -97,6 +97,7 @@
     <ClCompile Include="DeleteJsonPath.cpp" />
     <ClCompile Include="Errors.cpp" />
     <ClCompile Include="ExecJsonFile.cpp" />
+    <ClCompile Include="ExecJsonFileRollback.cpp" />
     <ClCompile Include="ReadJsonFileTable.cpp" />
     <ClCompile Include="ReadValueJsonFile.cpp" />
     <ClCompile Include="SchedJsonFile.cpp" />

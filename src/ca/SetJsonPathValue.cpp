@@ -5,6 +5,19 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
 
     try
     {
+        // Input validation
+        if (NULL == wzFile || L'\0' == *wzFile)
+        {
+            WcaLog(LOGMSG_STANDARD, "Invalid file path parameter");
+            return E_INVALIDARG;
+        }
+
+        if (sElementPath.empty())
+        {
+            WcaLog(LOGMSG_STANDARD, "Invalid element path parameter");
+            return E_INVALIDARG;
+        }
+
         _bstr_t bFile(wzFile);
         char* cFile = bFile;
 
@@ -25,6 +38,7 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
             }
 
             json j = json::parse(is);
+            is.close();
             WcaLog(LOGMSG_STANDARD, "Parsed File");
 
             if (createValue) {
@@ -32,14 +46,20 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                 jsonpointer::add_if_absent(j, sElementPath, json(cValue), ec);
 
                 if (ec) {
-                    WcaLog(LOGMSG_STANDARD, "json pointer add_if_absent %s", ec.message());
+                    WcaLog(LOGMSG_STANDARD, "json pointer add_if_absent %s", ec.message().c_str());
+                    return E_FAIL;
                 }
                 else {
                     std::ofstream os(wzFile,
                         std::ios_base::out | std::ios_base::trunc);
 
-                    pretty_print(j).dump(os);
+                    if (!os.is_open())
+                    {
+                        hr = ReturnLastError("creating the output stream");
+                        if (FAILED(hr)) return hr;
+                    }
 
+                    pretty_print(j).dump(os);
                     os.close();
                 }
             }
@@ -82,12 +102,23 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
         }
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
+            return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
         return S_OK;
+    }
+    catch (_com_error& e)
+    {
+        WcaLog(LOGMSG_STANDARD, "encountered COM error: %ls", e.ErrorMessage());
+        return E_FAIL;
     }
     catch (std::exception& e)
     {
         WcaLog(LOGMSG_STANDARD, "encountered error %s", e.what());
-        throw;
+        return E_FAIL;
+    }
+    catch (...)
+    {
+        WcaLog(LOGMSG_STANDARD, "encountered unknown error");
+        return E_FAIL;
     }
 }
