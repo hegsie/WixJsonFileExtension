@@ -32,31 +32,49 @@ extern "C" UINT WINAPI ExecJsonFileRollback(
 
     pwz = pwzCustomActionData;
 
-    hr = WcaReadStringFromCaData(&pwz, &pwzFileName);
-    ExitOnFailure(hr, "failed to read file name from custom action data");
+    // Loop through all files that need to be rolled back
+    while (pwz && *pwz)
+    {
+        hr = WcaReadStringFromCaData(&pwz, &pwzFileName);
+        ExitOnFailure(hr, "failed to read file name from custom action data");
 
-    hr = WcaReadStreamFromCaData(&pwz, &pbData, &cbData);
-    ExitOnFailure(hr, "failed to read file contents from custom action data");
+        hr = WcaReadStreamFromCaData(&pwz, &pbData, &cbData);
+        ExitOnFailure(hr, "failed to read file contents from custom action data");
 
-    WcaLog(LOGMSG_VERBOSE, "Rolling back JSON file: %ls", pwzFileName);
+        WcaLog(LOGMSG_VERBOSE, "Rolling back JSON file: %ls", pwzFileName);
 
-    // Preserve the modified date on rollback
-    hr = FileGetTime(pwzFileName, NULL, NULL, &ft);
-    ExitOnFailure(hr, "Failed to get modified date of file %ls", pwzFileName);
+        // Preserve the modified date on rollback
+        hr = FileGetTime(pwzFileName, NULL, NULL, &ft);
+        ExitOnFailure(hr, "Failed to get modified date of file %ls", pwzFileName);
 
-    // Open the file
-    hFile = ::CreateFileW(pwzFileName, GENERIC_WRITE, FILE_SHARE_READ, NULL, TRUNCATE_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    ExitOnInvalidHandleWithLastError(hFile, hr, "failed to open file for rollback: %ls", pwzFileName);
+        // Open the file
+        hFile = ::CreateFileW(pwzFileName, GENERIC_WRITE, FILE_SHARE_READ, NULL, TRUNCATE_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        ExitOnInvalidHandleWithLastError(hFile, hr, "failed to open file for rollback: %ls", pwzFileName);
 
-    // Write out the old data
-    hr = FileWriteHandle(hFile, pbData, cbData);
-    ExitOnFailure(hr, "failed to write to file during rollback: %ls", pwzFileName);
+        // Write out the old data
+        hr = FileWriteHandle(hFile, pbData, cbData);
+        ExitOnFailure(hr, "failed to write to file during rollback: %ls", pwzFileName);
 
-    ReleaseFile(hFile);
+        ReleaseFile(hFile);
+        hFile = INVALID_HANDLE_VALUE;
 
-    // Preserve the modified date on rollback
-    hr = FileSetTime(pwzFileName, NULL, NULL, &ft);
-    ExitOnFailure(hr, "Failed to set modified date of file %ls", pwzFileName);
+        // Preserve the modified date on rollback
+        hr = FileSetTime(pwzFileName, NULL, NULL, &ft);
+        ExitOnFailure(hr, "Failed to set modified date of file %ls", pwzFileName);
+
+        // Clean up for next iteration
+        ReleaseStr(pwzFileName);
+        pwzFileName = NULL;
+        ReleaseMem(pbData);
+        pbData = NULL;
+        cbData = 0;
+    }
+
+    // Reaching the end of the list is actually a good thing, not an error
+    if (E_NOMOREITEMS == hr)
+    {
+        hr = S_OK;
+    }
 
 LExit:
     ReleaseStr(pwzCustomActionData);

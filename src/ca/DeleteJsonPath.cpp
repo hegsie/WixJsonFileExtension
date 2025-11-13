@@ -64,9 +64,19 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath)
         }
         return S_OK;
     }
+    catch (_com_error& e)
+    {
+        WcaLog(LOGMSG_STANDARD, "encountered COM error: %ls", e.ErrorMessage());
+        return E_FAIL;
+    }
     catch (std::exception& e)
     {
         WcaLog(LOGMSG_STANDARD, "encountered error %s", e.what());
+        return E_FAIL;
+    }
+    catch (...)
+    {
+        WcaLog(LOGMSG_STANDARD, "encountered unknown error");
         return E_FAIL;
     }
 }

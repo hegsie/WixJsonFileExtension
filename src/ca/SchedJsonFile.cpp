@@ -54,6 +54,7 @@ extern "C" UINT __stdcall SchedJsonFile(
     LPWSTR pwzRollbackCustomActionData = NULL;
 
     DWORD cFiles = 0;
+    DWORD cUniqueFiles = 0;
     BOOL fScheduledRollback = FALSE;
 
     // initialize
@@ -121,6 +122,7 @@ extern "C" UINT __stdcall SchedJsonFile(
                 hr = ScheduleFileRollback(pwzCurrentFile, &pwzRollbackCustomActionData);
                 ExitOnFailure(hr, "failed to schedule rollback for file: %ls", pwzCurrentFile);
 
+                ++cUniqueFiles;
                 fScheduledRollback = TRUE;
             }
 
@@ -150,8 +152,9 @@ extern "C" UINT __stdcall SchedJsonFile(
     // Schedule the rollback custom action first
     if (fScheduledRollback && pwzRollbackCustomActionData && *pwzRollbackCustomActionData)
     {
-        WcaLog(LOGMSG_VERBOSE, "Scheduling rollback custom action");
-        hr = WcaDoDeferredAction(JSON_CUSTOM_ACTION_DECORATION(L"ExecJsonFileRollback"), pwzRollbackCustomActionData, COST_JSONFILE);
+        Assert(0 < cUniqueFiles);
+        WcaLog(LOGMSG_VERBOSE, "Scheduling rollback custom action for %d unique files", cUniqueFiles);
+        hr = WcaDoDeferredAction(JSON_CUSTOM_ACTION_DECORATION(L"ExecJsonFileRollback"), pwzRollbackCustomActionData, cUniqueFiles * COST_JSONFILE);
         ExitOnFailure(hr, "failed to schedule ExecJsonFileRollback action")
     }
 
