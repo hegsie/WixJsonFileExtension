@@ -30,32 +30,31 @@ HRESULT UpdateJsonFile(
     // Check if file exists before attempting to parse
     if (!fs::exists(fs::path(wzFile)))
     {
-        WcaLog(LOGMSG_STANDARD, "Unable to open the target file: %ls", wzFile);
+        WcaLog(LOGMSG_STANDARD, "File not found: %ls", wzFile);
         return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
     }
 
     std::bitset<32> flags(iFlags);
-    WcaLog(LOGMSG_STANDARD, "Using the following flags, %i", iFlags);
+    WcaLog(LOGMSG_VERBOSE, "Processing file with flags: %i", iFlags);
 
     _bstr_t bElementPath(wzElementPath);
     char* cElementPath = bElementPath;
 
     std::string elementPath(cElementPath);
 
-    WcaLog(LOGMSG_STANDARD, "Found ElementPath: %ls", wzElementPath);
+    WcaLog(LOGMSG_VERBOSE, "Element path: %ls", wzElementPath);
 
     bool create = flags.test(FLAG_CREATEVALUE);
-    WcaLog(LOGMSG_STANDARD, "Found create set to %s", create ? "true" : "false");
     if (flags.test(FLAG_SETVALUE) || create) {
-        WcaLog(LOGMSG_STANDARD, "FLAG_SETVALUE");
+        WcaLog(LOGMSG_VERBOSE, "Setting JSON value (create=%s)", create ? "true" : "false");
         hr = SetJsonPathValue(wzFile, elementPath, wzValue, create);
     }
     else if (flags.test(FLAG_DELETEVALUE)) {
-        WcaLog(LOGMSG_STANDARD, "FLAG_DELETEVALUE");
+        WcaLog(LOGMSG_VERBOSE, "Deleting JSON value");
         hr = DeleteJsonPath(wzFile, elementPath);
     }
     else if (flags.test(FLAG_REPLACEJSONVALUE)) {
-        WcaLog(LOGMSG_STANDARD, "FLAG_REPLACEJSONVALUE");
+        WcaLog(LOGMSG_VERBOSE, "Replacing JSON object");
         hr = SetJsonPathObject(wzFile, elementPath, wzValue);
     }
 

@@ -6,6 +6,20 @@
 using namespace jsoncons;
 namespace fs = std::filesystem;
 
+// Custom action decoration for multi-architecture support (following WiX Toolset pattern)
+#if defined(_M_AMD64)
+#define JSON_CUSTOM_ACTION_DECORATION(f) L"Wix" f L"_X64"
+#elif defined(_M_IX86)
+#define JSON_CUSTOM_ACTION_DECORATION(f) L"Wix" f L"_X86"
+#elif defined(_M_ARM64)
+#define JSON_CUSTOM_ACTION_DECORATION(f) L"Wix" f L"_A64"
+#else
+#define JSON_CUSTOM_ACTION_DECORATION(f) f
+#endif
+
+// Cost for progress bar calculations
+#define COST_JSONFILE 1000
+
 enum eJsonFileQuery { jfqId = 1, jfqFile, jfqElementPath, jfqValue, jfqDefaultValue, jfqFlags, jfqComponent, jfqProperty, jfqCompAttributes };
 
 

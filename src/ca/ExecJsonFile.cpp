@@ -18,14 +18,11 @@ extern "C" UINT WINAPI ExecJsonFile(
 
     int iFlags = 0;
 
-    WcaLog(LOGMSG_STANDARD, "Entered WixJsonFile CA");
-
     hr = WcaInitialize(hInstall, "ExecJsonFile");
-    WcaLog(LOGMSG_STANDARD, "Initialized ExecJsonFile CA");
-    ExitOnFailure(hr, "Failed to initialize ExecJsonFile.")
+    ExitOnFailure(hr, "Failed to initialize ExecJsonFile")
 
     hr = WcaGetProperty(L"CustomActionData", &pwzCustomActionData);
-    WcaLog(LOGMSG_STANDARD, "CustomActionData: %ls", pwzCustomActionData);
+    WcaLog(LOGMSG_TRACEONLY, "CustomActionData: %ls", pwzCustomActionData);
     ExitOnFailure(hr, "failed to get CustomActionData")
 
     pwz = pwzCustomActionData;
@@ -39,17 +36,17 @@ extern "C" UINT WINAPI ExecJsonFile(
         hr = WcaReadStringFromCaData(&pwz, &sczFile);
         ExitOnFailure(hr, "failed to read file name from custom action data")
 
-        WcaLog(LOGMSG_STANDARD, "Configuring Json File: %ls", sczFile);
+        WcaLog(LOGMSG_VERBOSE, "Configuring JSON file: %ls", sczFile);
 
         // Get path, name, and value to be written
         hr = WcaReadStringFromCaData(&pwz, &sczElementPath);
-        ExitOnFailure(hr, "Failed to get ElementPath for WixJsonFile ")
+        ExitOnFailure(hr, "Failed to get ElementPath for WixJsonFile")
 
         hr = WcaReadStringFromCaData(&pwz, &sczValue);
         ExitOnFailure(hr, "failed to process CustomActionData")
 
         hr = UpdateJsonFile(sczFile, sczElementPath, sczValue, iFlags);
-        ExitOnFailure(hr, "Failed while updating file: %S ", sczFile)
+        ExitOnFailure(hr, "Failed while updating file: %ls", sczFile)
     }
 
     // reaching the end of the list is actually a good thing, not an error
