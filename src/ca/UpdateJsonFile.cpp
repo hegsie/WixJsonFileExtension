@@ -9,42 +9,20 @@ HRESULT UpdateJsonFile(
 )
 {
     HRESULT hr = S_OK;
-    ojson j = NULL;
     ::SetLastError(0);
 
     _bstr_t bFile(wzFile);
     char* cFile = bFile;
 
-    _bstr_t bValue(wzValue);
-    char* cValue = bValue;
-
-    std::ifstream is(cFile);
-    WcaLog(LOGMSG_STANDARD, "Created input file stream, %ls", wzFile);
-
-    if (is.fail())
+    // Check if file exists before attempting to parse
+    if (!fs::exists(fs::path(wzFile)))
     {
-        WcaLog(LOGMSG_STANDARD, "Unable to open the target file, either its missing or rights need adding/elevating");
-        return 1;
+        WcaLog(LOGMSG_STANDARD, "Unable to open the target file: %ls", wzFile);
+        return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
     }
-
-    json_stream_reader reader(is);
-
-    std::error_code ec;
-    reader.read(ec);
-
-    if (ec)
-    {
-        WcaLog(LOGMSG_STANDARD, "%s on line %i and column %i", ec.message().c_str(), reader.line(), reader.column());
-        std::cout << ec.message()
-            << " on line " << reader.line()
-            << " and column " << reader.column()
-            << std::endl;
-    }
-
-    is.close();
 
     std::bitset<32> flags(iFlags);
-    WcaLog(LOGMSG_STANDARD, "Using the following flags, %i, %s", iFlags, flags.test(FLAG_SETVALUE) ? "true" : "false");
+    WcaLog(LOGMSG_STANDARD, "Using the following flags, %i", iFlags);
 
     _bstr_t bElementPath(wzElementPath);
     char* cElementPath = bElementPath;

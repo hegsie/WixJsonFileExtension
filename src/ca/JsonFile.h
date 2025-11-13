@@ -73,6 +73,9 @@ HRESULT ReadJsonFileTable(
     __inout JSON_FILE_CHANGE** ppxfcHead,
     __inout JSON_FILE_CHANGE** ppxfcTail
 );
+void FreeJsonFileChangeList(
+    __in JSON_FILE_CHANGE* pxfcHead
+);
 HRESULT UpdateJsonFile(
     __in_z LPCWSTR wzFile,
     __in_z LPCWSTR wzElementPath,

@@ -12,11 +12,9 @@ extern "C" UINT WINAPI ExecJsonFile(
     LPWSTR pwzCustomActionData = NULL;
     LPWSTR pwz = NULL;
 
-    LPWSTR sczId = NULL;
     LPWSTR sczFile = NULL;
     LPWSTR sczElementPath = NULL;
     LPWSTR sczValue = NULL;
-    LPWSTR sczComponent = NULL;
 
     int iFlags = 0;
 
@@ -64,7 +62,6 @@ LExit:
     ReleaseStr(sczFile)
     ReleaseStr(sczElementPath)
     ReleaseStr(sczValue)
-    ReleaseStr(sczComponent)
 
     DWORD er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);

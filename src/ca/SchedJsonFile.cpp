@@ -118,5 +118,11 @@ LExit:
     ReleaseStr(pwzCurrentFile)
     ReleaseStr(pwzCustomActionData)
 
+    // Free the linked list to prevent memory leak
+    if (pxfcHead)
+    {
+        FreeJsonFileChangeList(pxfcHead);
+    }
+
     return WcaFinalize(FAILED(hr) ? ERROR_INSTALL_FAILURE : er);
 }

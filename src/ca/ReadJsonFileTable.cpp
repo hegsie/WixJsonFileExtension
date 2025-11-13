@@ -124,3 +124,26 @@ LExit:
 
     return hr;
 }
+
+void FreeJsonFileChangeList(
+    __in JSON_FILE_CHANGE* pxfcHead)
+{
+    JSON_FILE_CHANGE* pxfc = pxfcHead;
+    JSON_FILE_CHANGE* pxfcNext = NULL;
+
+    while (pxfc)
+    {
+        pxfcNext = pxfc->pxfcNext;
+
+        // Free dynamically allocated strings
+        ReleaseStr(pxfc->pwzElementPath);
+        ReleaseStr(pxfc->pwzValue);
+        ReleaseStr(pxfc->pwzDefaultValue);
+        ReleaseStr(pxfc->pwzProperty);
+
+        // Free the structure itself
+        MemFree(pxfc);
+
+        pxfc = pxfcNext;
+    }
+}

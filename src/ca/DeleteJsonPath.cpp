@@ -20,6 +20,7 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
             }
 
             is >> j;
+            is.close();
 
             auto expr = jsonpath::make_expression<json>(sElementPath);
             std::vector<jsonpath::json_location> locations = expr.select_paths(j,
@@ -29,8 +30,6 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
             {
                 jsonpath::remove(j, location);
             }
-
-            std::cout << j << '\n';
 
             WcaLog(LOGMSG_STANDARD, "Deleted the json %s", sElementPath.c_str());
 
@@ -48,13 +47,14 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, std::string sElementPath)
         }
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
+            return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
         return S_OK;
     }
     catch (std::exception& e)
     {
         WcaLog(LOGMSG_STANDARD, "encountered error %s", e.what());
-        throw;
+        return E_FAIL;
     }
 }
 

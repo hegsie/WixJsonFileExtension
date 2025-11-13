@@ -23,6 +23,7 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
             }
 
             is >> j;
+            is.close();
 
             std::string s = cValue;
             json obj = json::parse(s);
@@ -52,17 +53,17 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
             }
 
             pretty_print(j).dump(os);
-
             os.close();
         }
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
+            return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
         return S_OK;
     }
     catch (std::exception& e)
     {
         WcaLog(LOGMSG_STANDARD, "encountered error %s", e.what());
-        throw;
+        return E_FAIL;
     }
 }

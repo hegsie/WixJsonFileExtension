@@ -59,6 +59,7 @@ extern "C" UINT WINAPI ReadValueJsonFile(
                 {
                     std::ifstream is(pxfc->wzFile);
                     auto fileJson = jsoncons::json::parse(is);
+                    is.close();
 
                     WcaLog(LOGMSG_STANDARD, "Parsed File");
 
@@ -98,6 +99,12 @@ extern "C" UINT WINAPI ReadValueJsonFile(
         hr = S_OK;
     ExitOnFailure(hr, "failed while looping through all objects to secure")
 
-        LExit:
+LExit:
+    // Free the linked list to prevent memory leak
+    if (pxfcHead)
+    {
+        FreeJsonFileChangeList(pxfcHead);
+    }
+
     return WcaFinalize(FAILED(hr) ? ERROR_INSTALL_FAILURE : er);
 }

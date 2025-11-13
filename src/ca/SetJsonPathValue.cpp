@@ -25,6 +25,7 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
             }
 
             json j = json::parse(is);
+            is.close();
             WcaLog(LOGMSG_STANDARD, "Parsed File");
 
             if (createValue) {
@@ -32,14 +33,20 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                 jsonpointer::add_if_absent(j, sElementPath, json(cValue), ec);
 
                 if (ec) {
-                    WcaLog(LOGMSG_STANDARD, "json pointer add_if_absent %s", ec.message());
+                    WcaLog(LOGMSG_STANDARD, "json pointer add_if_absent %s", ec.message().c_str());
+                    return E_FAIL;
                 }
                 else {
                     std::ofstream os(wzFile,
                         std::ios_base::out | std::ios_base::trunc);
 
-                    pretty_print(j).dump(os);
+                    if (!os.is_open())
+                    {
+                        hr = ReturnLastError("creating the output stream");
+                        if (FAILED(hr)) return hr;
+                    }
 
+                    pretty_print(j).dump(os);
                     os.close();
                 }
             }
@@ -82,12 +89,13 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
         }
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
+            return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
         return S_OK;
     }
     catch (std::exception& e)
     {
         WcaLog(LOGMSG_STANDARD, "encountered error %s", e.what());
-        throw;
+        return E_FAIL;
     }
 }
