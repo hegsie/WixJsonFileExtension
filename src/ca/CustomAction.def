@@ -4,4 +4,5 @@ EXPORTS
 ; JsonFile.cpp
 	SchedJsonFile
     ExecJsonFile
+    ExecJsonFileRollback
     ReadValueJsonFile

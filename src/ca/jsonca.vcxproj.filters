@@ -7,6 +7,7 @@
     <ClCompile Include="ReadJsonFileTable.cpp" />
     <ClCompile Include="ReadValueJsonFile.cpp" />
     <ClCompile Include="ExecJsonFile.cpp" />
+    <ClCompile Include="ExecJsonFileRollback.cpp" />
     <ClCompile Include="UpdateJsonFile.cpp" />
     <ClCompile Include="SetJsonPathValue.cpp" />
     <ClCompile Include="DeleteJsonPath.cpp" />

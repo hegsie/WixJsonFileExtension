@@ -4,6 +4,7 @@
     
     <CustomAction Id="WixSchedJsonFile_X64" DllEntry="SchedJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca.dll" Impersonate="no" />
     <CustomAction Id="WixExecJsonFile_X64" DllEntry="ExecJsonFile" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca.dll" />
+    <CustomAction Id="WixExecJsonFileRollback_X64" DllEntry="ExecJsonFileRollback" Execute="rollback" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca.dll" />
     
     <InstallExecuteSequence>
       <Custom Action="WixPropertyJsonFile_X64" After="CostFinalize" />

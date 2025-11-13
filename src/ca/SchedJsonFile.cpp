@@ -1,6 +1,36 @@
 #include "stdafx.h"
 #include "JsonFile.h"
 
+// Helper function to schedule rollback for a file
+static HRESULT ScheduleFileRollback(
+    __in LPCWSTR wzFile,
+    __inout LPWSTR* ppwzRollbackCustomActionData
+    )
+{
+    HRESULT hr = S_OK;
+    LPBYTE pbData = NULL;
+    SIZE_T cbData = 0;
+
+    // If the file already exists, save its state for rollback
+    if (FileExistsEx(wzFile, NULL))
+    {
+        hr = FileRead(&pbData, &cbData, wzFile);
+        ExitOnFailure(hr, "failed to read file for rollback: %ls", wzFile);
+
+        hr = WcaWriteStringToCaData(wzFile, ppwzRollbackCustomActionData);
+        ExitOnFailure(hr, "failed to write file name to rollback custom action data: %ls", wzFile);
+
+        hr = WcaWriteStreamToCaData(pbData, cbData, ppwzRollbackCustomActionData);
+        ExitOnFailure(hr, "failed to write file contents to rollback custom action data");
+
+        WcaLog(LOGMSG_VERBOSE, "Scheduled rollback for file: %ls", wzFile);
+    }
+
+LExit:
+    ReleaseMem(pbData);
+    return hr;
+}
+
 /******************************************************************
  SchedJsonFile - entry point for JsonFile Custom Action
 ********************************************************************/
@@ -21,8 +51,10 @@ extern "C" UINT __stdcall SchedJsonFile(
     JSON_FILE_CHANGE* pxfc = NULL;
 
     LPWSTR pwzCustomActionData = NULL;
+    LPWSTR pwzRollbackCustomActionData = NULL;
 
     DWORD cFiles = 0;
+    BOOL fScheduledRollback = FALSE;
 
     // initialize
     hr = WcaInitialize(hInstall, "SchedJsonFile");
@@ -80,6 +112,18 @@ extern "C" UINT __stdcall SchedJsonFile(
                 continue;
             }
 
+            // Schedule rollback for this file if we haven't already
+            if (!pwzCurrentFile || 0 != lstrcmpW(pwzCurrentFile, pxfc->wzFile))
+            {
+                hr = StrAllocString(&pwzCurrentFile, pxfc->wzFile, 0);
+                ExitOnFailure(hr, "failed to copy current file name");
+
+                hr = ScheduleFileRollback(pwzCurrentFile, &pwzRollbackCustomActionData);
+                ExitOnFailure(hr, "failed to schedule rollback for file: %ls", pwzCurrentFile);
+
+                fScheduledRollback = TRUE;
+            }
+
             hr = WcaWriteStringToCaData(pxfc->wzFile, &pwzCustomActionData);
             WcaLog(LOGMSG_VERBOSE, "Processing file: %ls", pxfc->wzFile);
             ExitOnFailure(hr, "failed to write file to custom action data: %ls", pxfc->wzFile)
@@ -103,7 +147,15 @@ extern "C" UINT __stdcall SchedJsonFile(
         hr = S_OK;
     ExitOnFailure(hr, "failed while looping through all objects to secure")
 
-    // Schedule the custom action and add to progress bar
+    // Schedule the rollback custom action first
+    if (fScheduledRollback && pwzRollbackCustomActionData && *pwzRollbackCustomActionData)
+    {
+        WcaLog(LOGMSG_VERBOSE, "Scheduling rollback custom action");
+        hr = WcaDoDeferredAction(JSON_CUSTOM_ACTION_DECORATION(L"ExecJsonFileRollback"), pwzRollbackCustomActionData, COST_JSONFILE);
+        ExitOnFailure(hr, "failed to schedule ExecJsonFileRollback action")
+    }
+
+    // Schedule the deferred custom action and add to progress bar
     if (pwzCustomActionData && *pwzCustomActionData)
     {
         Assert(0 < cFiles);
@@ -116,6 +168,7 @@ extern "C" UINT __stdcall SchedJsonFile(
 LExit:
     ReleaseStr(pwzCurrentFile)
     ReleaseStr(pwzCustomActionData)
+    ReleaseStr(pwzRollbackCustomActionData)
 
     // Free the linked list to prevent memory leak
     if (pxfcHead)
