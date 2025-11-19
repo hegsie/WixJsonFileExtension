@@ -47,6 +47,8 @@ jobs:
       working-directory: ${{env.SOLUTION_FILE_PATH}}\src\wixext\
       run: dotnet pack --no-build --configuration ${{env.BUILD_CONFIGURATION}} /p:Version=6.0.0.${{github.run_number}}
 
-    - name: Push to NuGet
-      working-directory: ${{env.SOLUTION_FILE_PATH}}\src\wixext\bin\${{env.BUILD_CONFIGURATION}}\
-      run: dotnet nuget push "*.nupkg" --api-key ${{secrets.nuget_api_key}} --source https://api.nuget.org/v3/index.json
+    - name: Upload NuGet Package
+      uses: actions/upload-artifact@v4
+      with:
+        name: nuget-package
+        path: ${{env.SOLUTION_FILE_PATH}}\src\wixext\bin\${{env.BUILD_CONFIGURATION}}\*.nupkg
