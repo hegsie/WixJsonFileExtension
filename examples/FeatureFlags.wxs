@@ -1,0 +1,135 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Feature Flags Example Fragment
+  
+  This fragment demonstrates how to configure feature flags
+  based on installation options and environment settings.
+  
+  To use this fragment:
+  1. Include it in your main WiX source file
+  2. Reference the ComponentGroup: <ComponentGroupRef Id="FeatureFlagComponents" />
+  3. Define the required properties in your installer
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
+  
+  <Fragment>
+    <ComponentGroup Id="FeatureFlagComponents" Directory="INSTALLFOLDER">
+      <Component Id="FeatureFlagConfig" Guid="*">
+        <File Id="AppSettingsJsonFeatures" Name="appsettings.json" Source="appsettings.json" />
+        
+        <!-- Simple feature flag toggle -->
+        <Json:JsonFile 
+          Id="EnableNewUIFeature" 
+          File="[#AppSettingsJsonFeatures]" 
+          ElementPath="$.Features.EnableNewUI" 
+          Value="true" 
+          Action="setValue" 
+          Sequence="1">
+          <Condition><![CDATA[FEATURE_NEW_UI = "1"]]></Condition>
+        </Json:JsonFile>
+        
+        <!-- Edition-based feature flag -->
+        <Json:JsonFile 
+          Id="EnableAdvancedReporting" 
+          File="[#AppSettingsJsonFeatures]" 
+          ElementPath="$.Features.EnableAdvancedReporting" 
+          Value="true" 
+          Action="setValue" 
+          Sequence="2">
+          <Condition><![CDATA[PRODUCT_EDITION = "Premium" OR PRODUCT_EDITION = "Enterprise"]]></Condition>
+        </Json:JsonFile>
+        
+        <!-- Environment-based feature flag -->
+        <Json:JsonFile 
+          Id="EnableDebugMode" 
+          File="[#AppSettingsJsonFeatures]" 
+          ElementPath="$.Features.DebugMode" 
+          Value="true" 
+          Action="setValue" 
+          Sequence="3">
+          <Condition><![CDATA[ENVIRONMENT = "Development"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="DisableDebugMode" 
+          File="[#AppSettingsJsonFeatures]" 
+          ElementPath="$.Features.DebugMode" 
+          Value="false" 
+          Action="setValue" 
+          Sequence="4">
+          <Condition><![CDATA[ENVIRONMENT = "Production"]]></Condition>
+        </Json:JsonFile>
+        
+        <!-- Beta features flag -->
+        <Json:JsonFile 
+          Id="EnableBetaFeatures" 
+          File="[#AppSettingsJsonFeatures]" 
+          ElementPath="$.Features.EnableBetaFeatures" 
+          Value="true" 
+          Action="setValue" 
+          Sequence="5">
+          <Condition><![CDATA[ENABLE_BETA_FEATURES = "1"]]></Condition>
+        </Json:JsonFile>
+        
+        <!-- API feature flags -->
+        <Json:JsonFile 
+          Id="EnableExperimentalAPI" 
+          File="[#AppSettingsJsonFeatures]" 
+          ElementPath="$.Features.Api.EnableExperimental" 
+          Value="[ENABLE_EXPERIMENTAL_API]" 
+          Action="setValue" 
+          Sequence="6" />
+        
+        <!-- Performance feature flags -->
+        <Json:JsonFile 
+          Id="EnableCaching" 
+          File="[#AppSettingsJsonFeatures]" 
+          ElementPath="$.Features.Performance.EnableCaching" 
+          Value="[ENABLE_CACHING]" 
+          Action="setValue" 
+          Sequence="7" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+  
+  <!-- Property definitions -->
+  <Fragment>
+    <!-- Feature selection properties -->
+    <Property Id="FEATURE_NEW_UI" Value="0" />
+    <Property Id="ENABLE_BETA_FEATURES" Value="0" />
+    <Property Id="ENABLE_EXPERIMENTAL_API" Value="false" />
+    <Property Id="ENABLE_CACHING" Value="true" />
+    
+    <!-- Product edition property -->
+    <Property Id="PRODUCT_EDITION" Value="Standard" />
+    
+    <!-- Environment property -->
+    <Property Id="ENVIRONMENT" Value="Production" />
+    
+    <!-- Example: Set edition based on license key or selection -->
+    <!--
+    <SetProperty Id="PRODUCT_EDITION" Value="Premium" After="AppSearch" Sequence="first">
+      <![CDATA[LICENSE_TYPE = "Premium"]]>
+    </SetProperty>
+    -->
+  </Fragment>
+  
+  <!-- Example: WiX Features to control installation -->
+  <!--
+  <Fragment>
+    <Feature Id="StandardFeatures" Title="Standard Features" Level="1">
+      <ComponentGroupRef Id="FeatureFlagComponents" />
+    </Feature>
+    
+    <Feature Id="PremiumFeatures" Title="Premium Features" Level="1000">
+      <Condition Level="1"><![CDATA[PRODUCT_EDITION = "Premium" OR PRODUCT_EDITION = "Enterprise"]]></Condition>
+    </Feature>
+    
+    <Feature Id="BetaFeatures" Title="Beta Features" Level="1000">
+      <Condition Level="1"><![CDATA[ENABLE_BETA_FEATURES = "1"]]></Condition>
+    </Feature>
+  </Fragment>
+  -->
+  
+</Wix>

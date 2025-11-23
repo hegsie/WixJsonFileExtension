@@ -1,0 +1,215 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Environment-Specific Configuration Example Fragment
+  
+  This fragment demonstrates how to configure settings based on
+  deployment environment (Development, Staging, Production).
+  
+  To use this fragment:
+  1. Include it in your main WiX source file
+  2. Reference the ComponentGroup: <ComponentGroupRef Id="EnvironmentConfigComponents" />
+  3. Define the ENVIRONMENT property in your installer
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
+  
+  <Fragment>
+    <ComponentGroup Id="EnvironmentConfigComponents" Directory="INSTALLFOLDER">
+      <Component Id="EnvironmentConfig" Guid="*">
+        <File Id="AppSettingsJsonEnv" Name="appsettings.json" Source="appsettings.json" />
+        
+        <!-- Set environment name -->
+        <Json:JsonFile 
+          Id="SetEnvironmentName" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.Environment" 
+          Value="[ENVIRONMENT]" 
+          Action="setValue" 
+          Sequence="1" />
+        
+        <!-- Development Environment Settings -->
+        <Json:JsonFile 
+          Id="DevConnectionString" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.ConnectionStrings.DefaultConnection" 
+          Value="Server=dev-sql;Database=MyApp_Dev;Integrated Security=True;" 
+          Action="setValue" 
+          Sequence="10">
+          <Condition><![CDATA[ENVIRONMENT = "Development"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="DevLogLevel" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.Logging.LogLevel.Default" 
+          Value="Debug" 
+          Action="setValue" 
+          Sequence="11">
+          <Condition><![CDATA[ENVIRONMENT = "Development"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="DevApiUrl" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.ApiSettings.BaseUrl" 
+          Value="https://dev-api.example.com" 
+          Action="setValue" 
+          Sequence="12">
+          <Condition><![CDATA[ENVIRONMENT = "Development"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="DevEnableSwagger" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.Features.EnableSwagger" 
+          Value="true" 
+          Action="setValue" 
+          Sequence="13">
+          <Condition><![CDATA[ENVIRONMENT = "Development"]]></Condition>
+        </Json:JsonFile>
+        
+        <!-- Staging Environment Settings -->
+        <Json:JsonFile 
+          Id="StagingConnectionString" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.ConnectionStrings.DefaultConnection" 
+          Value="Server=staging-sql;Database=MyApp_Staging;Integrated Security=True;" 
+          Action="setValue" 
+          Sequence="20">
+          <Condition><![CDATA[ENVIRONMENT = "Staging"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="StagingLogLevel" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.Logging.LogLevel.Default" 
+          Value="Information" 
+          Action="setValue" 
+          Sequence="21">
+          <Condition><![CDATA[ENVIRONMENT = "Staging"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="StagingApiUrl" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.ApiSettings.BaseUrl" 
+          Value="https://staging-api.example.com" 
+          Action="setValue" 
+          Sequence="22">
+          <Condition><![CDATA[ENVIRONMENT = "Staging"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="StagingEnableSwagger" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.Features.EnableSwagger" 
+          Value="true" 
+          Action="setValue" 
+          Sequence="23">
+          <Condition><![CDATA[ENVIRONMENT = "Staging"]]></Condition>
+        </Json:JsonFile>
+        
+        <!-- Production Environment Settings -->
+        <Json:JsonFile 
+          Id="ProductionConnectionString" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.ConnectionStrings.DefaultConnection" 
+          Value="[PROD_CONNECTION_STRING]" 
+          Action="setValue" 
+          Sequence="30">
+          <Condition><![CDATA[ENVIRONMENT = "Production"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="ProductionLogLevel" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.Logging.LogLevel.Default" 
+          Value="Warning" 
+          Action="setValue" 
+          Sequence="31">
+          <Condition><![CDATA[ENVIRONMENT = "Production"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="ProductionApiUrl" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.ApiSettings.BaseUrl" 
+          Value="[PROD_API_URL]" 
+          Action="setValue" 
+          Sequence="32">
+          <Condition><![CDATA[ENVIRONMENT = "Production"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="ProductionDisableSwagger" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.Features.EnableSwagger" 
+          Value="false" 
+          Action="setValue" 
+          Sequence="33">
+          <Condition><![CDATA[ENVIRONMENT = "Production"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="ProductionEnableCaching" 
+          File="[#AppSettingsJsonEnv]" 
+          ElementPath="$.Features.EnableCaching" 
+          Value="true" 
+          Action="setValue" 
+          Sequence="34">
+          <Condition><![CDATA[ENVIRONMENT = "Production"]]></Condition>
+        </Json:JsonFile>
+        
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+  
+  <!-- Environment property definition -->
+  <Fragment>
+    <!-- Default to Production for safety -->
+    <Property Id="ENVIRONMENT" Value="Production" />
+    
+    <!-- Production-specific properties (require user input) -->
+    <Property Id="PROD_CONNECTION_STRING" />
+    <Property Id="PROD_API_URL" />
+    
+    <!-- Example: Set environment based on command line or registry -->
+    <!--
+    <Property Id="ENVIRONMENT">
+      <RegistrySearch Id="SearchEnvironment" Root="HKLM" 
+                      Key="Software\[Manufacturer]\[ProductName]" 
+                      Name="Environment" 
+                      Type="raw" />
+    </Property>
+    -->
+    
+    <!-- Example: Validate production properties -->
+    <!--
+    <Condition Message="Production connection string is required for Production deployment.">
+      <![CDATA[ENVIRONMENT <> "Production" OR PROD_CONNECTION_STRING <> ""]]>
+    </Condition>
+    
+    <Condition Message="Production API URL is required for Production deployment.">
+      <![CDATA[ENVIRONMENT <> "Production" OR PROD_API_URL <> ""]]>
+    </Condition>
+    -->
+  </Fragment>
+  
+  <!-- Example: UI to select environment -->
+  <!--
+  <Fragment>
+    <UI>
+      <Dialog Id="EnvironmentDlg" Width="370" Height="270" Title="Environment Selection">
+        <Control Id="EnvComboBox" Type="ComboBox" X="20" Y="60" Width="330" Height="80" Property="ENVIRONMENT">
+          <ComboBox Property="ENVIRONMENT">
+            <ListItem Text="Development" Value="Development" />
+            <ListItem Text="Staging" Value="Staging" />
+            <ListItem Text="Production" Value="Production" />
+          </ComboBox>
+        </Control>
+      </Dialog>
+    </UI>
+  </Fragment>
+  -->
+  
+</Wix>
