@@ -424,8 +424,7 @@ namespace Hegsie.Wix.JsonExtension
 		private bool ContainsUnescapedBrackets(string path)
 		{
 			// Look for patterns like [0] or [*] that are not escaped as [\[]0[\]]
-			// This is a simplified check - it looks for [ not followed by escaped bracket sequences
-			// Check if there are any [ characters that aren't part of MSI escape sequences
+			// This is a simplified heuristic check that looks for likely JSONPath bracket expressions
 			for (int i = 0; i < path.Length; i++)
 			{
 				if (path[i] == '[')
@@ -440,13 +439,15 @@ namespace Hegsie.Wix.JsonExtension
 							continue;
 						}
 					}
-					// Check if this is a property reference like [PROPERTY] or [#FileId]
+					// Check if this is a property reference or JSONPath expression
 					int closeIndex = path.IndexOf(']', i + 1);
 					if (closeIndex > i)
 					{
 						string content = path.Substring(i + 1, closeIndex - i - 1);
-						// If it contains path-like characters, it might be unescaped JSONPath brackets
-						if (content.Contains("?") || content.Contains("@") || Regex.IsMatch(content, @"^\d+$"))
+						// JSONPath array indices are numeric, wildcards are *, or filter expressions start with ?
+						// MSI properties are typically alphabetic or start with special chars like # ! $ %
+						if (Regex.IsMatch(content, @"^\d+$") || content == "*" || 
+						    (content.StartsWith("?") && content.Contains("@")))
 						{
 							return true; // Likely unescaped JSONPath bracket
 						}
@@ -466,10 +467,20 @@ namespace Hegsie.Wix.JsonExtension
 
 			// Check for double dots without following valid path segment  
 			// Recursive descent can be followed by property name, bracket, or wildcard
-			if (jsonPath.Contains("..") && !Regex.IsMatch(jsonPath, @"\.\.[a-zA-Z_\[\*]"))
+			// Use a more permissive check to avoid false positives
+			if (jsonPath.Contains(".."))
 			{
-				Messaging.Write(WarningMessages.InvalidJsonPathSyntax(sourceLineNumbers, node.Name.ToString(), 
-					jsonPath, "Recursive descent (..) should be followed by a property name, bracket, or wildcard"));
+				int dotsIndex = jsonPath.IndexOf("..");
+				if (dotsIndex + 2 < jsonPath.Length)
+				{
+					char nextChar = jsonPath[dotsIndex + 2];
+					// Check if followed by something that looks wrong (not a letter, [, *, or $)
+					if (nextChar != '.' && nextChar != '[' && nextChar != '*' && nextChar != '$' && !char.IsLetter(nextChar))
+					{
+						Messaging.Write(WarningMessages.InvalidJsonPathSyntax(sourceLineNumbers, node.Name.ToString(), 
+							jsonPath, "Recursive descent (..) should be followed by a property name, bracket, or wildcard"));
+					}
+				}
 			}
 
 			// Check for invalid characters after $
