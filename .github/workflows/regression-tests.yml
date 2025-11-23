@@ -34,24 +34,19 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}}
 
-    - name: Build Test Installer (Original Example)
-      working-directory: ${{env.GITHUB_WORKSPACE}}\TestJsonConfigInstaller
-      run: |
-        echo "Building original test installer..."
-        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} TestJsonConfigInstaller.wixproj
-      continue-on-error: false
-
     - name: Verify Test Installer Output
       shell: pwsh
       run: |
-        $msiPath = "TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}\en-US\TestJsonConfigInstaller.msi"
-        if (Test-Path $msiPath) {
+        # Find the MSI file in the build output
+        $msiFiles = Get-ChildItem -Path "TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}" -Filter "*.msi" -Recurse
+        if ($msiFiles.Count -gt 0) {
+          $msiPath = $msiFiles[0].FullName
           Write-Host "✓ Test installer built successfully: $msiPath"
           $fileInfo = Get-Item $msiPath
           Write-Host "  Size: $($fileInfo.Length) bytes"
           Write-Host "  Modified: $($fileInfo.LastWriteTime)"
         } else {
-          Write-Error "✗ Test installer not found at expected path: $msiPath"
+          Write-Error "✗ Test installer MSI not found in TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}"
           exit 1
         }
 
@@ -59,7 +54,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: test-installer
-        path: TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}\en-US\*.msi
+        path: TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}\**\*.msi
         if-no-files-found: error
 
     - name: Test JSON Validation

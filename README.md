@@ -102,14 +102,6 @@ This extension works with all .NET application types that use JSON configuration
 
 **Hybrid scenarios**: Applications using both classic `.config` (XML) and modern JSON files can leverage both WiX's built-in XML handling and this extension for JSON files.
 
-The extension now provides comprehensive JSONPath support powered by jsoncons, including:
-- **Multi-select queries** - Query multiple elements at once with wildcards (`$..price`, `$.store.book[*]`)
-- **Advanced filters** - Filter arrays with complex conditions (`$.book[?(@.price > 10)]`)
-- **Array operations** - Append, insert, and remove array elements
-- **Schema validation** - Validate JSON files against JSON schemas to prevent configuration corruption
-
-All operations are performed during installation with full rollback support.
-
 ## Prerequisites
 
 - **WiX Toolset**: Version 4.x or later (for WiX v5/v6 support)
