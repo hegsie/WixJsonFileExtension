@@ -61,8 +61,6 @@
                Value="Value Not Set" 
                Action="createJsonPointerValue"
                Sequence="6" />
-               Action="createJsonPointerValue"/>
-
         <!-- Array operation examples -->
         
         <!-- Append a new book to the array -->
