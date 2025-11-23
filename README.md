@@ -137,6 +137,7 @@ The **[examples/](examples/)** directory contains ready-to-use WiX fragment file
 - **[FeatureFlags.wxs](examples/FeatureFlags.wxs)** - Feature flag management
 - **[ApiEndpoints.wxs](examples/ApiEndpoints.wxs)** - API endpoint configuration
 - **[EnvironmentConfiguration.wxs](examples/EnvironmentConfiguration.wxs)** - Environment-based settings
+- **[AdvancedArrayOperations.wxs](examples/AdvancedArrayOperations.wxs)** ⭐ NEW - Advanced array operations and conditional updates
 
 See the [Examples README](examples/README.md) for usage instructions.
 

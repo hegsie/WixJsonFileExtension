@@ -78,6 +78,30 @@ Complete environment-specific configuration (Development, Staging, Production).
 <ComponentGroupRef Id="EnvironmentConfigComponents" />
 ```
 
+### 6. AdvancedArrayOperations.wxs ⭐ NEW
+Advanced array manipulation and conditional updates.
+
+**Scenarios covered:**
+- Removing duplicates with `distinctValues` action
+- Conditional updates with `OnlyIfExists` attribute
+- Complex JSONPath filters for bulk operations
+- Multi-select queries affecting multiple elements
+- Combining filters with array operations
+- Advanced filter examples (comparison operators, logical AND/OR)
+
+**Usage:**
+```xml
+<ComponentGroupRef Id="AdvancedArrayOperationsComponents" />
+```
+
+**Features demonstrated:**
+- Remove duplicates from arrays (tags, feature flags, CORS origins)
+- Conditional updates that only modify existing values
+- Multi-select queries (`$..timeout` updates all timeouts)
+- Complex filters (`$.endpoints[?(@.environment == 'production')]`)
+- Bulk operations with filters (`$.features[?(@.priority > 5)].enabled`)
+- Combining multiple operations in sequence
+
 ## How to Use These Examples
 
 ### Method 1: Direct Inclusion
