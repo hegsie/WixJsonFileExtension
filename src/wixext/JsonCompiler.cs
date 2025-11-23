@@ -608,6 +608,28 @@ namespace Hegsie.Wix.JsonExtension
 		}
 
 		/// <summary>
+		/// Validates that a string only contains valid property name characters (alphanumeric, underscore, dot).
+		/// </summary>
+		private bool IsValidPropertyName(string name)
+		{
+			if (string.IsNullOrEmpty(name))
+			{
+				return false;
+			}
+
+			// Check if the name contains only alphanumeric characters, dots, and underscores
+			foreach (char c in name)
+			{
+				if (!char.IsLetterOrDigit(c) && c != '.' && c != '_')
+				{
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		/// <summary>
 		/// Parses a JsonTransaction element that groups multiple JsonFile operations.
 		/// </summary>
 		private void ParseJsonTransactionElement(XElement node, string componentId, string parentDirectory,
@@ -641,21 +663,26 @@ namespace Hegsie.Wix.JsonExtension
 				}
 			}
 
-			// Create context for child elements
-			var childContext = new Dictionary<string, string>
+			// Validate required attributes
+			if (string.IsNullOrEmpty(id))
 			{
-				["ComponentId"] = componentId,
-				["DirectoryId"] = parentDirectory,
-				["TransactionFile"] = defaultFile ?? string.Empty,
-				["TransactionBaseSequence"] = baseSequence?.ToString() ?? "1"
-			};
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Id"));
+			}
+
+			if (Messaging.EncounteredError)
+			{
+				return;
+			}
 
 			// Parse child JsonFile elements
 			int sequenceOffset = 0;
+			int childCount = 0;
 			foreach (var child in node.Elements())
 			{
 				if (child.Name.Namespace == Namespace && child.Name.LocalName == "JsonFile")
 				{
+					childCount++;
+					
 					// If the child doesn't have File attribute and we have a default, inject it
 					if (!string.IsNullOrEmpty(defaultFile) && child.Attribute("File") == null)
 					{
@@ -666,8 +693,9 @@ namespace Hegsie.Wix.JsonExtension
 					if (child.Attribute("Sequence") == null && baseSequence.HasValue)
 					{
 						child.SetAttributeValue("Sequence", (baseSequence.Value + sequenceOffset).ToString());
-						sequenceOffset++;
 					}
+					
+					sequenceOffset++;
 
 					ParseJsonFileElement(child, componentId, parentDirectory, section);
 				}
@@ -675,6 +703,12 @@ namespace Hegsie.Wix.JsonExtension
 				{
 					ParseHelper.UnexpectedElement(node, child);
 				}
+			}
+
+			// Validate that at least one child element exists
+			if (childCount == 0)
+			{
+				Messaging.Write(ErrorMessages.ExpectedElement(sourceLineNumbers, node.Name.ToString(), "JsonFile"));
 			}
 		}
 
@@ -716,7 +750,24 @@ namespace Hegsie.Wix.JsonExtension
 							break;
 						case "CreateIfMissing":
 							string createValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
-							createIfMissing = createValue?.Equals("yes", System.StringComparison.OrdinalIgnoreCase) ?? true;
+							if (string.IsNullOrEmpty(createValue))
+							{
+								createIfMissing = true; // Default to true if not specified
+							}
+							else if (createValue.Equals("yes", System.StringComparison.OrdinalIgnoreCase))
+							{
+								createIfMissing = true;
+							}
+							else if (createValue.Equals("no", System.StringComparison.OrdinalIgnoreCase))
+							{
+								createIfMissing = false;
+							}
+							else
+							{
+								Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
+									"CreateIfMissing", createValue, "yes", "no"));
+								createIfMissing = false; // Default to false for invalid value
+							}
 							break;
 						default:
 							ParseHelper.UnexpectedAttribute(node, attribute);
@@ -746,6 +797,12 @@ namespace Hegsie.Wix.JsonExtension
 			if (Messaging.EncounteredError)
 			{
 				return;
+			}
+
+			// Validate key format - warn if it contains special JSONPath characters
+			if (!string.IsNullOrEmpty(key) && !IsValidPropertyName(key))
+			{
+				Messaging.Write(WarningMessages.InvalidPropertyNameCharacters(sourceLineNumbers, node.Name.ToString(), "Key", key));
 			}
 
 			// Convert dot notation to JSONPath
@@ -839,6 +896,12 @@ namespace Hegsie.Wix.JsonExtension
 			}
 
 			// Create JSONPath for ConnectionStrings section
+			// Validate name format - warn if it contains special JSONPath characters
+			if (!string.IsNullOrEmpty(name) && !IsValidPropertyName(name))
+			{
+				Messaging.Write(WarningMessages.InvalidPropertyNameCharacters(sourceLineNumbers, node.Name.ToString(), "Name", name));
+			}
+
 			string elementPath = $"$.ConnectionStrings.{name}";
 
 			// Create underlying JsonFile symbol with setValue action
@@ -924,6 +987,12 @@ namespace Hegsie.Wix.JsonExtension
 			}
 
 			// Create JSONPath for Logging.LogLevel section
+			// Validate category format - warn if it contains special JSONPath characters
+			if (!string.IsNullOrEmpty(category) && !IsValidPropertyName(category))
+			{
+				Messaging.Write(WarningMessages.InvalidPropertyNameCharacters(sourceLineNumbers, node.Name.ToString(), "Category", category));
+			}
+
 			string elementPath = $"$.Logging.LogLevel.{category}";
 
 			// Create underlying JsonFile symbol with setValue action

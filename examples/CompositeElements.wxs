@@ -142,13 +142,13 @@
       <Component Id="CombinedExample" Guid="{E5F6A7B8-C9D0-1234-EF12-345678901234}">
         <File Id="ExampleConfig5" Name="appsettings.example5.json" Source="appsettings.dotnet.json" />
         
-        <!-- Use high-level composite elements within a transaction -->
+        <!-- Group regular JsonFile elements within a transaction -->
         <Json:JsonTransaction 
           Id="CompleteAppConfiguration" 
           File="[#ExampleConfig5]" 
           BaseSequence="1">
           
-          <!-- Mix composite elements with regular JsonFile elements -->
+          <!-- Regular JsonFile elements with automatic sequencing -->
           <Json:JsonFile 
             Id="SetAppName2" 
             ElementPath="$.ApplicationSettings.Name" 
@@ -168,7 +168,7 @@
             Action="setValue" />
         </Json:JsonTransaction>
         
-        <!-- Separate connection string configuration -->
+        <!-- Use composite elements outside of transactions -->
         <Json:ConnectionString 
           Id="SetAppConnection" 
           File="[#ExampleConfig5]" 

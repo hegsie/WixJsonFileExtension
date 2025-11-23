@@ -57,6 +57,13 @@ namespace Hegsie.Wix.JsonExtension
 				elementName);
 		}
 
+		public static Message InvalidPropertyNameCharacters(SourceLineNumber sourceLineNumbers, string elementName, string attributeName, string value)
+		{
+			return Message(sourceLineNumbers, Ids.InvalidPropertyNameCharacters,
+				"The {1} attribute '{2}' in {0} element contains characters that may cause issues in JSONPath. Consider using only alphanumeric characters, dots, and underscores.",
+				elementName, attributeName, value);
+		}
+
 		private static Message Message(SourceLineNumber sourceLineNumber, Ids id, string format, params object[] args)
 		{
 			return new Message(sourceLineNumber, MessageLevel.Warning, (int)id, format, args);
@@ -71,6 +78,7 @@ namespace Hegsie.Wix.JsonExtension
 			ElementPathShouldStartWithSlash = 7004,
 			InvalidJsonPathSyntax = 7005,
 			UnmatchedBracketsInElementPath = 7006,
+			InvalidPropertyNameCharacters = 7007,
 		}
 	}
 }

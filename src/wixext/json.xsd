@@ -103,6 +103,7 @@
     <xs:annotation>
       <xs:appinfo>
         <xse:parent namespace="http://wixtoolset.org/schemas/v4/wxs" ref="Component" />
+        <xse:parent namespace="http://schemas.hegsie.com/wix/JsonExtension" ref="JsonTransaction" />
       </xs:appinfo>
       <xs:documentation>
         Modifies a JSON file at install or uninstall time. This element can read, set, create, delete,
@@ -128,11 +129,12 @@
           </xs:documentation>
         </xs:annotation>
       </xs:attribute>
-      <xs:attribute name="File" type="xs:string" use="required">
+      <xs:attribute name="File" type="xs:string">
         <xs:annotation>
           <xs:documentation>
             Path to the JSON file to modify. Can use file references like [#FileId] or formatted paths like [INSTALLFOLDER]config.json.
             File references are recommended for files installed by the component.
+            When used within a JsonTransaction element, this attribute is optional and can be inherited from the parent.
           </xs:documentation>
         </xs:annotation>
       </xs:attribute>
