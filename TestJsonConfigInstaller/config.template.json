@@ -1,0 +1,15 @@
+{
+  "Application": {
+    "Name": "TemplateApp",
+    "Version": "1.0.0",
+    "Environment": "Production"
+  },
+  "Database": {
+    "ConnectionString": "Server=localhost;Database=tempdb",
+    "Timeout": 30
+  },
+  "Logging": {
+    "Level": "Information",
+    "Path": "C:\\Logs\\app.log"
+  }
+}

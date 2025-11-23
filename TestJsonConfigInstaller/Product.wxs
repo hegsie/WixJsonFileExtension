@@ -20,28 +20,99 @@
 
   <Fragment>
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <!-- Existing test component with scheduling examples -->
       <Component Id="ProductComponent" Guid="{51CDDB12-E903-436C-9371-2E4E93D3B109}">
         <File Id="JsonConfig" Name="appsettings.json" Source="appsettings.json" />
 
+        <!-- Read operations happen first -->
         <Json:JsonFile Id="appSettingsReadValue" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].category" DefaultValue="Empty" Action="readValue" Property="MY_PROPERTY" />
 
         <Json:JsonFile Id="appSettingsReadMissingValue" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-5')[\]].category" DefaultValue="MissingEmpty" Action="readValue" Property="MY_MISSING_PROPERTY" />
         
-        <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" />
+        <!-- Scheduled modifications - demonstrate sequencing -->
+        <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" Sequence="1" />
 
-        <Json:JsonFile Id="appSettingsDeletePrices" File="[#JsonConfig]" ElementPath="$..book[\[]*[\]].OldPrice" Action="deleteValue" />
+        <Json:JsonFile Id="appSettingsDeletePrices" File="[#JsonConfig]" ElementPath="$..book[\[]*[\]].OldPrice" Action="deleteValue" Sequence="2" />
 
-        <Json:JsonFile Id="appSettingsUpdatePrice" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].price" Value="1.67" Action="setValue" />
-        <Json:JsonFile Id="appSettingsUpdateCategory" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].category" Value="[MY_VALUE]" Action="setValue" />
+        <Json:JsonFile Id="appSettingsUpdatePrice" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].price" Value="1.67" Action="setValue" Sequence="3" />
+        <Json:JsonFile Id="appSettingsUpdateCategory" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].category" Value="[MY_VALUE]" Action="setValue" Sequence="4" />
 
-        <Json:JsonFile Id="log_file" File="[#JsonConfig]" ElementPath="$.Serilog.WriteTo[\[]0[\]].Args.configure[\[]0[\]].Args.path" Value="[LOG_DIRECTORY]PowerCommunications\\OutgoingCommunicationDispatcher\\CommunicationService.Outgoing-.log"/>
+        <!-- Demonstrate path configuration before service would start -->
+        <Json:JsonFile Id="log_file" File="[#JsonConfig]" ElementPath="$.Serilog.WriteTo[\[]0[\]].Args.configure[\[]0[\]].Args.path" Value="[LOG_DIRECTORY]PowerCommunications\\OutgoingCommunicationDispatcher\\CommunicationService.Outgoing-.log" Sequence="5" />
 
+        <!-- Create new configuration section -->
         <Json:JsonFile Id="non_existing_setting"
                File="[#JsonConfig]"
                ElementPath="/NonExisting"
                Value="Value Not Set" 
-               Action="createJsonPointerValue"/>
+               Action="createJsonPointerValue"
+               Sequence="6" />
         
+      </Component>
+
+      <!-- New: Template-based configuration -->
+      <Component Id="TemplateConfigComponent" Guid="{A1B2C3D4-E5F6-4A5B-9C8D-7E6F5A4B3C2D}">
+        <File Id="TemplateConfig" Name="config.json" Source="config.template.json" />
+        
+        <!-- Customize template with install-specific values -->
+        <Json:JsonFile 
+          Id="SetInstallPath" 
+          File="[#TemplateConfig]" 
+          ElementPath="$.Application.Name" 
+          Value="MyInstalledApp" 
+          Sequence="1" />
+          
+        <Json:JsonFile 
+          Id="SetEnvironment" 
+          File="[#TemplateConfig]" 
+          ElementPath="$.Application.Environment" 
+          Value="[ENVIRONMENT]" 
+          Sequence="2" />
+          
+        <Json:JsonFile 
+          Id="SetDatabaseConnection" 
+          File="[#TemplateConfig]" 
+          ElementPath="$.Database.ConnectionString" 
+          Value="[DATABASE_CONNECTION]" 
+          Sequence="3" />
+      </Component>
+
+      <!-- New: Build JSON from scratch -->
+      <Component Id="MinimalConfigComponent" Guid="{F1E2D3C4-B5A6-4C5D-8E9F-0A1B2C3D4E5F}">
+        <File Id="EmptyConfig" Name="settings.json" Source="empty.json" />
+        
+        <!-- Build configuration structure from empty file -->
+        <Json:JsonFile 
+          Id="CreateAppName" 
+          File="[#EmptyConfig]" 
+          ElementPath="/Application/Name" 
+          Value="MyApplication" 
+          Action="createJsonPointerValue" 
+          Sequence="1" />
+          
+        <Json:JsonFile 
+          Id="CreateAppVersion" 
+          File="[#EmptyConfig]" 
+          ElementPath="/Application/Version" 
+          Value="2.0.0" 
+          Action="createJsonPointerValue" 
+          Sequence="2" />
+          
+        <Json:JsonFile 
+          Id="CreateDbConnection" 
+          File="[#EmptyConfig]" 
+          ElementPath="/Database/ConnectionString" 
+          Value="[CONNECTION_STRING]" 
+          Action="createJsonPointerValue" 
+          Sequence="3" />
+          
+        <Json:JsonFile 
+          Id="CreateLogLevel" 
+          File="[#EmptyConfig]" 
+          ElementPath="/Logging/Level" 
+          Value="Debug" 
+          Action="createJsonPointerValue" 
+          Sequence="4" />
       </Component>
     </ComponentGroup>
   </Fragment>
