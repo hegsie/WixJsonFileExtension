@@ -673,7 +673,7 @@ namespace Hegsie.Wix.JsonExtension
 				}
 				else if (child.Name.Namespace == Namespace)
 				{
-					ErrorMessages.UnexpectedElement(sourceLineNumbers, node.Name.ToString(), child.Name.ToString());
+					ParseHelper.UnexpectedElement(node, child);
 				}
 			}
 		}
@@ -750,7 +750,7 @@ namespace Hegsie.Wix.JsonExtension
 
 			// Convert dot notation to JSONPath
 			// e.g., "ApplicationSettings.Environment" -> "$.ApplicationSettings.Environment"
-			string elementPath = "$." + key.Replace(".", ".");
+			string elementPath = "$." + key;
 
 			// Create underlying JsonFile symbol
 			int flags = (int)JsonAction.SetValue; // Default to setValue
