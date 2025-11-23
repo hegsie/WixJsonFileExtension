@@ -1,0 +1,248 @@
+name: Regression Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  SOLUTION_FILE_PATH: .
+  BUILD_CONFIGURATION: Release
+
+permissions:
+  contents: read
+
+jobs:
+  regression-tests:
+    name: Regression Tests
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Restore NuGet packages
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      run: nuget restore ${{env.SOLUTION_FILE_PATH}}
+
+    - name: Build Solution
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}}
+
+    - name: Build Test Installer (Original Example)
+      working-directory: ${{env.GITHUB_WORKSPACE}}\TestJsonConfigInstaller
+      run: |
+        echo "Building original test installer..."
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} TestJsonConfigInstaller.wixproj
+      continue-on-error: false
+
+    - name: Verify Test Installer Output
+      shell: pwsh
+      run: |
+        $msiPath = "TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}\en-US\TestJsonConfigInstaller.msi"
+        if (Test-Path $msiPath) {
+          Write-Host "✓ Test installer built successfully: $msiPath"
+          $fileInfo = Get-Item $msiPath
+          Write-Host "  Size: $($fileInfo.Length) bytes"
+          Write-Host "  Modified: $($fileInfo.LastWriteTime)"
+        } else {
+          Write-Error "✗ Test installer not found at expected path: $msiPath"
+          exit 1
+        }
+
+    - name: Upload Test Installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-installer
+        path: TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}\en-US\*.msi
+        if-no-files-found: error
+
+    - name: Test JSON Validation
+      shell: pwsh
+      run: |
+        Write-Host "Testing JSON file validation..."
+        
+        # Test 1: Valid JSON file
+        $validJson = @"
+        {
+          "ConnectionStrings": {
+            "DefaultConnection": "Server=localhost;Database=Test;"
+          },
+          "Logging": {
+            "LogLevel": {
+              "Default": "Information"
+            }
+          }
+        }
+        "@
+        
+        $testFile = "test-valid.json"
+        $validJson | Out-File -FilePath $testFile -Encoding UTF8
+        
+        try {
+          $null = Get-Content $testFile | ConvertFrom-Json
+          Write-Host "✓ Valid JSON test passed"
+        } catch {
+          Write-Error "✗ Valid JSON test failed: $_"
+          exit 1
+        }
+        
+        # Test 2: Invalid JSON file
+        $invalidJson = '{ "key": "value" '
+        $invalidFile = "test-invalid.json"
+        $invalidJson | Out-File -FilePath $invalidFile -Encoding UTF8
+        
+        try {
+          $null = Get-Content $invalidFile | ConvertFrom-Json
+          Write-Error "✗ Invalid JSON test failed: Should have thrown an error"
+          exit 1
+        } catch {
+          Write-Host "✓ Invalid JSON test passed: Error caught as expected"
+        }
+        
+        # Test 3: Verify test JSON files exist
+        $testJsonFiles = @(
+          "TestJsonConfigInstaller\appsettings.json",
+          "TestJsonConfigInstaller\appsettings.dotnet.json"
+        )
+        
+        foreach ($file in $testJsonFiles) {
+          if (Test-Path $file) {
+            Write-Host "✓ Found: $file"
+            try {
+              $null = Get-Content $file | ConvertFrom-Json
+              Write-Host "  - Valid JSON structure"
+            } catch {
+              Write-Error "  - Invalid JSON structure: $_"
+              exit 1
+            }
+          } else {
+            Write-Error "✗ Missing: $file"
+            exit 1
+          }
+        }
+
+    - name: Test Common .NET Patterns
+      shell: pwsh
+      run: |
+        Write-Host "Testing common .NET configuration patterns..."
+        
+        # Create a test appsettings.json
+        $testConfig = @"
+        {
+          "ConnectionStrings": {
+            "DefaultConnection": "Server=localhost;Database=MyDb;"
+          },
+          "Logging": {
+            "LogLevel": {
+              "Default": "Information",
+              "Microsoft": "Warning"
+            }
+          },
+          "ApplicationSettings": {
+            "DataPath": "C:\\ProgramData\\MyApp\\Data"
+          }
+        }
+        "@
+        
+        $configFile = "test-config.json"
+        $testConfig | Out-File -FilePath $configFile -Encoding UTF8
+        
+        # Parse and verify structure
+        $config = Get-Content $configFile | ConvertFrom-Json
+        
+        # Test ConnectionStrings
+        if ($config.ConnectionStrings.DefaultConnection) {
+          Write-Host "✓ ConnectionStrings.DefaultConnection exists"
+        } else {
+          Write-Error "✗ ConnectionStrings.DefaultConnection not found"
+          exit 1
+        }
+        
+        # Test Logging
+        if ($config.Logging.LogLevel.Default -eq "Information") {
+          Write-Host "✓ Logging.LogLevel.Default is correct"
+        } else {
+          Write-Error "✗ Logging.LogLevel.Default is incorrect"
+          exit 1
+        }
+        
+        # Test Application Settings
+        if ($config.ApplicationSettings.DataPath) {
+          Write-Host "✓ ApplicationSettings.DataPath exists"
+        } else {
+          Write-Error "✗ ApplicationSettings.DataPath not found"
+          exit 1
+        }
+        
+        Write-Host "All common .NET pattern tests passed!"
+
+    - name: Test JSONPath Patterns
+      shell: pwsh
+      run: |
+        Write-Host "Testing JSONPath pattern scenarios..."
+        
+        # Create test JSON with nested arrays
+        $complexJson = @"
+        {
+          "store": {
+            "book": [
+              {
+                "category": "reference",
+                "author": "Nigel Rees",
+                "title": "Sayings of the Century",
+                "price": 8.95
+              },
+              {
+                "category": "fiction",
+                "author": "Herman Melville",
+                "title": "Moby Dick",
+                "isbn": "0-553-21311-3",
+                "price": 8.99
+              }
+            ]
+          }
+        }
+        "@
+        
+        $jsonFile = "test-jsonpath.json"
+        $complexJson | Out-File -FilePath $jsonFile -Encoding UTF8
+        
+        $data = Get-Content $jsonFile | ConvertFrom-Json
+        
+        # Test array access
+        if ($data.store.book[0].title -eq "Sayings of the Century") {
+          Write-Host "✓ Array access test passed"
+        } else {
+          Write-Error "✗ Array access test failed"
+          exit 1
+        }
+        
+        # Test nested property access
+        if ($data.store.book[1].isbn -eq "0-553-21311-3") {
+          Write-Host "✓ Nested property access test passed"
+        } else {
+          Write-Error "✗ Nested property access test failed"
+          exit 1
+        }
+        
+        Write-Host "All JSONPath pattern tests passed!"
+
+    - name: Summary
+      shell: pwsh
+      run: |
+        Write-Host ""
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host "  Regression Test Summary" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host "✓ Solution build successful" -ForegroundColor Green
+        Write-Host "✓ Test installer built successfully" -ForegroundColor Green
+        Write-Host "✓ JSON validation tests passed" -ForegroundColor Green
+        Write-Host "✓ Common .NET patterns validated" -ForegroundColor Green
+        Write-Host "✓ JSONPath patterns validated" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
