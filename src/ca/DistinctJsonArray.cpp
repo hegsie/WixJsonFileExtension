@@ -55,13 +55,16 @@ HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath
 
             // Validate that all matched nodes are arrays
             bool allArrays = true;
-            for (const auto& node : query)
+            if (query.is_array())
             {
-                if (!node.is_array())
+                for (const auto& node : query.array_range())
                 {
-                    WcaLog(LOGMSG_STANDARD, "distinctValues action requires path to point to an array. Path: %s", sElementPath.c_str());
-                    allArrays = false;
-                    break;
+                    if (!node.is_array())
+                    {
+                        WcaLog(LOGMSG_STANDARD, "distinctValues action requires path to point to an array. Path: %s", sElementPath.c_str());
+                        allArrays = false;
+                        break;
+                    }
                 }
             }
 
@@ -121,17 +124,17 @@ HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath
     }
     catch (_com_error& e)
     {
-        WcaLog(LOGMSG_STANDARD, "encountered COM error: %ls", e.ErrorMessage());
+        WcaLog(LOGMSG_STANDARD, "Encountered COM error: %ls", e.ErrorMessage());
         return E_FAIL;
     }
     catch (std::exception& e)
     {
-        WcaLog(LOGMSG_STANDARD, "encountered error %s", e.what());
+        WcaLog(LOGMSG_STANDARD, "Encountered error %s", e.what());
         return E_FAIL;
     }
     catch (...)
     {
-        WcaLog(LOGMSG_STANDARD, "encountered unknown error");
+        WcaLog(LOGMSG_STANDARD, "Encountered unknown error");
         return E_FAIL;
     }
 }

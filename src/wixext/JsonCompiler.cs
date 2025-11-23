@@ -69,7 +69,6 @@ namespace Hegsie.Wix.JsonExtension
 			string defaultValue = null;
 			string property = null;
 			string schemaFile = null;
-			bool onlyIfExists = false;
 			int on = CompilerConstants.IntegerNotSet;
 			int flags = 0;
 			int action = CompilerConstants.IntegerNotSet;
@@ -147,7 +146,6 @@ namespace Hegsie.Wix.JsonExtension
 								{
 									if (onlyIfExistsValue.Equals("yes", System.StringComparison.OrdinalIgnoreCase))
 									{
-										onlyIfExists = true;
 										flags |= (int)JsonFlags.OnlyIfExists;
 									}
 									else if (!onlyIfExistsValue.Equals("no", System.StringComparison.OrdinalIgnoreCase))
