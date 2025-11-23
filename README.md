@@ -12,6 +12,9 @@ An extension to [Windows Installer XML (WiX) Toolset](http://wixtoolset.org/) to
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Documentation & Resources](#documentation--resources)
+  - [Cookbook - Common Patterns](#cookbook---common-patterns)
+  - [Example Fragments](#example-fragments)
 - [Detailed Usage](#detailed-usage)
   - [Available Actions](#available-actions)
   - [JsonFile Element Attributes](#jsonfile-element-attributes)
@@ -100,6 +103,32 @@ Install-Package WixJsonFileExtension
 ```
 
 3. **Build your installer** as usual with WiX.
+
+## Documentation & Resources
+
+### Cookbook - Common Patterns
+
+The **[Cookbook](docs/COOKBOOK.md)** provides practical recipes and patterns for common JSON configuration scenarios:
+
+- 📚 **[Connection Strings](docs/COOKBOOK.md#connection-strings)** - Configure database connections during installation
+- 📝 **[Logging Configuration](docs/COOKBOOK.md#logging-configuration)** - Set log levels, file paths, and Serilog settings
+- 🚩 **[Feature Flags](docs/COOKBOOK.md#feature-flags)** - Toggle features based on edition or environment
+- 🌐 **[API Endpoints](docs/COOKBOOK.md#api-endpoints)** - Configure API URLs, timeouts, and authentication
+- 🔧 **[Environment-Specific Settings](docs/COOKBOOK.md#environment-specific-settings)** - Deploy configuration for Development, Staging, or Production
+- 📐 **[Complex Nested Configurations](docs/COOKBOOK.md#complex-nested-configurations)** - Work with deeply nested JSON structures
+- 🔗 **[Best Practices](docs/COOKBOOK.md#best-practices)** - Tips for effective JSON file manipulation
+
+### Example Fragments
+
+The **[examples/](examples/)** directory contains ready-to-use WiX fragment files:
+
+- **[ConnectionStrings.wxs](examples/ConnectionStrings.wxs)** - Database connection configuration
+- **[LoggingConfiguration.wxs](examples/LoggingConfiguration.wxs)** - Logging levels and file paths
+- **[FeatureFlags.wxs](examples/FeatureFlags.wxs)** - Feature flag management
+- **[ApiEndpoints.wxs](examples/ApiEndpoints.wxs)** - API endpoint configuration
+- **[EnvironmentConfiguration.wxs](examples/EnvironmentConfiguration.wxs)** - Environment-based settings
+
+See the [Examples README](examples/README.md) for usage instructions.
 
 ## Detailed Usage
 
@@ -360,6 +389,7 @@ Value="[INSTALLFOLDER]config.json"
    - Verify your JSONPath is correct using online JSONPath evaluators
    - Check that square brackets are properly escaped: `[\[]` and `[\]]`
    - Ensure the JSON file is valid and well-formed
+   - Look for "WixJsonFile: Error" messages in the MSI log for specific path details
 
 2. **Value not being updated**
    - Check the `Sequence` attribute if you have multiple modifications
@@ -374,13 +404,37 @@ Value="[INSTALLFOLDER]config.json"
 4. **Property values not expanding**
    - Ensure property names are in uppercase and enclosed in brackets: `[MY_PROPERTY]`
    - Check that the property is set before the JsonFile action executes
+   - The compiler will now warn you about lowercase property references
+
+5. **Build-time warnings**
+   - The extension now provides compile-time diagnostics for common issues:
+     - **Unescaped brackets**: Warns if square brackets aren't properly escaped as `[\[]` and `[\]]`
+     - **Invalid JSONPath syntax**: Detects basic syntax errors in ElementPath
+     - **Missing required attributes**: Ensures `Value` is present for setValue/replaceJsonValue actions
+     - **Property name format**: Warns if property names aren't uppercase
 
 ### Debugging Tips
 
 - Use the `readValue` action to verify paths are correct before modifying
 - Test your JSONPath expressions in an online evaluator
 - Check the MSI log file for detailed error messages: `msiexec /i YourInstaller.msi /l*v install.log`
+- Search the log for `WixJsonFile:` to find all JSON-related operations and errors
+- All error messages now include the affected file path and element path for easier debugging
 - Refer to the example in `TestJsonConfigInstaller/Product.wxs` for working patterns
+- Check the [Cookbook](docs/COOKBOOK.md) for common patterns and best practices
+
+### Understanding Error Messages
+
+The extension now provides structured error messages with the format:
+```
+WixJsonFile: Error - [Description] for path '[ElementPath]' in file '[FilePath]'
+```
+
+Common error messages:
+- `File not found` - The specified JSON file doesn't exist at the given path
+- `No elements found at path` - The JSONPath query didn't match any elements
+- `Invalid element path parameter` - The ElementPath attribute is missing or empty
+- `Failed to parse JSON value` - The Value contains invalid JSON (for replaceJsonValue action)
 
 ## Building from Source
 
