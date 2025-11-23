@@ -34,7 +34,15 @@ HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath
                 return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
             }
 
-            is >> j;
+            // Parse JSON with error handling
+            try {
+                is >> j;
+            }
+            catch (const std::exception& e) {
+                is.close();
+                WcaLog(LOGMSG_STANDARD, "Failed to parse JSON file: %s. Error: %s", cFile, e.what());
+                return E_FAIL;
+            }
             is.close();
 
             // Query the array using JSONPath
@@ -44,6 +52,23 @@ HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath
             {
                 WcaLog(LOGMSG_STANDARD, "Array not found at path: %s", sElementPath.c_str());
                 return HRESULT_FROM_WIN32(ERROR_OBJECT_NOT_FOUND);
+            }
+
+            // Validate that all matched nodes are arrays
+            bool allArrays = true;
+            for (const auto& node : query)
+            {
+                if (!node.is_array())
+                {
+                    WcaLog(LOGMSG_STANDARD, "distinctValues action requires path to point to an array. Path: %s", sElementPath.c_str());
+                    allArrays = false;
+                    break;
+                }
+            }
+
+            if (!allArrays)
+            {
+                return E_INVALIDARG;
             }
 
             WcaLog(LOGMSG_STANDARD, "Removing duplicates from array at: %s", sElementPath.c_str());

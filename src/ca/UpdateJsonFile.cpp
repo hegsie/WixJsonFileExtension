@@ -58,7 +58,14 @@ HRESULT UpdateJsonFile(
             std::ifstream is(cFile);
             if (is.is_open())
             {
-                is >> j;
+                try {
+                    is >> j;
+                }
+                catch (const std::exception& e) {
+                    is.close();
+                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Failed to parse JSON file for OnlyIfExists check: %s. Error: %s", cFile, e.what());
+                    return E_FAIL;
+                }
                 is.close();
                 
                 // Query to see if the path exists
@@ -69,10 +76,20 @@ HRESULT UpdateJsonFile(
                     return S_OK; // Skip the operation but return success
                 }
             }
+            else
+            {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Failed to open file for OnlyIfExists check: %s", cFile);
+                return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
+            }
+        }
+        catch (const std::exception& e)
+        {
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error checking path existence for OnlyIfExists: %s", e.what());
+            return E_FAIL;
         }
         catch (...)
         {
-            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error checking path existence for OnlyIfExists");
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Unknown error checking path existence for OnlyIfExists");
             return E_FAIL;
         }
     }
