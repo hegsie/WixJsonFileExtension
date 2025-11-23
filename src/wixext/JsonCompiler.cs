@@ -13,6 +13,10 @@ namespace Hegsie.Wix.JsonExtension
 {
 	public sealed class JsonCompiler : BaseCompilerExtension
 	{
+		// Compiled regex patterns for performance
+		private static readonly Regex NumericIndexPattern = new Regex(@"^\d+$", RegexOptions.Compiled);
+		private static readonly Regex PropertyReferencePattern = new Regex(@"\[([^\]]+)\]", RegexOptions.Compiled);
+
 		public override XNamespace Namespace => "http://schemas.hegsie.com/wix/JsonExtension";
 
 		/// <summary>
@@ -446,7 +450,7 @@ namespace Hegsie.Wix.JsonExtension
 						string content = path.Substring(i + 1, closeIndex - i - 1);
 						// JSONPath array indices are numeric, wildcards are *, or filter expressions start with ?
 						// MSI properties are typically alphabetic or start with special chars like # ! $ %
-						if (Regex.IsMatch(content, @"^\d+$") || content == "*" || 
+						if (NumericIndexPattern.IsMatch(content) || content == "*" || 
 						    (content.StartsWith("?") && content.Contains("@")))
 						{
 							return true; // Likely unescaped JSONPath bracket
@@ -463,27 +467,9 @@ namespace Hegsie.Wix.JsonExtension
 		private void ValidateBasicJsonPathSyntax(XElement node, SourceLineNumber sourceLineNumbers, string jsonPath)
 		{
 			// Check for common syntax errors
-			// This is not a complete JSONPath parser, just catches common mistakes
+			// This is not a complete JSONPath parser, just catches the most obvious mistakes
 
-			// Check for double dots without following valid path segment  
-			// Recursive descent can be followed by property name, bracket, or wildcard
-			// Use a more permissive check to avoid false positives
-			if (jsonPath.Contains(".."))
-			{
-				int dotsIndex = jsonPath.IndexOf("..");
-				if (dotsIndex + 2 < jsonPath.Length)
-				{
-					char nextChar = jsonPath[dotsIndex + 2];
-					// Check if followed by something that looks wrong (not a letter, [, *, or $)
-					if (nextChar != '.' && nextChar != '[' && nextChar != '*' && nextChar != '$' && !char.IsLetter(nextChar))
-					{
-						Messaging.Write(WarningMessages.InvalidJsonPathSyntax(sourceLineNumbers, node.Name.ToString(), 
-							jsonPath, "Recursive descent (..) should be followed by a property name, bracket, or wildcard"));
-					}
-				}
-			}
-
-			// Check for invalid characters after $
+			// Check for invalid characters immediately after $
 			if (jsonPath.StartsWith("$") && jsonPath.Length > 1 && jsonPath[1] != '.' && jsonPath[1] != '[')
 			{
 				Messaging.Write(WarningMessages.InvalidJsonPathSyntax(sourceLineNumbers, node.Name.ToString(), 
@@ -519,8 +505,7 @@ namespace Hegsie.Wix.JsonExtension
 		private void ValidatePropertyReferences(XElement node, SourceLineNumber sourceLineNumbers, string attributeValue, string attributeName)
 		{
 			// Find all property references [PROPERTY_NAME]
-			var propertyPattern = new Regex(@"\[([^\]]+)\]");
-			var matches = propertyPattern.Matches(attributeValue);
+			var matches = PropertyReferencePattern.Matches(attributeValue);
 
 			foreach (Match match in matches)
 			{
