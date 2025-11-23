@@ -1,0 +1,136 @@
+﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" 
+     xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
+  <!-- NOTE: This is an example file demonstrating .NET configuration patterns -->
+  <!-- ProductCode="*" allows WiX to auto-generate a new GUID for each build, enabling proper minor upgrades -->
+  <Package Name="DotNetConfigTest" Language="1033" Version="1.0.0.0" Manufacturer="Testing" UpgradeCode="de23c83e-41e6-413d-9bde-1510e10bb2a3" ProductCode="*">
+
+    <Media Id="1" Cabinet="cab1.cab" EmbedCab="yes" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+    <!-- Define installer properties for common .NET configuration patterns -->
+    <Property Id="DB_SERVER" Value="localhost" />
+    <Property Id="DB_NAME" Value="MyAppDatabase" />
+    <Property Id="LOG_LEVEL" Value="Information" />
+    <Property Id="APP_PORT" Value="5000" />
+    <Property Id="SERVICE_NAME" Value="MyAppService" />
+    <Property Id="DATA_PATH" Value="C:\ProgramData\MyApp\Data" />
+
+    <Feature Id="ProductFeature" Title="DotNetConfigTest" Level="1">
+      <ComponentGroupRef Id="DotNetConfigComponents" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="DotNetConfigTest" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="DotNetConfigComponents" Directory="INSTALLFOLDER">
+      <!-- Component demonstrating common .NET configuration patterns -->
+      <Component Id="DotNetAppSettingsComponent" Guid="{51CDDB12-E903-436C-9371-2E4E93D3B110}">
+        <File Id="DotNetConfig" Name="appsettings.json" Source="appsettings.dotnet.json" />
+
+        <!-- Connection String Configuration -->
+        <!-- SECURITY WARNING: Always use Integrated Security or external secret management in production -->
+        <!-- Never store passwords in plain text in configuration files -->
+        <Json:JsonFile 
+          Id="SetDefaultConnection" 
+          File="[#DotNetConfig]" 
+          ElementPath="$.ConnectionStrings.DefaultConnection" 
+          Value="Server=[DB_SERVER];Database=[DB_NAME];Integrated Security=true;" 
+          Action="setValue" 
+          Sequence="1" />
+
+        <!-- Logging Configuration -->
+        <Json:JsonFile 
+          Id="SetDefaultLogLevel" 
+          File="[#DotNetConfig]" 
+          ElementPath="$.Logging.LogLevel.Default" 
+          Value="[LOG_LEVEL]" 
+          Action="setValue" 
+          Sequence="2" />
+
+        <Json:JsonFile 
+          Id="SetMicrosoftLogLevel" 
+          File="[#DotNetConfig]" 
+          ElementPath="$.Logging.LogLevel.Microsoft" 
+          Value="Warning" 
+          Action="setValue" 
+          Sequence="2" />
+
+        <!-- Application Settings -->
+        <Json:JsonFile 
+          Id="SetDataPath" 
+          File="[#DotNetConfig]" 
+          ElementPath="$.ApplicationSettings.DataPath" 
+          Value="[DATA_PATH]" 
+          Action="setValue" 
+          Sequence="3" />
+
+        <Json:JsonFile 
+          Id="SetTempPath" 
+          File="[#DotNetConfig]" 
+          ElementPath="$.ApplicationSettings.TempPath" 
+          Value="[DATA_PATH]\Temp" 
+          Action="setValue" 
+          Sequence="3" />
+
+        <!-- Service Configuration -->
+        <Json:JsonFile 
+          Id="SetServiceName" 
+          File="[#DotNetConfig]" 
+          ElementPath="$.ServiceSettings.ServiceName" 
+          Value="[SERVICE_NAME]" 
+          Action="setValue" 
+          Sequence="4" />
+
+        <!-- Read existing configuration for validation -->
+        <Json:JsonFile 
+          Id="ReadAppName" 
+          File="[#DotNetConfig]" 
+          ElementPath="$.ApplicationSettings.AppName" 
+          DefaultValue="Unknown" 
+          Action="readValue" 
+          Property="EXISTING_APP_NAME" />
+      </Component>
+
+      <!-- Component demonstrating creating new configuration sections -->
+      <Component Id="NewConfigComponent" Guid="{51CDDB12-E903-436C-9371-2E4E93D3B111}">
+        <File Id="NewConfig" Name="appsettings.new.json" Source="appsettings.dotnet.json" KeyPath="yes" />
+
+        <!-- Create new configuration sections using JSONPointer -->
+        <Json:JsonFile 
+          Id="CreateCorsSection" 
+          File="[#NewConfig]" 
+          ElementPath="/Cors/AllowedOrigins" 
+          Value='["http://localhost:3000"]' 
+          Action="createJsonPointerValue" />
+
+        <Json:JsonFile 
+          Id="CreateEmailSettings" 
+          File="[#NewConfig]" 
+          ElementPath="/EmailSettings/SmtpServer" 
+          Value="smtp.example.com" 
+          Action="createJsonPointerValue" />
+
+        <Json:JsonFile 
+          Id="CreateEmailPort" 
+          File="[#NewConfig]" 
+          ElementPath="/EmailSettings/Port" 
+          Value="587" 
+          Action="createJsonPointerValue" />
+      </Component>
+
+      <!-- Component for invalid JSON testing -->
+      <Component Id="InvalidJsonComponent" Guid="{51CDDB12-E903-436C-9371-2E4E93D3B112}">
+        <File Id="InvalidJson" Name="invalid.json" Source="invalid.json" KeyPath="yes" />
+        
+        <!-- This should handle gracefully when JSON is invalid -->
+        <!-- The custom action should log an error but not fail the installation -->
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

@@ -1,23 +1,36 @@
 ﻿<Project>
   <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="6.0.1" />
+  
   <ItemGroup>
     <Content Include="appsettings.json" />
     <Content Include="install.cmd">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+  
   <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="6.0.1" />
+  
+  <!-- Exclude DotNetPatterns.wxs - it's a standalone example, not part of this build -->
+  <!-- Product.wxs will be auto-discovered by the SDK, we just exclude the example file -->
+  <ItemGroup>
+    <Compile Remove="DotNetPatterns.wxs" />
+    <None Include="DotNetPatterns.wxs" />
+  </ItemGroup>
+  
   <ItemGroup>
     <PackageReference Include="WixToolset.Util.wixext" Version="6.0.1" />
   </ItemGroup>
+  
   <ItemGroup>
     <WixExtension Include="WixJsonFileExtension.dll" Condition=" Exists('WixJsonFileExtension.dll') " />
     <UnsupportedWixExtension Include="$(MSBuildThisFileName)" Condition=" !Exists('WixJsonFileExtension.dll') " />
   </ItemGroup>
+  
   <PropertyGroup>
     <PostBuildEvent>xcopy /y $(ProjectDir)install.cmd $(TargetDir)</PostBuildEvent>
     <Platforms>x64</Platforms>
   </PropertyGroup>
+  
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <VerboseOutput>true</VerboseOutput>
     <SuppressAllWarnings>false</SuppressAllWarnings>

@@ -9,6 +9,9 @@ An extension to [Windows Installer XML (WiX) Toolset](http://wixtoolset.org/) to
 
 - [Overview](#overview)
 - [Status](#status)
+- [Compatibility](#compatibility)
+  - [WiX Toolset Version Support](#wix-toolset-version-support)
+  - [.NET Application Compatibility](#net-application-compatibility)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -30,6 +33,16 @@ An extension to [Windows Installer XML (WiX) Toolset](http://wixtoolset.org/) to
   - [Automatic Rollback Support](#automatic-rollback-support)
   - [Scheduling and Service Dependencies](#scheduling-and-service-dependencies)
   - [Creating New JSON Files](#creating-new-json-files)
+- [Common .NET Configuration Patterns](#common-net-configuration-patterns)
+  - [Connection Strings](#connection-strings)
+  - [Logging Configuration](#logging-configuration)
+  - [Serilog Configuration](#serilog-configuration)
+  - [ASP.NET Core Application Settings](#aspnet-core-application-settings)
+  - [Environment-Specific Configuration](#environment-specific-configuration)
+  - [Service Configuration](#service-configuration)
+  - [API Keys and Secrets](#api-keys-and-secrets)
+  - [Complete Example: Typical .NET 6+ Application](#complete-example-typical-net-6-application)
+  - [Best Practices for .NET Configuration](#best-practices-for-net-configuration)
 - [Escaping Special Characters](#escaping-special-characters)
 - [Troubleshooting](#troubleshooting)
 - [Building from Source](#building-from-source)
@@ -58,6 +71,36 @@ The extension now provides comprehensive JSONPath support powered by jsoncons, i
 - **Schema validation** - Validate JSON files against JSON schemas to prevent configuration corruption
 
 All operations are performed during installation with full rollback support.
+
+
+## Compatibility
+
+### WiX Toolset Version Support
+
+This extension is built for **WiX Toolset v4 and later** (including v5 and v6). The current package uses WiX Toolset SDK 6.0.1 and targets .NET Standard 2.0 for broad compatibility.
+
+| WiX Version | Support Status | Notes |
+|-------------|----------------|-------|
+| **WiX 6.x** | ✅ Fully Supported | Current target version (WiX 6.0.1) |
+| **WiX 5.x** | ✅ Fully Supported | Compatible via .NET Standard 2.0 |
+| **WiX 4.x** | ✅ Fully Supported | Compatible via .NET Standard 2.0 |
+| WiX 3.x | ❌ Not Supported | Use WiX 4+ for this extension |
+
+**Package distribution**: The extension is distributed via NuGet and includes binaries in both the `wixext5/` and `wixext6/` package folders to support WiX v5 and v6 installations.
+
+### .NET Application Compatibility
+
+This extension works with all .NET application types that use JSON configuration files:
+
+| Application Type | Configuration Files | Support Status |
+|------------------|---------------------|----------------|
+| **.NET 6+ / .NET Core** | `appsettings.json`, `appsettings.{Environment}.json` | ✅ Fully Supported |
+| **.NET Framework** | `app.config`, `web.config` (XML), custom JSON files | ✅ JSON files supported |
+| **ASP.NET Core** | `appsettings.json` | ✅ Fully Supported |
+| **Console Apps** | `appsettings.json`, custom JSON configs | ✅ Fully Supported |
+| **Windows Services** | `appsettings.json`, custom JSON configs | ✅ Fully Supported |
+
+**Hybrid scenarios**: Applications using both classic `.config` (XML) and modern JSON files can leverage both WiX's built-in XML handling and this extension for JSON files.
 
 ## Prerequisites
 
@@ -723,6 +766,256 @@ Combine multiple conditions:
 - `||` becomes `||` (no escaping needed)
 - `<` becomes `&lt;`
 - `>` becomes `&gt;`
+
+## Common .NET Configuration Patterns
+
+This section provides convenience patterns for typical .NET application configuration scenarios, reducing boilerplate and following .NET conventions.
+
+### Connection Strings
+
+Modern .NET applications commonly store connection strings in the `ConnectionStrings` section of `appsettings.json`:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=MyDb;",
+    "ReportingConnection": "Server=reporting;Database=Reports;"
+  }
+}
+```
+
+**Setting a default connection string during installation:**
+
+```xml
+<Component Id="DatabaseConfig" Guid="{YOUR-GUID}">
+  <File Id="AppSettings" Name="appsettings.json" Source="appsettings.json" />
+  
+  <!-- Set the default connection string from installer properties -->
+  <Json:JsonFile 
+    Id="SetDefaultConnection" 
+    File="[#AppSettings]" 
+    ElementPath="$.ConnectionStrings.DefaultConnection" 
+    Value="Server=[DB_SERVER];Database=[DB_NAME];User Id=[DB_USER];Password=[DB_PASSWORD];" 
+    Action="setValue" />
+    <!-- SECURITY WARNING: Avoid storing passwords in plain text. Use Integrated Security or external secret management -->
+</Component>
+```
+
+**Creating connection strings section if it doesn't exist:**
+
+```xml
+<!-- Create the entire ConnectionStrings section with JSONPointer -->
+<Json:JsonFile 
+  Id="CreateConnectionStrings" 
+  File="[#AppSettings]" 
+  ElementPath="/ConnectionStrings/DefaultConnection" 
+  Value="Server=[DB_SERVER];Database=[DB_NAME];Integrated Security=true;" 
+  Action="createJsonPointerValue" />
+```
+
+### Logging Configuration
+
+.NET applications use structured logging configuration in `appsettings.json`:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft": "Warning",
+      "System": "Warning"
+    }
+  }
+}
+```
+
+**Setting log levels during installation:**
+
+```xml
+<Component Id="LoggingConfig" Guid="{YOUR-GUID}">
+  <File Id="AppSettings" Name="appsettings.json" Source="appsettings.json" />
+  
+  <!-- Set default log level based on installer property -->
+  <Json:JsonFile 
+    Id="SetDefaultLogLevel" 
+    File="[#AppSettings]" 
+    ElementPath="$.Logging.LogLevel.Default" 
+    Value="[LOG_LEVEL]" 
+    Action="setValue" />
+  
+  <!-- Configure Microsoft namespace logging -->
+  <Json:JsonFile 
+    Id="SetMicrosoftLogLevel" 
+    File="[#AppSettings]" 
+    ElementPath="$.Logging.LogLevel.Microsoft" 
+    Value="Warning" 
+    Action="setValue" />
+</Component>
+```
+
+**Common log level values**: `Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`, `None`
+
+### Serilog Configuration
+
+For applications using Serilog, you can configure file paths and settings:
+
+```xml
+<!-- Configure Serilog file output path -->
+<Json:JsonFile 
+  Id="SetSerilogPath" 
+  File="[#AppSettings]" 
+  ElementPath="$.Serilog.WriteTo[\[]0[\]].Args.path" 
+  Value="[INSTALLFOLDER]Logs\\application.log" 
+  Action="setValue" />
+
+<!-- Set minimum log level -->
+<Json:JsonFile 
+  Id="SetSerilogMinLevel" 
+  File="[#AppSettings]" 
+  ElementPath="$.Serilog.MinimumLevel.Default" 
+  Value="Information" 
+  Action="setValue" />
+```
+
+### ASP.NET Core Application Settings
+
+**Setting application URLs:**
+
+```xml
+<!-- Configure Kestrel URLs -->
+<Json:JsonFile 
+  Id="SetApplicationUrl" 
+  File="[#AppSettings]" 
+  ElementPath="$.Urls" 
+  Value="http://localhost:[APP_PORT]" 
+  Action="setValue" />
+```
+
+**Configuring CORS origins:**
+
+```xml
+<!-- Set allowed CORS origins -->
+<Json:JsonFile 
+  Id="SetCorsOrigins" 
+  File="[#AppSettings]" 
+  ElementPath="$.Cors.AllowedOrigins" 
+  Value='["http://localhost:3000","https://[DOMAIN_NAME]"]' 
+  Action="replaceJsonValue" />
+```
+
+### Environment-Specific Configuration
+
+.NET applications often use environment-specific configuration files like `appsettings.Production.json`:
+
+```xml
+<Component Id="ProductionConfig" Guid="{YOUR-GUID}">
+  <File Id="AppSettingsProd" Name="appsettings.Production.json" Source="appsettings.Production.json" />
+  
+  <!-- Configure production database -->
+  <Json:JsonFile 
+    Id="SetProdConnection" 
+    File="[#AppSettingsProd]" 
+    ElementPath="$.ConnectionStrings.DefaultConnection" 
+    Value="Server=[PROD_DB_SERVER];Database=[PROD_DB_NAME];Integrated Security=true;" 
+    Action="setValue" />
+  
+  <!-- Set production log level -->
+  <Json:JsonFile 
+    Id="SetProdLogLevel" 
+    File="[#AppSettingsProd]" 
+    ElementPath="$.Logging.LogLevel.Default" 
+    Value="Warning" 
+    Action="setValue" />
+</Component>
+```
+
+### Service Configuration
+
+**Windows Service settings:**
+
+```xml
+<!-- Set service name and display name -->
+<Json:JsonFile 
+  Id="SetServiceName" 
+  File="[#AppSettings]" 
+  ElementPath="$.ServiceSettings.ServiceName" 
+  Value="[SERVICE_NAME]" 
+  Action="setValue" />
+
+<Json:JsonFile 
+  Id="SetServiceDisplay" 
+  File="[#AppSettings]" 
+  ElementPath="$.ServiceSettings.DisplayName" 
+  Value="[SERVICE_DISPLAY_NAME]" 
+  Action="setValue" />
+```
+
+### API Keys and Secrets
+
+**Note**: For production scenarios, consider using secure key storage (Azure Key Vault, AWS Secrets Manager) instead of storing secrets in configuration files.
+
+```xml
+<!-- Set API key during installation (use with caution) -->
+<Json:JsonFile 
+  Id="SetApiKey" 
+  File="[#AppSettings]" 
+  ElementPath="$.ApiSettings.ApiKey" 
+  Value="[API_KEY]" 
+  Action="setValue" />
+```
+
+### Complete Example: Typical .NET 6+ Application
+
+Here's a complete example combining common patterns:
+
+```xml
+<Component Id="DotNetAppConfig" Guid="{YOUR-GUID}">
+  <File Id="AppSettings" Name="appsettings.json" Source="appsettings.json" />
+  
+  <!-- Connection String -->
+  <Json:JsonFile 
+    Id="SetDefaultConnection" 
+    File="[#AppSettings]" 
+    ElementPath="$.ConnectionStrings.DefaultConnection" 
+    Value="Server=[DB_SERVER];Database=[DB_NAME];Integrated Security=true;" 
+    Action="setValue" />
+  
+  <!-- Logging -->
+  <Json:JsonFile 
+    Id="SetLogLevel" 
+    File="[#AppSettings]" 
+    ElementPath="$.Logging.LogLevel.Default" 
+    Value="[LOG_LEVEL]" 
+    Action="setValue" />
+  
+  <!-- Application URL -->
+  <Json:JsonFile 
+    Id="SetAppUrl" 
+    File="[#AppSettings]" 
+    ElementPath="$.Urls" 
+    Value="http://localhost:[APP_PORT]" 
+    Action="setValue" />
+  
+  <!-- Custom Application Path -->
+  <Json:JsonFile 
+    Id="SetDataPath" 
+    File="[#AppSettings]" 
+    ElementPath="$.ApplicationSettings.DataPath" 
+    Value="[INSTALLFOLDER]Data" 
+    Action="setValue" />
+</Component>
+```
+
+### Best Practices for .NET Configuration
+
+1. **Use installer properties**: Define properties in your WiX project for configurable values, allowing users to customize the installation
+2. **Provide defaults**: Always set sensible default values in your source `appsettings.json`
+3. **Environment-specific files**: Use separate configuration files for different environments
+4. **Sequence operations**: Use the `Sequence` attribute when operations depend on each other
+5. **Test paths**: Verify JSONPath expressions work with your JSON structure before deploying
+6. **Security**: Never store secrets in plain text; use secure configuration providers in production
+7. **Validation**: Use `readValue` action to verify existing configuration before modifying
+
 
 ## Escaping Special Characters
 
