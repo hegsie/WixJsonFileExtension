@@ -33,6 +33,8 @@ const int FLAG_APPENDARRAY = 5;
 const int FLAG_INSERTARRAY = 6;
 const int FLAG_REMOVEARRAYELEMENT = 7;
 const int FLAG_VALIDATESCHEMA = 8;
+const int FLAG_DISTINCTVALUES = 9;
+const int FLAG_ONLYIFEXISTS = 10;
 
 // These are bits
 enum eXmlAction
@@ -44,8 +46,9 @@ enum eXmlAction
     jaReadValue = 16,
     jaAppendArray = 32,
     jaInsertArray = 64,
-    jaRemoveArrayElement = 128
-    // Note: ValidateSchema (256) is a flag, not an action
+    jaRemoveArrayElement = 128,
+    jaDistinctValues = 512
+    // Note: ValidateSchema (256) and OnlyIfExists (1024) are flags, not actions
 };
 
 #define msierrJsonFileFailedRead         25530
@@ -114,6 +117,7 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath);
 HRESULT AppendJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue);
 HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, int iIndex);
 HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue);
+HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath);
 HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile);
 
 std::string GetLastErrorAsString();

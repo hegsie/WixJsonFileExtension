@@ -180,6 +180,7 @@ The **[examples/](examples/)** directory contains ready-to-use WiX fragment file
 - **[FeatureFlags.wxs](examples/FeatureFlags.wxs)** - Feature flag management
 - **[ApiEndpoints.wxs](examples/ApiEndpoints.wxs)** - API endpoint configuration
 - **[EnvironmentConfiguration.wxs](examples/EnvironmentConfiguration.wxs)** - Environment-based settings
+- **[AdvancedArrayOperations.wxs](examples/AdvancedArrayOperations.wxs)** ⭐ NEW - Advanced array operations and conditional updates
 
 See the [Examples README](examples/README.md) for usage instructions.
 
@@ -199,6 +200,7 @@ The `JsonFile` element supports the following actions:
 | `appendArray` | Appends a value to an array | JSONPath | Adding new items to configuration arrays |
 | `insertArray` | Inserts a value at a specific index in an array | JSONPath | Adding items at specific positions in arrays |
 | `removeArrayElement` | Removes element(s) from an array by value or path | JSONPath | Removing specific items from configuration arrays |
+| `distinctValues` | Removes duplicate values from an array | JSONPath | Ensuring unique values in configuration arrays |
 
 ### JsonFile Element Attributes
 
@@ -214,6 +216,7 @@ The `JsonFile` element supports the following actions:
 | `Sequence` | No | Order in which modifications are applied (default: 1). Lower numbers execute first. Use this to ensure JSON changes happen before services start or in a specific order. All JSON modifications run after `InstallFiles` and before `StartServices` in the standard InstallExecuteSequence |
 | `Index` | No | For `insertArray` action: specifies the index at which to insert. Use -1 or omit to append to end |
 | `SchemaFile` | No | Path to a JSON schema file for validation. The JSON file will be validated against this schema after modifications |
+| `OnlyIfExists` | No | When set to `yes`, the action is only performed if the ElementPath already exists in the JSON file. This is useful for conditional updates that should only modify existing values without creating new ones. Applies to `setValue`, `createJsonPointerValue`, and `replaceJsonValue` actions. Default is `no` |
 
 ### JSONPath vs JSONPointer
 
@@ -632,6 +635,86 @@ Remove elements by matching value:
   Action="removeArrayElement" />
 ```
 
+#### Removing Duplicates from Arrays
+
+Remove duplicate values from an array to ensure uniqueness:
+
+```xml
+<!-- Remove duplicate entries from a tags array -->
+<Json:JsonFile 
+  Id="DeduplicateTags" 
+  File="[#JsonConfig]" 
+  ElementPath="$.configuration.tags" 
+  Action="distinctValues" />
+
+<!-- Remove duplicates from feature flags array -->
+<Json:JsonFile 
+  Id="DeduplicateFeatureFlags" 
+  File="[#JsonConfig]" 
+  ElementPath="$.features.enabled" 
+  Action="distinctValues" />
+```
+
+The `distinctValues` action compares array elements by their serialized JSON representation, so it works with both simple values (strings, numbers) and complex objects. For example:
+
+Before:
+```json
+{
+  "tags": ["production", "webapp", "production", "backend", "webapp"]
+}
+```
+
+After `distinctValues`:
+```json
+{
+  "tags": ["production", "webapp", "backend"]
+}
+```
+
+### Conditional Updates with OnlyIfExists
+
+The `OnlyIfExists` attribute allows you to conditionally update JSON values only if they already exist. This is useful when you want to modify existing configuration without creating new entries.
+
+```xml
+<!-- Only update connection string if it already exists -->
+<Json:JsonFile 
+  Id="UpdateConnectionString" 
+  File="[#JsonConfig]" 
+  ElementPath="$.ConnectionStrings.Database" 
+  Value="Server=myserver;Database=mydb;" 
+  Action="setValue"
+  OnlyIfExists="yes" />
+
+<!-- Only update log level if logging section exists -->
+<Json:JsonFile 
+  Id="UpdateLogLevel" 
+  File="[#JsonConfig]" 
+  ElementPath="$.Logging.LogLevel.Default" 
+  Value="Warning" 
+  Action="setValue"
+  OnlyIfExists="yes" />
+
+<!-- This will NOT create the path if it doesn't exist -->
+<Json:JsonFile 
+  Id="ConditionalFeature" 
+  File="[#JsonConfig]" 
+  ElementPath="/Features/NewFeature/Enabled" 
+  Value="true" 
+  Action="createJsonPointerValue"
+  OnlyIfExists="yes" />
+```
+
+**Use Cases for OnlyIfExists:**
+- Updating optional configuration sections that may not be present in all deployments
+- Modifying settings only in environments where they're already configured
+- Avoiding creation of unnecessary configuration entries
+- Safe upgrades that only modify existing settings
+
+**Behavior:**
+- If `OnlyIfExists="yes"` and the path exists: the operation proceeds normally
+- If `OnlyIfExists="yes"` and the path does NOT exist: the operation is skipped (returns success, no error)
+- If `OnlyIfExists="no"` (or omitted): the operation always proceeds (default behavior)
+
 ### JSON Schema Validation
 
 Validate JSON files against a schema to ensure data integrity:
@@ -711,6 +794,15 @@ Select multiple elements at once:
   Action="setValue" />
 ```
 
+**Behavior with Multiple Matches:**
+- **setValue**: All matched elements are updated with the same value
+- **deleteValue**: All matched elements are deleted
+- **replaceJsonValue**: All matched elements are replaced with the new JSON value
+- **readValue**: Returns the first matched element's value
+- **Array operations**: Apply to all matched arrays
+
+This allows for powerful bulk operations. For example, `$..price` will update every `price` property at any depth in the JSON structure.
+
 #### Array Filters
 
 Use filters to select specific array elements:
@@ -732,6 +824,13 @@ Use filters to select specific array elements:
   Value="11.99" 
   Action="setValue" />
 ```
+
+**Filter Examples:**
+- `$.store.book[?(@.price < 10)]` - Select all books cheaper than 10
+- `$.store.book[?(@.isbn)]` - Select all books that have an ISBN property
+- `$.store.book[?(@.category == 'fiction')]` - Select all fiction books
+
+When a filter matches multiple elements, the action is applied to all matching elements.
 
 #### Wildcards
 

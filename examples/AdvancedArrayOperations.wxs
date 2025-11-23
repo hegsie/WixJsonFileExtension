@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
+  
+  <!--
+    Advanced Array Operations Example
+    
+    This example demonstrates advanced array manipulation features including:
+    - Removing duplicates with distinctValues action
+    - Conditional updates with OnlyIfExists attribute
+    - Complex JSONPath filters for bulk operations
+    - Multi-select queries that affect multiple elements
+    
+    Use this fragment in your installer by referencing the component:
+    <ComponentGroupRef Id="AdvancedArrayOperationsComponents" />
+  -->
+  
+  <Fragment>
+    <ComponentGroup Id="AdvancedArrayOperationsComponents">
+      <Component Id="AdvancedArrayOperationsComponent" Directory="INSTALLFOLDER" Guid="*">
+        <File Id="AdvancedConfigFile" Name="appsettings.json" Source="appsettings.json" />
+        
+        <!-- =====================================================
+             REMOVING DUPLICATES FROM ARRAYS
+             ===================================================== -->
+        
+        <!-- Remove duplicate tags from configuration -->
+        <Json:JsonFile 
+          Id="DeduplicateTags" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.configuration.tags" 
+          Action="distinctValues"
+          Sequence="1" />
+        
+        <!-- Remove duplicate feature flags -->
+        <Json:JsonFile 
+          Id="DeduplicateFeatureFlags" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.features.enabled" 
+          Action="distinctValues"
+          Sequence="2" />
+        
+        <!-- Remove duplicates from allowed origins (CORS configuration) -->
+        <Json:JsonFile 
+          Id="DeduplicateAllowedOrigins" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.security.cors.allowedOrigins" 
+          Action="distinctValues"
+          Sequence="3" />
+        
+        <!-- =====================================================
+             CONDITIONAL UPDATES (OnlyIfExists)
+             ===================================================== -->
+        
+        <!-- Only update connection string if it already exists -->
+        <Json:JsonFile 
+          Id="UpdateConnectionStringIfExists" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.ConnectionStrings.Default" 
+          Value="[CONNECTION_STRING]" 
+          Action="setValue"
+          OnlyIfExists="yes"
+          Sequence="4" />
+        
+        <!-- Only update log level if logging section exists -->
+        <Json:JsonFile 
+          Id="UpdateLogLevelIfExists" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.Logging.LogLevel.Default" 
+          Value="Warning" 
+          Action="setValue"
+          OnlyIfExists="yes"
+          Sequence="5" />
+        
+        <!-- Only enable feature if feature section exists -->
+        <Json:JsonFile 
+          Id="EnableFeatureIfExists" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.features.premiumFeatures" 
+          Value="true" 
+          Action="setValue"
+          OnlyIfExists="yes"
+          Sequence="6" />
+        
+        <!-- =====================================================
+             MULTI-SELECT QUERIES
+             ===================================================== -->
+        
+        <!-- Update all timeout values in the configuration -->
+        <Json:JsonFile 
+          Id="UpdateAllTimeouts" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$..timeout" 
+          Value="30000" 
+          Action="setValue"
+          Sequence="7" />
+        
+        <!-- Update all enabled flags at any depth -->
+        <Json:JsonFile 
+          Id="EnableAllFeatures" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$..enabled" 
+          Value="true" 
+          Action="setValue"
+          Sequence="8" />
+        
+        <!-- =====================================================
+             COMPLEX JSONPATH FILTERS
+             ===================================================== -->
+        
+        <!-- Update only endpoints that are marked as production -->
+        <Json:JsonFile 
+          Id="UpdateProductionEndpoints" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.endpoints[\[]?(@.environment == 'production')[\]].url" 
+          Value="https://api.production.example.com" 
+          Action="setValue"
+          Sequence="9" />
+        
+        <!-- Remove deprecated features (filter by deprecated flag) -->
+        <Json:JsonFile 
+          Id="RemoveDeprecatedFeatures" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.features.all[\[]?(@.deprecated == true)[\]]" 
+          Action="removeArrayElement"
+          Sequence="10" />
+        
+        <!-- Update prices for premium features only -->
+        <Json:JsonFile 
+          Id="UpdatePremiumPrices" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.features.all[\[]?(@.tier == 'premium')[\]].price" 
+          Value="99.99" 
+          Action="setValue"
+          Sequence="11" />
+        
+        <!-- Enable features with priority greater than 5 -->
+        <Json:JsonFile 
+          Id="EnableHighPriorityFeatures" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.features.all[\[]?(@.priority &gt; 5)[\]].enabled" 
+          Value="true" 
+          Action="setValue"
+          Sequence="12" />
+        
+        <!-- =====================================================
+             COMBINING FILTERS WITH ARRAY OPERATIONS
+             ===================================================== -->
+        
+        <!-- Append a new high-priority feature -->
+        <Json:JsonFile 
+          Id="AppendHighPriorityFeature" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.features.all" 
+          Value='{"name":"PremiumSupport","enabled":true,"priority":10,"tier":"premium"}' 
+          Action="appendArray"
+          Sequence="13" />
+        
+        <!-- Then remove duplicates from the feature list -->
+        <Json:JsonFile 
+          Id="DeduplicateFeatures" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.features.all" 
+          Action="distinctValues"
+          Sequence="14" />
+        
+        <!-- =====================================================
+             ADVANCED FILTER EXAMPLES
+             ===================================================== -->
+        
+        <!-- Delete all cache entries older than a certain timestamp -->
+        <Json:JsonFile 
+          Id="DeleteOldCacheEntries" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.cache.entries[\[]?(@.timestamp &lt; 1609459200000)[\]]" 
+          Action="removeArrayElement"
+          Sequence="15" />
+        
+        <!-- Update all services that have retry enabled -->
+        <Json:JsonFile 
+          Id="UpdateServicesWithRetry" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.services[\[]?(@.retryEnabled == true)[\]].maxRetries" 
+          Value="5" 
+          Action="setValue"
+          Sequence="16" />
+        
+        <!-- Enable features that are in beta AND have minimum version requirement met -->
+        <Json:JsonFile 
+          Id="EnableBetaFeatures" 
+          File="[#AdvancedConfigFile]" 
+          ElementPath="$.features.all[\[]?(@.status == 'beta' &amp;&amp; @.minVersion &lt;= 2.0)[\]].enabled" 
+          Value="true" 
+          Action="setValue"
+          Sequence="17" />
+        
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+  
+  <Fragment>
+    <!-- Define INSTALLFOLDER if not already defined in your main Product.wxs -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="YourApplication" />
+    </StandardDirectory>
+  </Fragment>
+</Wix>

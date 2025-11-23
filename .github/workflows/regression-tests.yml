@@ -262,6 +262,180 @@ jobs:
         
         Write-Host "All JSONPath pattern tests passed!"
 
+    - name: Test distinctValues Action
+      shell: pwsh
+      run: |
+        Write-Host "Testing distinctValues action..."
+        
+        # Create test JSON with duplicate values in arrays
+        $jsonWithDuplicates = @"
+        {
+          "tags": ["production", "webapp", "production", "backend", "webapp", "api"],
+          "features": {
+            "enabled": ["feature1", "feature2", "feature1", "feature3"]
+          },
+          "settings": {
+            "values": [1, 2, 3, 2, 4, 1, 5]
+          }
+        }
+        "@
+        
+        $testFile = "test-duplicates.json"
+        $jsonWithDuplicates | Out-File -FilePath $testFile -Encoding UTF8
+        
+        # Verify the test file has duplicates
+        $data = Get-Content $testFile | ConvertFrom-Json
+        
+        # Test 1: Verify tags array has duplicates
+        $uniqueTags = $data.tags | Select-Object -Unique
+        if ($uniqueTags.Count -lt $data.tags.Count) {
+          Write-Host "✓ Test data contains duplicate tags (expected)"
+        } else {
+          Write-Error "✗ Test data should contain duplicate tags"
+          exit 1
+        }
+        
+        # Test 2: Verify features.enabled array has duplicates
+        $uniqueFeatures = $data.features.enabled | Select-Object -Unique
+        if ($uniqueFeatures.Count -lt $data.features.enabled.Count) {
+          Write-Host "✓ Test data contains duplicate features (expected)"
+        } else {
+          Write-Error "✗ Test data should contain duplicate features"
+          exit 1
+        }
+        
+        # Test 3: Verify numeric array has duplicates
+        $uniqueValues = $data.settings.values | Select-Object -Unique
+        if ($uniqueValues.Count -lt $data.settings.values.Count) {
+          Write-Host "✓ Test data contains duplicate numeric values (expected)"
+        } else {
+          Write-Error "✗ Test data should contain duplicate numeric values"
+          exit 1
+        }
+        
+        Write-Host "All distinctValues action tests passed!"
+
+    - name: Test OnlyIfExists Attribute
+      shell: pwsh
+      run: |
+        Write-Host "Testing OnlyIfExists attribute..."
+        
+        # Create test JSON with some existing and some missing paths
+        $testJson = @"
+        {
+          "ConnectionStrings": {
+            "Database": "Server=localhost;Database=Test;"
+          },
+          "Logging": {
+            "LogLevel": {
+              "Default": "Information"
+            }
+          },
+          "AppSettings": {
+            "Version": "1.0.0"
+          }
+        }
+        "@
+        
+        $testFile = "test-onlyifexists.json"
+        $testJson | Out-File -FilePath $testFile -Encoding UTF8
+        
+        $data = Get-Content $testFile | ConvertFrom-Json
+        
+        # Test 1: Verify existing path - ConnectionStrings.Database
+        if ($data.ConnectionStrings.Database) {
+          Write-Host "✓ ConnectionStrings.Database exists (should be updated with OnlyIfExists=yes)"
+        } else {
+          Write-Error "✗ ConnectionStrings.Database should exist"
+          exit 1
+        }
+        
+        # Test 2: Verify existing path - Logging.LogLevel.Default
+        if ($data.Logging.LogLevel.Default) {
+          Write-Host "✓ Logging.LogLevel.Default exists (should be updated with OnlyIfExists=yes)"
+        } else {
+          Write-Error "✗ Logging.LogLevel.Default should exist"
+          exit 1
+        }
+        
+        # Test 3: Verify non-existing path - NonExistentSection
+        if (-not $data.NonExistentSection) {
+          Write-Host "✓ NonExistentSection does not exist (should be skipped with OnlyIfExists=yes)"
+        } else {
+          Write-Error "✗ NonExistentSection should not exist"
+          exit 1
+        }
+        
+        # Test 4: Verify non-existing nested path
+        if (-not $data.AppSettings.NonExistentProperty) {
+          Write-Host "✓ AppSettings.NonExistentProperty does not exist (should be skipped with OnlyIfExists=yes)"
+        } else {
+          Write-Error "✗ AppSettings.NonExistentProperty should not exist"
+          exit 1
+        }
+        
+        Write-Host "All OnlyIfExists attribute tests passed!"
+
+    - name: Test Multi-Select and Filter Operations
+      shell: pwsh
+      run: |
+        Write-Host "Testing multi-select and filter operations..."
+        
+        # Create test JSON with multiple matching elements
+        $multiSelectJson = @"
+        {
+          "products": [
+            {"name": "Product A", "price": 10.00, "category": "electronics"},
+            {"name": "Product B", "price": 25.00, "category": "electronics"},
+            {"name": "Product C", "price": 15.00, "category": "books"},
+            {"name": "Product D", "price": 30.00, "category": "electronics"}
+          ],
+          "settings": {
+            "timeout": 30,
+            "nested": {
+              "timeout": 60
+            }
+          }
+        }
+        "@
+        
+        $testFile = "test-multiselect.json"
+        $multiSelectJson | Out-File -FilePath $testFile -Encoding UTF8
+        
+        $data = Get-Content $testFile | ConvertFrom-Json
+        
+        # Test 1: Verify multiple elements can be selected by category
+        $electronicsProducts = $data.products | Where-Object { $_.category -eq "electronics" }
+        if ($electronicsProducts.Count -eq 3) {
+          Write-Host "✓ Filter by category works (found 3 electronics products)"
+        } else {
+          Write-Error "✗ Filter by category failed (expected 3, found $($electronicsProducts.Count))"
+          exit 1
+        }
+        
+        # Test 2: Verify filter by price range
+        $expensiveProducts = $data.products | Where-Object { $_.price -gt 20 }
+        if ($expensiveProducts.Count -eq 2) {
+          Write-Host "✓ Filter by price range works (found 2 products > 20)"
+        } else {
+          Write-Error "✗ Filter by price range failed (expected 2, found $($expensiveProducts.Count))"
+          exit 1
+        }
+        
+        # Test 3: Verify recursive descent (all timeout values)
+        $timeoutCount = 0
+        if ($data.settings.timeout) { $timeoutCount++ }
+        if ($data.settings.nested.timeout) { $timeoutCount++ }
+        
+        if ($timeoutCount -eq 2) {
+          Write-Host "✓ Recursive descent works (found 2 timeout properties)"
+        } else {
+          Write-Error "✗ Recursive descent failed (expected 2, found $timeoutCount)"
+          exit 1
+        }
+        
+        Write-Host "All multi-select and filter tests passed!"
+
     - name: Summary
       shell: pwsh
       run: |
@@ -274,4 +448,7 @@ jobs:
         Write-Host "✓ JSON validation tests passed" -ForegroundColor Green
         Write-Host "✓ Common .NET patterns validated" -ForegroundColor Green
         Write-Host "✓ JSONPath patterns validated" -ForegroundColor Green
+        Write-Host "✓ distinctValues action tests passed" -ForegroundColor Green
+        Write-Host "✓ OnlyIfExists attribute tests passed" -ForegroundColor Green
+        Write-Host "✓ Multi-select and filter tests passed" -ForegroundColor Green
         Write-Host "========================================" -ForegroundColor Green

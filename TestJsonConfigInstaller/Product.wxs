@@ -83,6 +83,38 @@
                Value="9.99"
                Action="setValue"
                Sequence="10"/>
+
+        <!-- New: Remove duplicates from tags array -->
+        <Json:JsonFile Id="deduplicateTags"
+               File="[#JsonConfig]"
+               ElementPath="$.tags"
+               Action="distinctValues"
+               Sequence="11"/>
+
+        <!-- New: Remove duplicates from features enabled array -->
+        <Json:JsonFile Id="deduplicateFeatures"
+               File="[#JsonConfig]"
+               ElementPath="$.features.enabled"
+               Action="distinctValues"
+               Sequence="12"/>
+
+        <!-- New: Conditional update - only if path exists -->
+        <Json:JsonFile Id="updateExpensiveIfExists"
+               File="[#JsonConfig]"
+               ElementPath="$.expensive"
+               Value="15"
+               Action="setValue"
+               OnlyIfExists="yes"
+               Sequence="13"/>
+
+        <!-- New: This will be skipped because path doesn't exist -->
+        <Json:JsonFile Id="updateNonExistentIfExists"
+               File="[#JsonConfig]"
+               ElementPath="$.nonExistentPath"
+               Value="someValue"
+               Action="setValue"
+               OnlyIfExists="yes"
+               Sequence="14"/>
         
       </Component>
 

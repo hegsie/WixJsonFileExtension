@@ -139,6 +139,22 @@ namespace Hegsie.Wix.JsonExtension
 									flags |= (int)JsonFlags.ValidateSchema;
 								}
 								break;
+							case "OnlyIfExists":
+								// Optional attribute to only perform the action if the element path already exists
+								string onlyIfExistsValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+								if (!string.IsNullOrEmpty(onlyIfExistsValue))
+								{
+									if (onlyIfExistsValue.Equals("yes", System.StringComparison.OrdinalIgnoreCase))
+									{
+										flags |= (int)JsonFlags.OnlyIfExists;
+									}
+									else if (!onlyIfExistsValue.Equals("no", System.StringComparison.OrdinalIgnoreCase))
+									{
+										Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
+											"OnlyIfExists", onlyIfExistsValue, "yes", "no"));
+									}
+								}
+								break;
 							default:
 								ParseHelper.UnexpectedAttribute(node, attribute);
 								break;
@@ -282,6 +298,7 @@ namespace Hegsie.Wix.JsonExtension
 			const string ActionAppendArray = "appendArray";
 			const string ActionInsertArray = "insertArray";
 			const string ActionRemoveArrayElement = "removeArrayElement";
+			const string ActionDistinctValues = "distinctValues";
 
 			int action;
 			string actionValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
@@ -325,10 +342,14 @@ namespace Hegsie.Wix.JsonExtension
 						flags |= (int)JsonFlags.RemoveArrayElement;
 						action = (int)JsonAction.RemoveArrayElement;
 						break;
+					case ActionDistinctValues:
+						flags |= (int)JsonFlags.DistinctValues;
+						action = (int)JsonAction.DistinctValues;
+						break;
 					default:
 						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
 							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue, 
-							ActionCreateValue, ActionReadValue, ActionAppendArray, ActionInsertArray, ActionRemoveArrayElement));
+							ActionCreateValue, ActionReadValue, ActionAppendArray, ActionInsertArray, ActionRemoveArrayElement, ActionDistinctValues));
 						action = CompilerConstants.IllegalInteger;
 						break;
 				}
