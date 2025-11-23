@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 using Hegsie.Wix.JsonExtension.Table;
@@ -12,6 +13,10 @@ namespace Hegsie.Wix.JsonExtension
 {
 	public sealed class JsonCompiler : BaseCompilerExtension
 	{
+		// Compiled regex patterns for performance
+		private static readonly Regex NumericIndexPattern = new Regex(@"^\d+$", RegexOptions.Compiled);
+		private static readonly Regex PropertyReferencePattern = new Regex(@"\[([^\]]+)\]", RegexOptions.Compiled);
+
 		public override XNamespace Namespace => "http://schemas.hegsie.com/wix/JsonExtension";
 
 		/// <summary>
@@ -63,10 +68,12 @@ namespace Hegsie.Wix.JsonExtension
 			string value = null;
 			string defaultValue = null;
 			string property = null;
+			string schemaFile = null;
 			int on = CompilerConstants.IntegerNotSet;
 			int flags = 0;
 			int action = CompilerConstants.IntegerNotSet;
 			int? sequence = 1;
+			int? index = null;
 
 			if (node.Attributes().Any())
 			{
@@ -120,6 +127,18 @@ namespace Hegsie.Wix.JsonExtension
 								// Specifies the order in which the modification is to be attempted on the JSON file.  It is important to ensure that new elements are created before you attempt to modify them.
 								sequence = ToNullableInt(ParseHelper.GetAttributeValue(sourceLineNumbers, attribute));
 								break;
+							case "Index":
+								// For array operations, specifies the index at which to insert or remove an element. For insertArray, -1 means append to the end.
+								index = ToNullableInt(ParseHelper.GetAttributeValue(sourceLineNumbers, attribute));
+								break;
+							case "SchemaFile":
+								// Optional path to a JSON schema file for validation. The JSON file will be validated against this schema after modifications.
+								schemaFile = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+								if (!string.IsNullOrEmpty(schemaFile))
+								{
+									flags |= (int)JsonFlags.ValidateSchema;
+								}
+								break;
 							default:
 								ParseHelper.UnexpectedAttribute(node, attribute);
 								break;
@@ -160,6 +179,14 @@ namespace Hegsie.Wix.JsonExtension
 				return;
 			}
 
+			// Validate required attributes and common issues
+			ValidateJsonFileElement(node, sourceLineNumbers, action, file, elementPath, value, property);
+
+			if (Messaging.EncounteredError)
+			{
+				return;
+			}
+
 			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
 				File = file,
@@ -169,7 +196,9 @@ namespace Hegsie.Wix.JsonExtension
 				Flags = flags,
 				ComponentRef = componentId,
 				Sequence = sequence,
-				Property = property
+				Property = property,
+				Index = index,
+				SchemaFile = schemaFile
 			});
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section,
@@ -250,6 +279,9 @@ namespace Hegsie.Wix.JsonExtension
 			const string ActionCreateValue = "createJsonPointerValue";
 			const string ActionReplaceJsonValue = "replaceJsonValue";
 			const string ActionReadValue = "readValue";
+			const string ActionAppendArray = "appendArray";
+			const string ActionInsertArray = "insertArray";
+			const string ActionRemoveArrayElement = "removeArrayElement";
 
 			int action;
 			string actionValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
@@ -281,9 +313,22 @@ namespace Hegsie.Wix.JsonExtension
 						flags |= (int)JsonFlags.ReadValue;
 						action = (int)JsonAction.ReadValue;
 						break;
+					case ActionAppendArray:
+						flags |= (int)JsonFlags.AppendArray;
+						action = (int)JsonAction.AppendArray;
+						break;
+					case ActionInsertArray:
+						flags |= (int)JsonFlags.InsertArray;
+						action = (int)JsonAction.InsertArray;
+						break;
+					case ActionRemoveArrayElement:
+						flags |= (int)JsonFlags.RemoveArrayElement;
+						action = (int)JsonAction.RemoveArrayElement;
+						break;
 					default:
 						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
-							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue, ActionCreateValue, ActionReadValue));
+							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue, 
+							ActionCreateValue, ActionReadValue, ActionAppendArray, ActionInsertArray, ActionRemoveArrayElement));
 						action = CompilerConstants.IllegalInteger;
 						break;
 				}
@@ -303,6 +348,218 @@ namespace Hegsie.Wix.JsonExtension
 				return i;
 			}
 			return null;
+		}
+
+		/// <summary>
+		/// Validates the JsonFile element for common issues and required attributes.
+		/// </summary>
+		private void ValidateJsonFileElement(XElement node, SourceLineNumber sourceLineNumbers, int action, 
+			string file, string elementPath, string value, string property)
+		{
+			// Validate required attributes based on action
+			if (action == (int)JsonAction.ReadValue)
+			{
+				// readValue requires Property attribute
+				if (string.IsNullOrEmpty(property))
+				{
+					Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Property", "Action", "readValue"));
+				}
+				// Validate property name format (should be uppercase)
+				else if (!string.IsNullOrEmpty(property) && property != property.ToUpperInvariant())
+				{
+					Messaging.Write(WarningMessages.PropertyNameShouldBeUppercase(sourceLineNumbers, node.Name.ToString(), property));
+				}
+			}
+			else if ((action == (int)JsonAction.SetValue || action == (int)JsonAction.ReplaceJsonValue || 
+			         action == (int)JsonAction.CreateJsonPointerValue) && string.IsNullOrEmpty(value))
+			{
+				// These actions require Value attribute
+				string actionName = action == (int)JsonAction.SetValue ? "setValue" :
+				                   action == (int)JsonAction.ReplaceJsonValue ? "replaceJsonValue" : "createJsonPointerValue";
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Value", "Action", actionName));
+			}
+
+			// Validate File attribute is present
+			if (string.IsNullOrEmpty(file))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "File"));
+			}
+
+			// Validate ElementPath is present
+			if (string.IsNullOrEmpty(elementPath))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "ElementPath"));
+			}
+			else
+			{
+				// Check for common JSONPath issues
+				ValidateElementPath(node, sourceLineNumbers, elementPath, action);
+			}
+
+			// Validate property references in Value attribute
+			if (!string.IsNullOrEmpty(value))
+			{
+				ValidatePropertyReferences(node, sourceLineNumbers, value, "Value");
+			}
+
+			// Validate property references in File attribute
+			if (!string.IsNullOrEmpty(file))
+			{
+				ValidatePropertyReferences(node, sourceLineNumbers, file, "File");
+			}
+		}
+
+		/// <summary>
+		/// Validates the ElementPath for common issues.
+		/// </summary>
+		private void ValidateElementPath(XElement node, SourceLineNumber sourceLineNumbers, string elementPath, int action)
+		{
+			// Check if this is a JSONPointer path (starts with /) for createJsonPointerValue
+			bool isJsonPointer = elementPath.StartsWith("/");
+
+			if (action == (int)JsonAction.CreateJsonPointerValue)
+			{
+				// createJsonPointerValue should use JSONPointer syntax (starts with /)
+				if (!isJsonPointer)
+				{
+					Messaging.Write(WarningMessages.ElementPathShouldStartWithSlash(sourceLineNumbers, node.Name.ToString(), "createJsonPointerValue"));
+				}
+			}
+			else
+			{
+				// Other actions should use JSONPath syntax (starts with $)
+				if (isJsonPointer)
+				{
+					Messaging.Write(WarningMessages.ElementPathShouldStartWithDollar(sourceLineNumbers, node.Name.ToString()));
+				}
+				else if (!elementPath.StartsWith("$"))
+				{
+					Messaging.Write(WarningMessages.ElementPathShouldStartWithDollar(sourceLineNumbers, node.Name.ToString()));
+				}
+
+				// Check for unescaped square brackets (common mistake)
+				if (ContainsUnescapedBrackets(elementPath))
+				{
+					Messaging.Write(WarningMessages.UnescapedBracketsInElementPath(sourceLineNumbers, node.Name.ToString(), elementPath));
+				}
+			}
+
+			// Basic JSONPath syntax validation
+			if (!isJsonPointer && elementPath.StartsWith("$"))
+			{
+				ValidateBasicJsonPathSyntax(node, sourceLineNumbers, elementPath);
+			}
+		}
+
+		/// <summary>
+		/// Checks if the path contains unescaped square brackets (MSI formatting issue).
+		/// </summary>
+		private bool ContainsUnescapedBrackets(string path)
+		{
+			// Look for patterns like [0] or [*] that are not escaped as [\[]0[\]]
+			// This is a simplified heuristic check that looks for likely JSONPath bracket expressions
+			for (int i = 0; i < path.Length; i++)
+			{
+				if (path[i] == '[')
+				{
+					// Check if this is part of an escape sequence like [\[] or [\]]
+					if (i + 3 < path.Length)
+					{
+						string sequence = path.Substring(i, 4);
+						if (sequence == "[\\[]" || sequence == "[\\]]")
+						{
+							i += 3; // Skip the escape sequence
+							continue;
+						}
+					}
+					// Check if this is a property reference or JSONPath expression
+					int closeIndex = path.IndexOf(']', i + 1);
+					if (closeIndex > i)
+					{
+						string content = path.Substring(i + 1, closeIndex - i - 1);
+						// JSONPath array indices are numeric, wildcards are *, or filter expressions start with ?
+						// MSI properties are typically alphabetic or start with special chars like # ! $ %
+						if (NumericIndexPattern.IsMatch(content) || content == "*" || 
+						    (content.StartsWith("?") && content.Contains("@")))
+						{
+							return true; // Likely unescaped JSONPath bracket
+						}
+					}
+				}
+			}
+			return false;
+		}
+
+		/// <summary>
+		/// Performs basic JSONPath syntax validation.
+		/// </summary>
+		private void ValidateBasicJsonPathSyntax(XElement node, SourceLineNumber sourceLineNumbers, string jsonPath)
+		{
+			// Check for common syntax errors
+			// This is not a complete JSONPath parser, just catches the most obvious mistakes
+
+			// Check for invalid characters immediately after $
+			if (jsonPath.StartsWith("$") && jsonPath.Length > 1 && jsonPath[1] != '.' && jsonPath[1] != '[')
+			{
+				Messaging.Write(WarningMessages.InvalidJsonPathSyntax(sourceLineNumbers, node.Name.ToString(), 
+					jsonPath, "JSONPath should start with $ followed by . or ["));
+			}
+
+			// Check for unclosed brackets (even if escaped)
+			int openBrackets = 0;
+			bool inEscape = false;
+			foreach (char c in jsonPath)
+			{
+				if (c == '\\')
+				{
+					inEscape = !inEscape;
+					continue;
+				}
+				if (!inEscape)
+				{
+					if (c == '[') openBrackets++;
+					if (c == ']') openBrackets--;
+				}
+				inEscape = false;
+			}
+			if (openBrackets != 0)
+			{
+				Messaging.Write(WarningMessages.UnmatchedBracketsInElementPath(sourceLineNumbers, node.Name.ToString()));
+			}
+		}
+
+		/// <summary>
+		/// Validates property references in attribute values.
+		/// </summary>
+		private void ValidatePropertyReferences(XElement node, SourceLineNumber sourceLineNumbers, string attributeValue, string attributeName)
+		{
+			// Find all property references [PROPERTY_NAME]
+			var matches = PropertyReferencePattern.Matches(attributeValue);
+
+			foreach (Match match in matches)
+			{
+				string propertyRef = match.Groups[1].Value;
+				
+				// Skip special references like [#FileId], [!ComponentId], [$DirectoryId], etc.
+				if (propertyRef.StartsWith("#") || propertyRef.StartsWith("!") || 
+				    propertyRef.StartsWith("$") || propertyRef.StartsWith("%"))
+				{
+					continue;
+				}
+
+				// Skip escaped brackets [\[] and [\]]
+				if (propertyRef == "\\[" || propertyRef == "\\]")
+				{
+					continue;
+				}
+
+				// Check if property name is uppercase (MSI convention)
+				if (propertyRef != propertyRef.ToUpperInvariant())
+				{
+					Messaging.Write(WarningMessages.PropertyReferenceShouldBeUppercase(sourceLineNumbers, 
+						node.Name.ToString(), attributeName, propertyRef));
+				}
+			}
 		}
 	}
 

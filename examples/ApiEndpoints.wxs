@@ -1,0 +1,128 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  API Endpoints Configuration Example Fragment
+  
+  This fragment demonstrates how to configure API endpoint URLs,
+  timeouts, and authentication settings during installation.
+  
+  To use this fragment:
+  1. Include it in your main WiX source file
+  2. Reference the ComponentGroup: <ComponentGroupRef Id="ApiEndpointComponents" />
+  3. Define the required properties in your installer
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
+  
+  <Fragment>
+    <ComponentGroup Id="ApiEndpointComponents" Directory="INSTALLFOLDER">
+      <Component Id="ApiEndpointConfig" Guid="*">
+        <File Id="AppSettingsJsonApi" Name="appsettings.json" Source="appsettings.json" />
+        
+        <!-- Set API base URL -->
+        <Json:JsonFile 
+          Id="SetApiBaseUrl" 
+          File="[#AppSettingsJsonApi]" 
+          ElementPath="$.ApiSettings.BaseUrl" 
+          Value="[API_BASE_URL]" 
+          Action="setValue" 
+          Sequence="1" />
+        
+        <!-- Set API timeout -->
+        <Json:JsonFile 
+          Id="SetApiTimeout" 
+          File="[#AppSettingsJsonApi]" 
+          ElementPath="$.ApiSettings.Timeout" 
+          Value="[API_TIMEOUT]" 
+          Action="setValue" 
+          Sequence="2" />
+        
+        <!-- Set retry count -->
+        <Json:JsonFile 
+          Id="SetApiRetryCount" 
+          File="[#AppSettingsJsonApi]" 
+          ElementPath="$.ApiSettings.RetryCount" 
+          Value="[API_RETRY_COUNT]" 
+          Action="setValue" 
+          Sequence="3" />
+        
+        <!-- Configure authentication settings -->
+        <Json:JsonFile 
+          Id="SetApiAuthEnabled" 
+          File="[#AppSettingsJsonApi]" 
+          ElementPath="$.ApiSettings.Authentication.Enabled" 
+          Value="[API_AUTH_ENABLED]" 
+          Action="setValue" 
+          Sequence="4" />
+        
+        <Json:JsonFile 
+          Id="SetApiAuthType" 
+          File="[#AppSettingsJsonApi]" 
+          ElementPath="$.ApiSettings.Authentication.Type" 
+          Value="[API_AUTH_TYPE]" 
+          Action="setValue" 
+          Sequence="5">
+          <Condition><![CDATA[API_AUTH_ENABLED = "true"]]></Condition>
+        </Json:JsonFile>
+        
+        <Json:JsonFile 
+          Id="SetApiKey" 
+          File="[#AppSettingsJsonApi]" 
+          ElementPath="$.ApiSettings.Authentication.ApiKey" 
+          Value="[API_KEY]" 
+          Action="setValue" 
+          Sequence="6">
+          <Condition><![CDATA[API_AUTH_TYPE = "ApiKey" AND API_KEY <> ""]]></Condition>
+        </Json:JsonFile>
+        
+        <!-- Configure specific endpoint overrides -->
+        <Json:JsonFile 
+          Id="SetUsersEndpoint" 
+          File="[#AppSettingsJsonApi]" 
+          ElementPath="$.ApiSettings.Endpoints.Users" 
+          Value="[API_ENDPOINT_USERS]" 
+          Action="setValue" 
+          Sequence="7" />
+        
+        <Json:JsonFile 
+          Id="SetProductsEndpoint" 
+          File="[#AppSettingsJsonApi]" 
+          ElementPath="$.ApiSettings.Endpoints.Products" 
+          Value="[API_ENDPOINT_PRODUCTS]" 
+          Action="setValue" 
+          Sequence="8" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+  
+  <!-- Default API configuration properties -->
+  <Fragment>
+    <Property Id="API_BASE_URL" Value="https://api.example.com" />
+    <Property Id="API_TIMEOUT" Value="30" />
+    <Property Id="API_RETRY_COUNT" Value="3" />
+    <Property Id="API_AUTH_ENABLED" Value="true" />
+    <Property Id="API_AUTH_TYPE" Value="Bearer" />
+    <Property Id="API_KEY" />
+    
+    <Property Id="API_ENDPOINT_USERS" Value="/api/v1/users" />
+    <Property Id="API_ENDPOINT_PRODUCTS" Value="/api/v1/products" />
+    
+    <!-- Environment-specific API URLs -->
+    <SetProperty Id="API_BASE_URL" Value="https://dev-api.example.com" After="AppSearch" Sequence="first">
+      <![CDATA[ENVIRONMENT = "Development"]]>
+    </SetProperty>
+    
+    <SetProperty Id="API_BASE_URL" Value="https://staging-api.example.com" After="AppSearch" Sequence="first">
+      <![CDATA[ENVIRONMENT = "Staging"]]>
+    </SetProperty>
+    
+    <SetProperty Id="API_BASE_URL" Value="https://api.example.com" After="AppSearch" Sequence="first">
+      <![CDATA[ENVIRONMENT = "Production"]]>
+    </SetProperty>
+    
+    <!-- Adjust timeouts for different environments -->
+    <SetProperty Id="API_TIMEOUT" Value="120" After="AppSearch" Sequence="first">
+      <![CDATA[ENVIRONMENT = "Development"]]>
+    </SetProperty>
+  </Fragment>
+  
+</Wix>

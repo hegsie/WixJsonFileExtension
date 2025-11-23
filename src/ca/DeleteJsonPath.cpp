@@ -8,13 +8,13 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath)
         // Input validation
         if (NULL == wzFile || L'\0' == *wzFile)
         {
-            WcaLog(LOGMSG_STANDARD, "Invalid file path parameter");
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Invalid file path parameter");
             return E_INVALIDARG;
         }
 
         if (sElementPath.empty())
         {
-            WcaLog(LOGMSG_STANDARD, "Invalid element path parameter");
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Invalid element path parameter for file '%ls'", wzFile);
             return E_INVALIDARG;
         }
 
@@ -28,6 +28,7 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath)
 
             if (!is.is_open())
             {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to open file stream for '%ls'", wzFile);
                 hr = ReturnLastError("Opening the file stream");
                 if (FAILED(hr)) return hr;
             }
@@ -39,18 +40,28 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath)
             std::vector<jsonpath::json_location> locations = expr.select_paths(j,
                 jsonpath::result_options::sort_descending);
 
-            for (const auto& location : locations)
+            if (locations.empty())
             {
-                jsonpath::remove(j, location);
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Warning - No elements found at path '%s' in file '%ls' to delete", 
+                       sElementPath.c_str(), wzFile);
             }
+            else
+            {
+                for (const auto& location : locations)
+                {
+                    jsonpath::remove(j, location);
+                }
 
-            WcaLog(LOGMSG_STANDARD, "Deleted the json %s", sElementPath.c_str());
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Successfully deleted %d element(s) at path '%s' in file '%ls'", 
+                       locations.size(), sElementPath.c_str(), wzFile);
+            }
 
             std::ofstream os(wzFile,
                 std::ios_base::out | std::ios_base::trunc);
 
             if (!os.is_open())
             {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to create output stream for file '%ls'", wzFile);
                 hr = ReturnLastError("creating the output stream");
                 if (FAILED(hr)) return hr;
             }
@@ -59,24 +70,24 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath)
             os.close();
         }
         else {
-            WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Unable to locate file '%ls'. Verify the file exists and the path is correct.", wzFile);
             return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
         return S_OK;
     }
     catch (_com_error& e)
     {
-        WcaLog(LOGMSG_STANDARD, "encountered COM error: %ls", e.ErrorMessage());
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Encountered COM error while deleting from file '%ls': %ls", wzFile, e.ErrorMessage());
         return E_FAIL;
     }
     catch (std::exception& e)
     {
-        WcaLog(LOGMSG_STANDARD, "encountered error %s", e.what());
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Encountered exception while deleting from file '%ls': %s", wzFile, e.what());
         return E_FAIL;
     }
     catch (...)
     {
-        WcaLog(LOGMSG_STANDARD, "encountered unknown error");
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Encountered unknown error while deleting from file '%ls'", wzFile);
         return E_FAIL;
     }
 }

@@ -1,0 +1,113 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logging Configuration Example Fragment
+  
+  This fragment demonstrates how to configure logging settings
+  including log levels, file paths, and Serilog configuration.
+  
+  To use this fragment:
+  1. Include it in your main WiX source file
+  2. Reference the ComponentGroup: <ComponentGroupRef Id="LoggingComponents" />
+  3. Define the required properties in your installer
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
+  
+  <Fragment>
+    <ComponentGroup Id="LoggingComponents" Directory="INSTALLFOLDER">
+      <Component Id="LoggingConfig" Guid="*">
+        <File Id="AppSettingsJsonLog" Name="appsettings.json" Source="appsettings.json" />
+        
+        <!-- Configure basic logging levels -->
+        <Json:JsonFile 
+          Id="SetDefaultLogLevel" 
+          File="[#AppSettingsJsonLog]" 
+          ElementPath="$.Logging.LogLevel.Default" 
+          Value="[LOG_LEVEL_DEFAULT]" 
+          Action="setValue" 
+          Sequence="1" />
+        
+        <Json:JsonFile 
+          Id="SetMicrosoftLogLevel" 
+          File="[#AppSettingsJsonLog]" 
+          ElementPath="$.Logging.LogLevel.Microsoft" 
+          Value="[LOG_LEVEL_MICROSOFT]" 
+          Action="setValue" 
+          Sequence="2" />
+        
+        <Json:JsonFile 
+          Id="SetSystemLogLevel" 
+          File="[#AppSettingsJsonLog]" 
+          ElementPath="$.Logging.LogLevel.System" 
+          Value="[LOG_LEVEL_SYSTEM]" 
+          Action="setValue" 
+          Sequence="3" />
+        
+        <!-- Configure Serilog file path -->
+        <Json:JsonFile 
+          Id="SetSerilogFilePath" 
+          File="[#AppSettingsJsonLog]" 
+          ElementPath="$.Serilog.WriteTo[\[]0[\]].Args.path" 
+          Value="[LOGFILE_PATH]" 
+          Action="setValue" 
+          Sequence="4" />
+        
+        <!-- Configure log rolling interval -->
+        <Json:JsonFile 
+          Id="SetLogRollingInterval" 
+          File="[#AppSettingsJsonLog]" 
+          ElementPath="$.Serilog.WriteTo[\[]0[\]].Args.rollingInterval" 
+          Value="[LOG_ROLLING_INTERVAL]" 
+          Action="setValue" 
+          Sequence="5" />
+        
+        <!-- Configure Serilog minimum level -->
+        <Json:JsonFile 
+          Id="SetSerilogMinLevel" 
+          File="[#AppSettingsJsonLog]" 
+          ElementPath="$.Serilog.MinimumLevel.Default" 
+          Value="[LOG_LEVEL_DEFAULT]" 
+          Action="setValue" 
+          Sequence="6" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+  
+  <!-- Default property values -->
+  <Fragment>
+    <Property Id="LOG_LEVEL_DEFAULT" Value="Information" />
+    <Property Id="LOG_LEVEL_MICROSOFT" Value="Warning" />
+    <Property Id="LOG_LEVEL_SYSTEM" Value="Warning" />
+    <Property Id="LOG_ROLLING_INTERVAL" Value="Day" />
+    <Property Id="LOGFILE_PATH" Value="[CommonAppDataFolder][Manufacturer]\\[ProductName]\\Logs\\app-.log" />
+    
+    <!-- Environment-based overrides -->
+    <SetProperty Id="LOG_LEVEL_DEFAULT" Value="Debug" After="AppSearch" Sequence="first">
+      <![CDATA[DEVELOPMENT_MODE = "1"]]>
+    </SetProperty>
+    
+    <SetProperty Id="LOG_LEVEL_MICROSOFT" Value="Information" After="AppSearch" Sequence="first">
+      <![CDATA[DEVELOPMENT_MODE = "1"]]>
+    </SetProperty>
+  </Fragment>
+  
+  <!-- Example: Custom action to create log directory -->
+  <!--
+  <Fragment>
+    <DirectoryRef Id="CommonAppDataFolder">
+      <Directory Id="ManufacturerDataFolder" Name="[Manufacturer]">
+        <Directory Id="ProductDataFolder" Name="[ProductName]">
+          <Directory Id="LogFolder" Name="Logs" />
+        </Directory>
+      </Directory>
+    </DirectoryRef>
+    
+    <ComponentGroup Id="LogDirectoryComponents">
+      <Component Id="LogDirectory" Directory="LogFolder" Guid="*">
+        <CreateFolder />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+  -->
+  
+</Wix>
