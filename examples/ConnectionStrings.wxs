@@ -1,0 +1,77 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Connection Strings Example Fragment
+  
+  This fragment demonstrates how to configure database connection strings
+  in appsettings.json during installation.
+  
+  To use this fragment:
+  1. Include it in your main WiX source file
+  2. Reference the ComponentGroup: <ComponentGroupRef Id="ConnectionStringComponents" />
+  3. Define the required properties in your installer
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
+  
+  <Fragment>
+    <ComponentGroup Id="ConnectionStringComponents" Directory="INSTALLFOLDER">
+      <Component Id="ConnectionStringConfig" Guid="*">
+        <!-- Your appsettings.json file -->
+        <File Id="AppSettingsJsonConn" Name="appsettings.json" Source="appsettings.json" />
+        
+        <!-- Single connection string -->
+        <Json:JsonFile 
+          Id="UpdateDefaultConnection" 
+          File="[#AppSettingsJsonConn]" 
+          ElementPath="$.ConnectionStrings.DefaultConnection" 
+          Value="[DB_CONNECTION_STRING]" 
+          Action="setValue" 
+          Sequence="1" />
+        
+        <!-- Multiple connection strings -->
+        <Json:JsonFile 
+          Id="UpdatePrimaryConnection" 
+          File="[#AppSettingsJsonConn]" 
+          ElementPath="$.ConnectionStrings.Primary" 
+          Value="[PRIMARY_DB_CONNECTION]" 
+          Action="setValue" 
+          Sequence="2" />
+        
+        <Json:JsonFile 
+          Id="UpdateReportingConnection" 
+          File="[#AppSettingsJsonConn]" 
+          ElementPath="$.ConnectionStrings.Reporting" 
+          Value="[REPORTING_DB_CONNECTION]" 
+          Action="setValue" 
+          Sequence="3" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+  
+  <!-- Example: Define properties with default values -->
+  <Fragment>
+    <Property Id="DB_CONNECTION_STRING" 
+              Value="Server=localhost;Database=MyApp;Integrated Security=True;" />
+    
+    <Property Id="PRIMARY_DB_CONNECTION" 
+              Value="Server=primary-server;Database=MyApp;Integrated Security=True;" />
+    
+    <Property Id="REPORTING_DB_CONNECTION" 
+              Value="Server=reporting-server;Database=MyAppReporting;Integrated Security=True;" />
+  </Fragment>
+  
+  <!-- Example: Collect from user via custom action or UI -->
+  <!-- 
+  <Fragment>
+    <CustomAction Id="SetDefaultConnectionString" Property="DB_CONNECTION_STRING" 
+                  Value="Server=[DB_SERVER];Database=[DB_NAME];User Id=[DB_USER];Password=[DB_PASSWORD];" />
+    
+    <InstallExecuteSequence>
+      <Custom Action="SetDefaultConnectionString" Before="WixSchedJsonFile">
+        <![CDATA[DB_SERVER AND DB_NAME]]>
+      </Custom>
+    </InstallExecuteSequence>
+  </Fragment>
+  -->
+  
+</Wix>

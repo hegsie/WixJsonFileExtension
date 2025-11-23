@@ -16,13 +16,13 @@ HRESULT UpdateJsonFile(
     // Input validation
     if (NULL == wzFile || L'\0' == *wzFile)
     {
-        WcaLog(LOGMSG_STANDARD, "Invalid file path parameter");
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Invalid file path parameter");
         return E_INVALIDARG;
     }
 
     if (NULL == wzElementPath || L'\0' == *wzElementPath)
     {
-        WcaLog(LOGMSG_STANDARD, "Invalid element path parameter");
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Invalid element path parameter for file '%ls'", wzFile);
         return E_INVALIDARG;
     }
 
@@ -32,12 +32,12 @@ HRESULT UpdateJsonFile(
     // Check if file exists before attempting to parse
     if (!fs::exists(fs::path(wzFile)))
     {
-        WcaLog(LOGMSG_STANDARD, "File not found: %ls", wzFile);
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - File not found: '%ls'. Verify the file exists and the path is correct.", wzFile);
         return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
     }
 
     std::bitset<32> flags(iFlags);
-    WcaLog(LOGMSG_VERBOSE, "Processing file with flags: %i", iFlags);
+    WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Processing file '%ls' with flags: %i", wzFile, iFlags);
 
     _bstr_t bElementPath(wzElementPath);
     char* cElementPath = bElementPath;
