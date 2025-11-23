@@ -96,8 +96,12 @@ HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath
                             }
                         }
 
-                        // Replace the array with unique items
-                        value = json(uniqueItems.begin(), uniqueItems.end());
+                        // Clear the array and add unique items back
+                        value.clear();
+                        for (const auto& item : uniqueItems)
+                        {
+                            value.push_back(item);
+                        }
                     }
                 };
 
