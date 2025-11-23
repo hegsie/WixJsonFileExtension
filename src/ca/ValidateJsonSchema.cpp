@@ -58,7 +58,7 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
         if (!jsonIs.is_open())
         {
             WcaLog(LOGMSG_STANDARD, "Failed to open JSON file: %s", cFile);
-            return E_FAIL;
+            return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
         }
 
         json jsonData = json::parse(jsonIs);
@@ -69,32 +69,13 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
         if (!schemaIs.is_open())
         {
             WcaLog(LOGMSG_STANDARD, "Failed to open schema file: %s", cSchemaFile);
-            return E_FAIL;
+            return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
         }
 
         json schemaData = json::parse(schemaIs);
         schemaIs.close();
 
         WcaLog(LOGMSG_STANDARD, "Validating JSON against schema");
-
-        // Basic schema validation implementation
-        // Supported features:
-        //   - Root type validation
-        //   - Required properties checking (for objects)
-        //   - Property type validation
-        //   - Integer types treated as numbers (no whole number validation)
-        //
-        // Unsupported features (would require full JSON Schema library):
-        //   - $ref references
-        //   - Pattern validation
-        //   - Enum validation
-        //   - Min/max constraints
-        //   - Array items validation beyond type
-        //   - Nested object validation beyond type
-        //   - Format validation
-        //   - Conditional schemas (if/then/else)
-        //
-        // For full JSON Schema Draft 7+ compliance, consider using a dedicated library
 
         // Check if schema has "type" property
         if (schemaData.contains("type"))
