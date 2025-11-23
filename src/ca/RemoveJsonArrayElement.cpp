@@ -28,8 +28,8 @@ HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElemen
 
             if (!is.is_open())
             {
-                hr = ReturnLastError("Opening the file stream");
-                if (FAILED(hr)) return hr;
+                WcaLog(LOGMSG_STANDARD, "Failed to open file for reading: %s", cFile);
+                return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
             }
 
             is >> j;
@@ -105,8 +105,8 @@ HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElemen
 
             if (!os.is_open())
             {
-                hr = ReturnLastError("creating the output stream");
-                if (FAILED(hr)) return hr;
+                WcaLog(LOGMSG_STANDARD, "Failed to open output file stream for writing: %s", cFile);
+                return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
             }
 
             pretty_print(j).dump(os);

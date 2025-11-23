@@ -132,7 +132,7 @@ The `JsonFile` element supports the following actions:
 | `File` | Yes | Path to the JSON file to modify. Can use file references like `[#FileId]` or formatted paths like `[INSTALLFOLDER]config.json` |
 | `ElementPath` | Yes | JSONPath or JSONPointer expression to locate the element(s) to modify |
 | `Action` | No | The action to perform (see Available Actions table). Defaults to `setValue` |
-| `Value` | Conditional | The value to set. Required for `setValue`, `replaceJsonValue`, `createJsonPointerValue`, `appendArray`, `insertArray`, and `removeArrayElement` actions. Can be a simple value, property reference like `[PROPERTY_NAME]`, or JSON-formatted string |
+| `Value` | Conditional | The value to set. Required for `setValue`, `replaceJsonValue`, `createJsonPointerValue`, `appendArray`, and `insertArray` actions. For `removeArrayElement`, `Value` is optional: if omitted, elements matched by the JSONPath expression are removed; if provided, all array elements matching that value are removed. Can be a simple value, property reference like `[PROPERTY_NAME]`, or JSON-formatted string |
 | `DefaultValue` | No | Default value to use if the path doesn't exist (used with `readValue`) |
 | `Property` | Conditional | Windows Installer property to store the read value. Required for `readValue` action |
 | `Sequence` | No | Order in which modifications are applied (default: 1). Lower numbers execute first |
