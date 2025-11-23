@@ -130,14 +130,20 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
                         else if (actualValue.is_bool()) actualType = "boolean";
                         else if (actualValue.is_null()) actualType = "null";
 
-                        if (expectedType != actualType && expectedType != "integer" && actualType != "number")
+                        // Check type match - allow integer schema to match number values
+                        bool typeMatches = (expectedType == actualType);
+                        if (!typeMatches && expectedType == "integer" && actualType == "number")
                         {
-                            if (!(expectedType == "integer" && actualType == "number"))
-                            {
-                                WcaLog(LOGMSG_STANDARD, "Type mismatch for property '%s': expected %s but got %s",
-                                    propName.c_str(), expectedType.c_str(), actualType.c_str());
-                                return E_FAIL;
-                            }
+                            // Allow numeric values for integer schema types (basic validation only)
+                            // Note: This doesn't verify the number is a whole number
+                            typeMatches = true;
+                        }
+
+                        if (!typeMatches)
+                        {
+                            WcaLog(LOGMSG_STANDARD, "Type mismatch for property '%s': expected %s but got %s",
+                                propName.c_str(), expectedType.c_str(), actualType.c_str());
+                            return E_FAIL;
                         }
                     }
                 }

@@ -71,23 +71,27 @@ HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, 
                 {
                     if (value.is_array())
                     {
-                        if (iIndex < 0 || iIndex >= static_cast<int>(value.size()))
+                        int arraySize = static_cast<int>(value.size());
+                        
+                        // Negative index means append to end
+                        if (iIndex < 0)
                         {
-                            // If index is out of bounds or -1, append to end
                             value.push_back(valueToInsert);
                         }
+                        // Out of bounds index: append to end
+                        else if (iIndex >= arraySize)
+                        {
+                            value.push_back(valueToInsert);
+                        }
+                        // Valid index: insert at specified position
                         else
                         {
-                            // Insert at the specified index
                             value.insert(value.array_range().begin() + iIndex, valueToInsert);
                         }
                     }
                 };
 
             jsonpath::json_replace(j, sElementPath, f);
-
-            hr = ReturnLastError("Inserting into array in the json");
-            if (FAILED(hr)) return hr;
 
             WcaLog(LOGMSG_STANDARD, "Successfully inserted value into array");
 

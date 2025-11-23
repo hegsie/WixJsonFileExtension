@@ -99,9 +99,6 @@ HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElemen
                 }
             }
 
-            hr = ReturnLastError("Removing elements from array in the json");
-            if (FAILED(hr)) return hr;
-
             WcaLog(LOGMSG_STANDARD, "Successfully removed elements from array");
 
             std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);

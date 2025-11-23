@@ -77,9 +77,6 @@ HRESULT AppendJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, 
 
             jsonpath::json_replace(j, sElementPath, f);
 
-            hr = ReturnLastError("Appending to array in the json");
-            if (FAILED(hr)) return hr;
-
             WcaLog(LOGMSG_STANDARD, "Successfully appended value to array");
 
             std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
