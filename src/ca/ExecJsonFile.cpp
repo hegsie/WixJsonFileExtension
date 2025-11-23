@@ -55,6 +55,13 @@ extern "C" UINT WINAPI ExecJsonFile(
 
         hr = UpdateJsonFile(sczFile, sczElementPath, sczValue, iFlags, iIndex, sczSchemaFile);
         ExitOnFailure(hr, "WixJsonFile: Failed while updating file '%ls' at path '%ls'", sczFile, sczElementPath)
+        ExitOnFailure(hr, "Failed to get Index for WixJsonFile")
+
+        hr = WcaReadStringFromCaData(&pwz, &sczSchemaFile);
+        ExitOnFailure(hr, "Failed to get SchemaFile for WixJsonFile")
+
+        hr = UpdateJsonFile(sczFile, sczElementPath, sczValue, iFlags, iIndex, sczSchemaFile);
+        ExitOnFailure(hr, "Failed while updating file: %ls", sczFile)
     }
 
     // reaching the end of the list is actually a good thing, not an error
