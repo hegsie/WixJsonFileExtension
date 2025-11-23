@@ -15,8 +15,10 @@ extern "C" UINT WINAPI ExecJsonFile(
     LPWSTR sczFile = NULL;
     LPWSTR sczElementPath = NULL;
     LPWSTR sczValue = NULL;
+    LPWSTR sczSchemaFile = NULL;
 
     int iFlags = 0;
+    int iIndex = -1;
 
     hr = WcaInitialize(hInstall, "ExecJsonFile");
     ExitOnFailure(hr, "Failed to initialize ExecJsonFile")
@@ -45,7 +47,13 @@ extern "C" UINT WINAPI ExecJsonFile(
         hr = WcaReadStringFromCaData(&pwz, &sczValue);
         ExitOnFailure(hr, "failed to process CustomActionData")
 
-        hr = UpdateJsonFile(sczFile, sczElementPath, sczValue, iFlags);
+        hr = WcaReadIntegerFromCaData(&pwz, &iIndex);
+        ExitOnFailure(hr, "Failed to get Index for WixJsonFile")
+
+        hr = WcaReadStringFromCaData(&pwz, &sczSchemaFile);
+        ExitOnFailure(hr, "Failed to get SchemaFile for WixJsonFile")
+
+        hr = UpdateJsonFile(sczFile, sczElementPath, sczValue, iFlags, iIndex, sczSchemaFile);
         ExitOnFailure(hr, "Failed while updating file: %ls", sczFile)
     }
 
@@ -59,6 +67,7 @@ LExit:
     ReleaseStr(sczFile)
     ReleaseStr(sczElementPath)
     ReleaseStr(sczValue)
+    ReleaseStr(sczSchemaFile)
 
     DWORD er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);
