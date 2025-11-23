@@ -10,6 +10,8 @@
 		AppendArray = 32,
 		InsertArray = 64,
 		RemoveArrayElement = 128,
-		ValidateSchema = 256
+		DistinctValues = 256,
+		ValidateSchema = 512,
+		OnlyIfExists = 1024
 	}
 }

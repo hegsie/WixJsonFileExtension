@@ -9,6 +9,7 @@
 		ReadValue = 16,
 		AppendArray = 32,
 		InsertArray = 64,
-		RemoveArrayElement = 128
+		RemoveArrayElement = 128,
+		DistinctValues = 256
 	}
 }

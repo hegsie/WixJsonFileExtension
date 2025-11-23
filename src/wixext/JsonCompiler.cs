@@ -69,6 +69,7 @@ namespace Hegsie.Wix.JsonExtension
 			string defaultValue = null;
 			string property = null;
 			string schemaFile = null;
+			bool onlyIfExists = false;
 			int on = CompilerConstants.IntegerNotSet;
 			int flags = 0;
 			int action = CompilerConstants.IntegerNotSet;
@@ -137,6 +138,14 @@ namespace Hegsie.Wix.JsonExtension
 								if (!string.IsNullOrEmpty(schemaFile))
 								{
 									flags |= (int)JsonFlags.ValidateSchema;
+								}
+								break;
+							case "OnlyIfExists":
+								// Optional attribute to only perform the action if the element path already exists
+								onlyIfExists = ParseHelper.GetAttributeYesNoValue(sourceLineNumbers, attribute) == YesNoType.Yes;
+								if (onlyIfExists)
+								{
+									flags |= (int)JsonFlags.OnlyIfExists;
 								}
 								break;
 							default:
@@ -282,6 +291,7 @@ namespace Hegsie.Wix.JsonExtension
 			const string ActionAppendArray = "appendArray";
 			const string ActionInsertArray = "insertArray";
 			const string ActionRemoveArrayElement = "removeArrayElement";
+			const string ActionDistinctValues = "distinctValues";
 
 			int action;
 			string actionValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
@@ -325,10 +335,14 @@ namespace Hegsie.Wix.JsonExtension
 						flags |= (int)JsonFlags.RemoveArrayElement;
 						action = (int)JsonAction.RemoveArrayElement;
 						break;
+					case ActionDistinctValues:
+						flags |= (int)JsonFlags.DistinctValues;
+						action = (int)JsonAction.DistinctValues;
+						break;
 					default:
 						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
 							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue, 
-							ActionCreateValue, ActionReadValue, ActionAppendArray, ActionInsertArray, ActionRemoveArrayElement));
+							ActionCreateValue, ActionReadValue, ActionAppendArray, ActionInsertArray, ActionRemoveArrayElement, ActionDistinctValues));
 						action = CompilerConstants.IllegalInteger;
 						break;
 				}

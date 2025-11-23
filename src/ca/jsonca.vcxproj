@@ -96,6 +96,7 @@
     <ClCompile Include="AppendJsonArray.cpp" />
     <ClCompile Include="CustomAction.cpp" />
     <ClCompile Include="DeleteJsonPath.cpp" />
+    <ClCompile Include="DistinctJsonArray.cpp" />
     <ClCompile Include="Errors.cpp" />
     <ClCompile Include="ExecJsonFile.cpp" />
     <ClCompile Include="ExecJsonFileRollback.cpp" />

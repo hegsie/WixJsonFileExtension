@@ -46,6 +46,37 @@ HRESULT UpdateJsonFile(
 
     WcaLog(LOGMSG_VERBOSE, "Element path: %ls", wzElementPath);
 
+    // Check if OnlyIfExists flag is set
+    bool onlyIfExists = flags.test(FLAG_ONLYIFEXISTS);
+    
+    // For OnlyIfExists, check if path exists before proceeding with write operations
+    if (onlyIfExists && (flags.test(FLAG_SETVALUE) || flags.test(FLAG_CREATEVALUE) || flags.test(FLAG_REPLACEJSONVALUE)))
+    {
+        try
+        {
+            json j;
+            std::ifstream is(cFile);
+            if (is.is_open())
+            {
+                is >> j;
+                is.close();
+                
+                // Query to see if the path exists
+                auto query = jsonpath::json_query(j, elementPath);
+                if (query.empty())
+                {
+                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Skipping operation - path does not exist and OnlyIfExists=yes: '%ls'", wzElementPath);
+                    return S_OK; // Skip the operation but return success
+                }
+            }
+        }
+        catch (...)
+        {
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error checking path existence for OnlyIfExists");
+            return E_FAIL;
+        }
+    }
+
     bool create = flags.test(FLAG_CREATEVALUE);
     if (flags.test(FLAG_SETVALUE) || create) {
         WcaLog(LOGMSG_VERBOSE, "Setting JSON value (create=%s)", create ? "true" : "false");
@@ -70,6 +101,10 @@ HRESULT UpdateJsonFile(
     else if (flags.test(FLAG_REMOVEARRAYELEMENT)) {
         WcaLog(LOGMSG_VERBOSE, "Removing element from JSON array");
         hr = RemoveJsonArrayElement(wzFile, elementPath, wzValue);
+    }
+    else if (flags.test(FLAG_DISTINCTVALUES)) {
+        WcaLog(LOGMSG_VERBOSE, "Removing duplicates from JSON array");
+        hr = DistinctJsonArray(wzFile, elementPath);
     }
 
     // Validate against schema if specified and if the operation succeeded
