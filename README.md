@@ -23,6 +23,10 @@ An extension to [Windows Installer XML (WiX) Toolset](http://wixtoolset.org/) to
   - [Deleting Values](#deleting-values)
   - [Creating New Values with JSONPointer](#creating-new-values-with-jsonpointer)
   - [Complex Nested Paths](#complex-nested-paths)
+- [Advanced Features](#advanced-features)
+  - [Automatic Rollback Support](#automatic-rollback-support)
+  - [Scheduling and Service Dependencies](#scheduling-and-service-dependencies)
+  - [Creating New JSON Files](#creating-new-json-files)
 - [Escaping Special Characters](#escaping-special-characters)
 - [Troubleshooting](#troubleshooting)
 - [Building from Source](#building-from-source)
@@ -135,7 +139,7 @@ The `JsonFile` element supports the following actions:
 | `Value` | Conditional | The value to set. Required for `setValue`, `replaceJsonValue`, `createJsonPointerValue`, `appendArray`, and `insertArray` actions. For `removeArrayElement`, `Value` is optional: if omitted, elements matched by the JSONPath expression are removed; if provided, all array elements matching that value are removed. Can be a simple value, property reference like `[PROPERTY_NAME]`, or JSON-formatted string |
 | `DefaultValue` | No | Default value to use if the path doesn't exist (used with `readValue`) |
 | `Property` | Conditional | Windows Installer property to store the read value. Required for `readValue` action |
-| `Sequence` | No | Order in which modifications are applied (default: 1). Lower numbers execute first |
+| `Sequence` | No | Order in which modifications are applied (default: 1). Lower numbers execute first. Use this to ensure JSON changes happen before services start or in a specific order. All JSON modifications run after `InstallFiles` and before `StartServices` in the standard InstallExecuteSequence |
 | `Index` | No | For `insertArray` action: specifies the index at which to insert. Use -1 or omit to append to end |
 | `SchemaFile` | No | Path to a JSON schema file for validation. The JSON file will be validated against this schema after modifications |
 
@@ -323,6 +327,176 @@ For the JSON structure:
     ]
   }
 }
+```
+
+## Advanced Features
+
+### Automatic Rollback Support
+
+WixJsonFileExtension automatically provides rollback support for all JSON file modifications. If an installation fails or is rolled back, all JSON files are restored to their original state.
+
+**How it works:**
+- Before modifying any JSON file, the extension saves a backup of the original file content
+- If the installation fails or is cancelled, the rollback custom action automatically restores all modified files
+- The file's last modified timestamp is also preserved during rollback
+- Rollback happens automatically - no additional configuration is required
+
+**Example:**
+```xml
+<Json:JsonFile 
+  Id="SetConnectionString" 
+  File="[#JsonConfig]" 
+  ElementPath="$.ConnectionStrings.Default" 
+  Value="Server=myserver;Database=mydb" 
+  Action="setValue" />
+```
+
+If the installation fails after this modification, the `appsettings.json` file will be automatically restored to its original state.
+
+### Scheduling and Service Dependencies
+
+To ensure JSON configuration changes are applied before Windows services start or applications launch, use the `Sequence` attribute to control the order of operations.
+
+**Best Practices:**
+1. Use lower sequence numbers (e.g., 1-10) for critical configuration that must be set first
+2. Use higher sequence numbers (e.g., 100+) for optional configuration
+3. JSON modifications run after `InstallFiles` by default, which is before `StartServices`
+
+**Example - Configure before service starts:**
+```xml
+<Component Id="AppComponent" Guid="{YOUR-GUID}">
+  <File Id="AppConfig" Name="appsettings.json" Source="appsettings.json" />
+  
+  <!-- These run in order before the service starts -->
+  <Json:JsonFile 
+    Id="SetDatabaseConnection" 
+    File="[#AppConfig]" 
+    ElementPath="$.Database.ConnectionString" 
+    Value="[DATABASE_CONNECTION]" 
+    Sequence="1" />
+    
+  <Json:JsonFile 
+    Id="SetLogging" 
+    File="[#AppConfig]" 
+    ElementPath="$.Logging.Level" 
+    Value="Information" 
+    Sequence="2" />
+  
+  <!-- Service definition comes after JSON modifications -->
+  <ServiceInstall 
+    Id="MyAppService"
+    Name="MyApp"
+    Type="ownProcess"
+    Start="auto"
+    ErrorControl="normal"
+    Description="My Application Service" />
+    
+  <ServiceControl 
+    Id="StartService"
+    Name="MyApp"
+    Start="install"
+    Stop="both"
+    Remove="uninstall" />
+</Component>
+```
+
+**Execution Order:**
+1. Files are installed (including `appsettings.json`)
+2. JSON modifications run (in sequence order)
+3. Services are started
+
+This ensures your application configuration is ready before the service attempts to read it.
+
+### Creating New JSON Files
+
+While the extension primarily modifies existing JSON files, you can create new configuration files using the `createJsonPointerValue` action. For more complex scenarios, combine file installation with JSON modifications.
+
+**Scenario 1: Create new settings in an existing file**
+```xml
+<Json:JsonFile 
+  Id="CreateNewSettings" 
+  File="[#JsonConfig]" 
+  ElementPath="/AppSettings/NewFeature/Enabled" 
+  Value="true" 
+  Action="createJsonPointerValue" />
+```
+
+This creates nested structure:
+```json
+{
+  "AppSettings": {
+    "NewFeature": {
+      "Enabled": true
+    }
+  }
+}
+```
+
+**Scenario 2: Start from a template file**
+
+Ship a template JSON file with your installer and modify it during installation:
+
+```xml
+<Component Id="ConfigComponent" Guid="{YOUR-GUID}">
+  <!-- Install template as the base configuration -->
+  <File Id="ConfigTemplate" Name="config.json" Source="config.template.json" />
+  
+  <!-- Customize with user/install-specific values -->
+  <Json:JsonFile 
+    Id="SetInstallPath" 
+    File="[#ConfigTemplate]" 
+    ElementPath="$.Installation.Path" 
+    Value="[INSTALLFOLDER]" 
+    Sequence="1" />
+    
+  <Json:JsonFile 
+    Id="SetMachineName" 
+    File="[#ConfigTemplate]" 
+    ElementPath="$.Installation.MachineName" 
+    Value="[COMPUTERNAME]" 
+    Sequence="2" />
+</Component>
+```
+
+**Scenario 3: Create minimal JSON from scratch**
+
+Use multiple `createJsonPointerValue` operations to build a configuration file:
+
+```xml
+<Component Id="MinimalConfig" Guid="{YOUR-GUID}">
+  <!-- Install an empty or minimal JSON file -->
+  <File Id="EmptyConfig" Name="settings.json" Source="empty.json" />
+  
+  <!-- Build the configuration structure -->
+  <Json:JsonFile 
+    Id="CreateAppName" 
+    File="[#EmptyConfig]" 
+    ElementPath="/Application/Name" 
+    Value="MyApplication" 
+    Action="createJsonPointerValue" 
+    Sequence="1" />
+    
+  <Json:JsonFile 
+    Id="CreateAppVersion" 
+    File="[#EmptyConfig]" 
+    ElementPath="/Application/Version" 
+    Value="1.0.0" 
+    Action="createJsonPointerValue" 
+    Sequence="2" />
+    
+  <Json:JsonFile 
+    Id="CreateDbConnection" 
+    File="[#EmptyConfig]" 
+    ElementPath="/Database/ConnectionString" 
+    Value="[CONNECTION_STRING]" 
+    Action="createJsonPointerValue" 
+    Sequence="3" />
+</Component>
+```
+
+Where `empty.json` contains:
+```json
+{}
 ```
 
 ### Working with Arrays
