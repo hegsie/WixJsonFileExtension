@@ -22,7 +22,6 @@ HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath
 
         _bstr_t bFile(wzFile);
         char* cFile = bFile;
-        HRESULT hr = S_OK;
 
         if (fs::exists(fs::path(wzFile))) {
             json j;

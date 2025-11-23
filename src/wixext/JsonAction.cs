@@ -10,6 +10,6 @@
 		AppendArray = 32,
 		InsertArray = 64,
 		RemoveArrayElement = 128,
-		DistinctValues = 256
+		DistinctValues = 512
 	}
 }

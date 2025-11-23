@@ -32,8 +32,8 @@ const int FLAG_READVALUE = 4;
 const int FLAG_APPENDARRAY = 5;
 const int FLAG_INSERTARRAY = 6;
 const int FLAG_REMOVEARRAYELEMENT = 7;
-const int FLAG_DISTINCTVALUES = 8;
-const int FLAG_VALIDATESCHEMA = 9;
+const int FLAG_VALIDATESCHEMA = 8;
+const int FLAG_DISTINCTVALUES = 9;
 const int FLAG_ONLYIFEXISTS = 10;
 
 // These are bits
@@ -47,8 +47,8 @@ enum eXmlAction
     jaAppendArray = 32,
     jaInsertArray = 64,
     jaRemoveArrayElement = 128,
-    jaDistinctValues = 256
-    // Note: ValidateSchema (512) and OnlyIfExists (1024) are flags, not actions
+    jaDistinctValues = 512
+    // Note: ValidateSchema (256) and OnlyIfExists (1024) are flags, not actions
 };
 
 #define msierrJsonFileFailedRead         25530
