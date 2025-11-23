@@ -260,6 +260,8 @@ The WixJsonFileExtension should handle various scenarios when modifying JSON fil
   Action="setValue" />
 ```
 
+**Note**: The `[\[]` and `[\]]` syntax is the WiX-escaped version of `[0]` because square brackets are special characters in Windows Installer formatted strings. The actual JSONPath expression is `$.Items[0].Name`.
+
 **Expected Result**: First item's Name is "Updated"
 
 ### 8. Replace JSON Objects
