@@ -86,11 +86,10 @@ HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath
                             // Serialize the item to string for comparison
                             std::string itemStr = item.to_string();
                             
-                            // Only add if we haven't seen this string representation before
-                            if (seenStrings.find(itemStr) == seenStrings.end())
+                            // Only add if we haven't seen this string representation before (single lookup)
+                            if (seenStrings.insert(itemStr).second)
                             {
                                 uniqueItems.push_back(item);
-                                seenStrings.insert(itemStr);
                             }
                         }
 

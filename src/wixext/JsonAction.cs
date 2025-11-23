@@ -10,6 +10,7 @@
 		AppendArray = 32,
 		InsertArray = 64,
 		RemoveArrayElement = 128,
+		// DistinctValues = 256 is not used to maintain compatibility with existing ValidateSchema flag (JsonFlags = 256)
 		DistinctValues = 512
 	}
 }
