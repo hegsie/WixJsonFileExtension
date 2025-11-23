@@ -37,6 +37,17 @@ jobs:
     - name: Verify Test Installer Output
       shell: pwsh
       run: |
+        Write-Host "Checking for MSI files in TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}"
+        
+        # List all files in the bin directory for debugging
+        if (Test-Path "TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}") {
+          Write-Host "Directory contents:"
+          Get-ChildItem -Path "TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}" -Recurse | Select-Object FullName
+        } else {
+          Write-Error "Build output directory not found: TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}"
+          exit 1
+        }
+        
         # Find the MSI file in the build output
         $msiFiles = Get-ChildItem -Path "TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}" -Filter "*.msi" -Recurse
         if ($msiFiles.Count -gt 0) {
@@ -47,6 +58,7 @@ jobs:
           Write-Host "  Modified: $($fileInfo.LastWriteTime)"
         } else {
           Write-Error "✗ Test installer MSI not found in TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}"
+          Write-Host "This may indicate the TestJsonConfigInstaller project did not build successfully."
           exit 1
         }
 
