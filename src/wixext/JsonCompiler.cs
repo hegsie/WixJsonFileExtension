@@ -759,7 +759,7 @@ namespace Hegsie.Wix.JsonExtension
 				flags |= (int)JsonFlags.OnlyIfExists;
 			}
 
-			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, new Identifier(AccessModifier.Private, id))
+			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, ParseHelper.GetIdentifier(sourceLineNumbers, id))
 			{
 				File = file,
 				ElementPath = elementPath,
@@ -844,7 +844,7 @@ namespace Hegsie.Wix.JsonExtension
 			// Create underlying JsonFile symbol with setValue action
 			int flags = (int)JsonAction.SetValue;
 
-			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, new Identifier(AccessModifier.Private, id))
+			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, ParseHelper.GetIdentifier(sourceLineNumbers, id))
 			{
 				File = file,
 				ElementPath = elementPath,
@@ -929,7 +929,7 @@ namespace Hegsie.Wix.JsonExtension
 			// Create underlying JsonFile symbol with setValue action
 			int flags = (int)JsonAction.SetValue;
 
-			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, new Identifier(AccessModifier.Private, id))
+			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, ParseHelper.GetIdentifier(sourceLineNumbers, id))
 			{
 				File = file,
 				ElementPath = elementPath,
