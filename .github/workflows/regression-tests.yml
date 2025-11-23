@@ -37,19 +37,39 @@ jobs:
     - name: Verify Test Installer Output
       shell: pwsh
       run: |
-        Write-Host "Checking for MSI files in TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}"
+        Write-Host "Checking for MSI files in TestJsonConfigInstaller build output"
         
-        # List all files in the bin directory for debugging
-        if (Test-Path "TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}") {
-          Write-Host "Directory contents:"
-          Get-ChildItem -Path "TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}" -Recurse | Select-Object FullName
-        } else {
-          Write-Error "Build output directory not found: TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}"
+        # Try multiple possible output paths (x64 platform may create different structure)
+        $possiblePaths = @(
+          "TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}",
+          "TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}\x64",
+          "TestJsonConfigInstaller\bin\x64\${{env.BUILD_CONFIGURATION}}"
+        )
+        
+        $foundPath = $null
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            Write-Host "Found build output directory: $path"
+            $foundPath = $path
+            break
+          }
+        }
+        
+        if (-not $foundPath) {
+          Write-Error "Build output directory not found in any expected location"
+          Write-Host "Searched paths:"
+          foreach ($path in $possiblePaths) {
+            Write-Host "  - $path"
+          }
           exit 1
         }
         
-        # Find the MSI file in the build output
-        $msiFiles = Get-ChildItem -Path "TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}" -Filter "*.msi" -Recurse
+        # List all files for debugging
+        Write-Host "Directory contents:"
+        Get-ChildItem -Path $foundPath -Recurse | Select-Object FullName | Format-Table -AutoSize
+        
+        # Find the MSI file
+        $msiFiles = Get-ChildItem -Path $foundPath -Filter "*.msi" -Recurse
         if ($msiFiles.Count -gt 0) {
           $msiPath = $msiFiles[0].FullName
           Write-Host "✓ Test installer built successfully: $msiPath"
@@ -57,7 +77,7 @@ jobs:
           Write-Host "  Size: $($fileInfo.Length) bytes"
           Write-Host "  Modified: $($fileInfo.LastWriteTime)"
         } else {
-          Write-Error "✗ Test installer MSI not found in TestJsonConfigInstaller\bin\${{env.BUILD_CONFIGURATION}}"
+          Write-Error "✗ Test installer MSI not found in $foundPath"
           Write-Host "This may indicate the TestJsonConfigInstaller project did not build successfully."
           exit 1
         }
