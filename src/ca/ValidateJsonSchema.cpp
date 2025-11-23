@@ -43,8 +43,8 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
         std::ifstream jsonIs(cFile);
         if (!jsonIs.is_open())
         {
-            hr = ReturnLastError("Opening the JSON file stream");
-            if (FAILED(hr)) return hr;
+            WcaLog(LOGMSG_STANDARD, "Failed to open JSON file: %s", cFile);
+            return E_FAIL;
         }
 
         json jsonData = json::parse(jsonIs);
@@ -54,8 +54,8 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
         std::ifstream schemaIs(cSchemaFile);
         if (!schemaIs.is_open())
         {
-            hr = ReturnLastError("Opening the schema file stream");
-            if (FAILED(hr)) return hr;
+            WcaLog(LOGMSG_STANDARD, "Failed to open schema file: %s", cSchemaFile);
+            return E_FAIL;
         }
 
         json schemaData = json::parse(schemaIs);
