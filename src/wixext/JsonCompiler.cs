@@ -142,10 +142,19 @@ namespace Hegsie.Wix.JsonExtension
 								break;
 							case "OnlyIfExists":
 								// Optional attribute to only perform the action if the element path already exists
-								onlyIfExists = ParseHelper.GetAttributeYesNoValue(sourceLineNumbers, attribute) == YesNoType.Yes;
-								if (onlyIfExists)
+								string onlyIfExistsValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+								if (!string.IsNullOrEmpty(onlyIfExistsValue))
 								{
-									flags |= (int)JsonFlags.OnlyIfExists;
+									if (onlyIfExistsValue.Equals("yes", System.StringComparison.OrdinalIgnoreCase))
+									{
+										onlyIfExists = true;
+										flags |= (int)JsonFlags.OnlyIfExists;
+									}
+									else if (!onlyIfExistsValue.Equals("no", System.StringComparison.OrdinalIgnoreCase))
+									{
+										Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
+											"OnlyIfExists", onlyIfExistsValue, "yes", "no"));
+									}
 								}
 								break;
 							default:
