@@ -5,6 +5,9 @@
     <Content Include="install.cmd">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <!-- Exclude DotNetPatterns.wxs - it's a standalone example, not part of this build -->
+    <Compile Remove="DotNetPatterns.wxs" />
+    <None Include="DotNetPatterns.wxs" />
   </ItemGroup>
   <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="6.0.1" />
   <ItemGroup>
