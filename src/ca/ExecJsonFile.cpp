@@ -19,11 +19,11 @@ extern "C" UINT WINAPI ExecJsonFile(
     int iFlags = 0;
 
     hr = WcaInitialize(hInstall, "ExecJsonFile");
-    ExitOnFailure(hr, "Failed to initialize ExecJsonFile")
+    ExitOnFailure(hr, "WixJsonFile: Failed to initialize ExecJsonFile")
 
     hr = WcaGetProperty(L"CustomActionData", &pwzCustomActionData);
-    WcaLog(LOGMSG_TRACEONLY, "CustomActionData: %ls", pwzCustomActionData);
-    ExitOnFailure(hr, "failed to get CustomActionData")
+    WcaLog(LOGMSG_TRACEONLY, "WixJsonFile: CustomActionData: %ls", pwzCustomActionData);
+    ExitOnFailure(hr, "WixJsonFile: Failed to get CustomActionData")
 
     pwz = pwzCustomActionData;
 
@@ -31,22 +31,22 @@ extern "C" UINT WINAPI ExecJsonFile(
     while (pwz && *pwz)
     {
         hr = WcaReadIntegerFromCaData(&pwz, &iFlags);
-        ExitOnFailure(hr, "Failed to get Flags for WixJsonFile")
+        ExitOnFailure(hr, "WixJsonFile: Failed to get Flags for WixJsonFile")
 
         hr = WcaReadStringFromCaData(&pwz, &sczFile);
-        ExitOnFailure(hr, "failed to read file name from custom action data")
+        ExitOnFailure(hr, "WixJsonFile: Failed to read file name from custom action data")
 
-        WcaLog(LOGMSG_VERBOSE, "Configuring JSON file: %ls", sczFile);
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Configuring JSON file: %ls", sczFile);
 
         // Get path, name, and value to be written
         hr = WcaReadStringFromCaData(&pwz, &sczElementPath);
-        ExitOnFailure(hr, "Failed to get ElementPath for WixJsonFile")
+        ExitOnFailure(hr, "WixJsonFile: Failed to get ElementPath for file '%ls'", sczFile)
 
         hr = WcaReadStringFromCaData(&pwz, &sczValue);
-        ExitOnFailure(hr, "failed to process CustomActionData")
+        ExitOnFailure(hr, "WixJsonFile: Failed to process CustomActionData for file '%ls'", sczFile)
 
         hr = UpdateJsonFile(sczFile, sczElementPath, sczValue, iFlags);
-        ExitOnFailure(hr, "Failed while updating file: %ls", sczFile)
+        ExitOnFailure(hr, "WixJsonFile: Failed while updating file '%ls' at path '%ls'", sczFile, sczElementPath)
     }
 
     // reaching the end of the list is actually a good thing, not an error

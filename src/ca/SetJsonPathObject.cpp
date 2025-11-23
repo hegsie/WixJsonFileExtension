@@ -8,19 +8,20 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
         // Input validation
         if (NULL == wzFile || L'\0' == *wzFile)
         {
-            WcaLog(LOGMSG_STANDARD, "Invalid file path parameter");
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Invalid file path parameter");
             return E_INVALIDARG;
         }
 
         if (sElementPath.empty())
         {
-            WcaLog(LOGMSG_STANDARD, "Invalid element path parameter");
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Invalid element path parameter for file '%ls'", wzFile);
             return E_INVALIDARG;
         }
 
         if (NULL == wzValue || L'\0' == *wzValue)
         {
-            WcaLog(LOGMSG_STANDARD, "Invalid value parameter");
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Invalid value parameter for path '%s' in file '%ls'", 
+                   sElementPath.c_str(), wzFile);
             return E_INVALIDARG;
         }
 
@@ -37,6 +38,7 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
 
             if (!is.is_open())
             {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to open file stream for '%ls'", wzFile);
                 hr = ReturnLastError("Opening the file stream");
                 if (FAILED(hr)) return hr;
             }
@@ -45,13 +47,28 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
             is.close();
 
             std::string s = cValue;
-            json obj = json::parse(s);
-
-            WcaLog(LOGMSG_STANDARD, "Parsed the new value: $%s$", obj.to_string().c_str());
+            json obj;
+            try {
+                obj = json::parse(s);
+                WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Parsed replacement JSON value for path '%s'", sElementPath.c_str());
+            }
+            catch (const std::exception& e) {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to parse JSON value for path '%s' in file '%ls': %s", 
+                       sElementPath.c_str(), wzFile, e.what());
+                return E_FAIL;
+            }
 
             auto query = jsonpath::json_query(j, sElementPath);
 
-            WcaLog(LOGMSG_STANDARD, "About to update the json %s with values %s.", sElementPath.c_str(), query.as_string().c_str());
+            if (query.empty())
+            {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - No elements found at path '%s' in file '%ls' to replace", 
+                       sElementPath.c_str(), wzFile);
+                return HRESULT_FROM_WIN32(ERROR_OBJECT_NOT_FOUND);
+            }
+
+            WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Found %d element(s) at path '%s' in file '%ls' to replace", 
+                   query.size(), sElementPath.c_str(), wzFile);
 
             auto f = [obj](const std::string& /*path*/, json& value)
                 {
@@ -60,13 +77,15 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
 
             jsonpath::json_replace(j, sElementPath, f);
 
-            WcaLog(LOGMSG_STANDARD, "Updated the json %s with values %s.", sElementPath.c_str(), obj.as_string().c_str());
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Successfully replaced JSON object at path '%s' in file '%ls'", 
+                   sElementPath.c_str(), wzFile);
 
             std::ofstream os(wzFile,
                 std::ios_base::out | std::ios_base::trunc);
 
             if (!os.is_open())
             {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to create output stream for file '%ls'", wzFile);
                 hr = ReturnLastError("creating the output stream");
                 if (FAILED(hr)) return hr;
             }
@@ -75,24 +94,26 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
             os.close();
         }
         else {
-            WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Unable to locate file '%ls'. Verify the file exists and the path is correct.", wzFile);
             return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
         return S_OK;
     }
     catch (_com_error& e)
     {
-        WcaLog(LOGMSG_STANDARD, "encountered COM error: %ls", e.ErrorMessage());
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Encountered COM error while replacing JSON object in file '%ls': %ls", 
+               wzFile, e.ErrorMessage());
         return E_FAIL;
     }
     catch (std::exception& e)
     {
-        WcaLog(LOGMSG_STANDARD, "encountered error %s", e.what());
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Encountered exception while replacing JSON object in file '%ls': %s", 
+               wzFile, e.what());
         return E_FAIL;
     }
     catch (...)
     {
-        WcaLog(LOGMSG_STANDARD, "encountered unknown error");
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Encountered unknown error while replacing JSON object in file '%ls'", wzFile);
         return E_FAIL;
     }
 }

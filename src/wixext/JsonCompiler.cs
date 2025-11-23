@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 using Hegsie.Wix.JsonExtension.Table;
@@ -160,6 +161,14 @@ namespace Hegsie.Wix.JsonExtension
 				return;
 			}
 
+			// Validate required attributes and common issues
+			ValidateJsonFileElement(node, sourceLineNumbers, action, file, elementPath, value, property);
+
+			if (Messaging.EncounteredError)
+			{
+				return;
+			}
+
 			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
 				File = file,
@@ -303,6 +312,209 @@ namespace Hegsie.Wix.JsonExtension
 				return i;
 			}
 			return null;
+		}
+
+		/// <summary>
+		/// Validates the JsonFile element for common issues and required attributes.
+		/// </summary>
+		private void ValidateJsonFileElement(XElement node, SourceLineNumber sourceLineNumbers, int action, 
+			string file, string elementPath, string value, string property)
+		{
+			// Validate required attributes based on action
+			if (action == (int)JsonAction.ReadValue)
+			{
+				// readValue requires Property attribute
+				if (string.IsNullOrEmpty(property))
+				{
+					Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Property", "Action", "readValue"));
+				}
+				// Validate property name format (should be uppercase)
+				else if (!string.IsNullOrEmpty(property) && property != property.ToUpperInvariant())
+				{
+					Messaging.Write(WarningMessages.PropertyNameShouldBeUppercase(sourceLineNumbers, node.Name.ToString(), property));
+				}
+			}
+			else if (action == (int)JsonAction.SetValue || action == (int)JsonAction.ReplaceJsonValue || 
+			         action == (int)JsonAction.CreateJsonPointerValue)
+			{
+				// These actions require Value attribute
+				if (string.IsNullOrEmpty(value))
+				{
+					string actionName = action == (int)JsonAction.SetValue ? "setValue" :
+					                   action == (int)JsonAction.ReplaceJsonValue ? "replaceJsonValue" : "createJsonPointerValue";
+					Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Value", "Action", actionName));
+				}
+			}
+
+			// Validate File attribute is present
+			if (string.IsNullOrEmpty(file))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "File"));
+			}
+
+			// Validate ElementPath is present
+			if (string.IsNullOrEmpty(elementPath))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "ElementPath"));
+			}
+			else
+			{
+				// Check for common JSONPath issues
+				ValidateElementPath(node, sourceLineNumbers, elementPath, action);
+			}
+
+			// Validate property references in Value attribute
+			if (!string.IsNullOrEmpty(value))
+			{
+				ValidatePropertyReferences(node, sourceLineNumbers, value, "Value");
+			}
+
+			// Validate property references in File attribute
+			if (!string.IsNullOrEmpty(file))
+			{
+				ValidatePropertyReferences(node, sourceLineNumbers, file, "File");
+			}
+		}
+
+		/// <summary>
+		/// Validates the ElementPath for common issues.
+		/// </summary>
+		private void ValidateElementPath(XElement node, SourceLineNumber sourceLineNumbers, string elementPath, int action)
+		{
+			// Check if this is a JSONPointer path (starts with /) for createJsonPointerValue
+			bool isJsonPointer = elementPath.StartsWith("/");
+
+			if (action == (int)JsonAction.CreateJsonPointerValue)
+			{
+				// createJsonPointerValue should use JSONPointer syntax (starts with /)
+				if (!isJsonPointer)
+				{
+					Messaging.Write(WarningMessages.ElementPathShouldStartWithSlash(sourceLineNumbers, node.Name.ToString(), "createJsonPointerValue"));
+				}
+			}
+			else
+			{
+				// Other actions should use JSONPath syntax (starts with $)
+				if (isJsonPointer)
+				{
+					Messaging.Write(WarningMessages.ElementPathShouldStartWithDollar(sourceLineNumbers, node.Name.ToString()));
+				}
+				else if (!elementPath.StartsWith("$"))
+				{
+					Messaging.Write(WarningMessages.ElementPathShouldStartWithDollar(sourceLineNumbers, node.Name.ToString()));
+				}
+
+				// Check for unescaped square brackets (common mistake)
+				if (ContainsUnescapedBrackets(elementPath))
+				{
+					Messaging.Write(WarningMessages.UnescapedBracketsInElementPath(sourceLineNumbers, node.Name.ToString(), elementPath));
+				}
+			}
+
+			// Basic JSONPath syntax validation
+			if (!isJsonPointer && elementPath.StartsWith("$"))
+			{
+				ValidateBasicJsonPathSyntax(node, sourceLineNumbers, elementPath);
+			}
+		}
+
+		/// <summary>
+		/// Checks if the path contains unescaped square brackets (MSI formatting issue).
+		/// </summary>
+		private bool ContainsUnescapedBrackets(string path)
+		{
+			// Look for patterns like [0] or [*] that are not escaped as [\[]0[\]]
+			// This is a simplified check - it looks for [ not followed by \[] or ]
+			var unescapedPattern = new Regex(@"\[(?!\\\[|\])");
+			return unescapedPattern.IsMatch(path);
+		}
+
+		/// <summary>
+		/// Performs basic JSONPath syntax validation.
+		/// </summary>
+		private void ValidateBasicJsonPathSyntax(XElement node, SourceLineNumber sourceLineNumbers, string jsonPath)
+		{
+			// Check for common syntax errors
+			// This is not a complete JSONPath parser, just catches common mistakes
+
+			// Check for double dots without following path segment
+			if (jsonPath.Contains("..") && !Regex.IsMatch(jsonPath, @"\.\.[a-zA-Z_]"))
+			{
+				Messaging.Write(WarningMessages.InvalidJsonPathSyntax(sourceLineNumbers, node.Name.ToString(), 
+					jsonPath, "Recursive descent (..) should be followed by a property name"));
+			}
+
+			// Check for invalid characters after $
+			if (jsonPath.StartsWith("$") && jsonPath.Length > 1 && jsonPath[1] != '.' && jsonPath[1] != '[')
+			{
+				Messaging.Write(WarningMessages.InvalidJsonPathSyntax(sourceLineNumbers, node.Name.ToString(), 
+					jsonPath, "JSONPath should start with $ followed by . or ["));
+			}
+
+			// Check for unclosed brackets (even if escaped)
+			int openBrackets = 0;
+			bool inEscape = false;
+			foreach (char c in jsonPath)
+			{
+				if (c == '\\')
+				{
+					inEscape = !inEscape;
+					continue;
+				}
+				if (!inEscape)
+				{
+					if (c == '[') openBrackets++;
+					if (c == ']') openBrackets--;
+				}
+				inEscape = false;
+			}
+			if (openBrackets != 0)
+			{
+				Messaging.Write(WarningMessages.UnmatchedBracketsInElementPath(sourceLineNumbers, node.Name.ToString()));
+			}
+		}
+
+		/// <summary>
+		/// Validates property references in attribute values.
+		/// </summary>
+		private void ValidatePropertyReferences(XElement node, SourceLineNumber sourceLineNumbers, string attributeValue, string attributeName)
+		{
+			// Find all property references [PROPERTY_NAME]
+			var propertyPattern = new Regex(@"\[([^\]]+)\]");
+			var matches = propertyPattern.Matches(attributeValue);
+
+			foreach (Match match in matches)
+			{
+				string propertyRef = match.Groups[1].Value;
+				
+				// Skip special references like [#FileId], [!ComponentId], [$DirectoryId], etc.
+				if (propertyRef.StartsWith("#") || propertyRef.StartsWith("!") || 
+				    propertyRef.StartsWith("$") || propertyRef.StartsWith("%"))
+				{
+					continue;
+				}
+
+				// Skip escaped brackets [\[] and [\]]
+				if (propertyRef == "\\[" || propertyRef == "\\]")
+				{
+					continue;
+				}
+
+				// Check if property name is uppercase (MSI convention)
+				if (propertyRef != propertyRef.ToUpperInvariant())
+				{
+					Messaging.Write(WarningMessages.PropertyReferenceShouldBeUppercase(sourceLineNumbers, 
+						node.Name.ToString(), attributeName, propertyRef));
+				}
+
+				// Warn about reserved directory properties that might need $ prefix
+				var commonDirProperties = new[] { "ProgramFilesFolder", "CommonAppDataFolder", "LocalAppDataFolder", 
+					"TempFolder", "SystemFolder", "WindowsFolder", "DesktopFolder" };
+				if (commonDirProperties.Contains(propertyRef) && !attributeValue.Contains("[$" + propertyRef + "]"))
+				{
+					// This is just informational - these can be used without $
+				}
+			}
 		}
 	}
 
