@@ -2,7 +2,7 @@
 #include "JsonFile.h"
 
 LPCWSTR vcsJsonFileQuery = L"SELECT `WixJsonFile`.`JsonConfig`, `WixJsonFile`.`File`, `WixJsonFile`.`ElementPath`, "
-                           L"`WixJsonFile`.`Value`, `WixJsonFile`.`DefaultValue`, `WixJsonFile`.`Flags`, `WixJsonFile`.`Component_`, `WixJsonFile`.`Property`, `Component`.`Attributes` FROM `WixJsonFile`,`Component`"
+                           L"`WixJsonFile`.`Value`, `WixJsonFile`.`DefaultValue`, `WixJsonFile`.`Flags`, `WixJsonFile`.`Component_`, `WixJsonFile`.`Property`, `Component`.`Attributes`, `WixJsonFile`.`Index`, `WixJsonFile`.`SchemaFile` FROM `WixJsonFile`,`Component`"
                            L"WHERE `WixJsonFile`.`Component_`=`Component`.`Component` ORDER BY `File`, `Sequence`";
 
 static HRESULT AddJsonFileChangeToList(
@@ -112,6 +112,21 @@ HRESULT ReadJsonFileTable(
         ExitOnFailure(hr, "failed to get Property for WixJsonFile: %ls", (*ppxfcTail)->wzId)
         hr = StrAllocString(&(*ppxfcTail)->pwzProperty, pwzData, 0);
         ExitOnFailure(hr, "failed to allocate buffer for property")
+
+        // Get the index
+        hr = WcaGetRecordInteger(hRec, jfqIndex, &(*ppxfcTail)->iIndex);
+        if (FAILED(hr))
+        {
+            // Index is optional, default to -1
+            (*ppxfcTail)->iIndex = -1;
+            hr = S_OK;
+        }
+
+        // Get the schema file
+        hr = WcaGetRecordFormattedString(hRec, jfqSchemaFile, &pwzData);
+        ExitOnFailure(hr, "failed to get SchemaFile for WixJsonFile: %ls", (*ppxfcTail)->wzId)
+        hr = StrAllocString(&(*ppxfcTail)->pwzSchemaFile, pwzData, 0);
+        ExitOnFailure(hr, "failed to allocate buffer for schema file")
     }
 
     // if we looped through all records all is well
@@ -140,6 +155,7 @@ void FreeJsonFileChangeList(
         ReleaseStr(pxfc->pwzValue);
         ReleaseStr(pxfc->pwzDefaultValue);
         ReleaseStr(pxfc->pwzProperty);
+        ReleaseStr(pxfc->pwzSchemaFile);
 
         // Free the structure itself
         MemFree(pxfc);

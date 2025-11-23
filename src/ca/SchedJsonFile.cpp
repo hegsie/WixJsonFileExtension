@@ -103,6 +103,24 @@ extern "C" UINT __stdcall SchedJsonFile(
                 WcaLog(LOGMSG_VERBOSE, "jaCreateJsonPointerValue action for file: %ls", pxfc->wzFile);
                 ExitOnFailure(hr, "failed to write create json pointer value action indicator to custom action data")
             }
+            else if (flags.test(FLAG_APPENDARRAY))
+            {
+                hr = WcaWriteIntegerToCaData((int)jaAppendArray, &pwzCustomActionData);
+                WcaLog(LOGMSG_VERBOSE, "jaAppendArray action for file: %ls", pxfc->wzFile);
+                ExitOnFailure(hr, "failed to write append array action indicator to custom action data")
+            }
+            else if (flags.test(FLAG_INSERTARRAY))
+            {
+                hr = WcaWriteIntegerToCaData((int)jaInsertArray, &pwzCustomActionData);
+                WcaLog(LOGMSG_VERBOSE, "jaInsertArray action for file: %ls", pxfc->wzFile);
+                ExitOnFailure(hr, "failed to write insert array action indicator to custom action data")
+            }
+            else if (flags.test(FLAG_REMOVEARRAYELEMENT))
+            {
+                hr = WcaWriteIntegerToCaData((int)jaRemoveArrayElement, &pwzCustomActionData);
+                WcaLog(LOGMSG_VERBOSE, "jaRemoveArrayElement action for file: %ls", pxfc->wzFile);
+                ExitOnFailure(hr, "failed to write remove array element action indicator to custom action data")
+            }
             else if (flags.test(FLAG_READVALUE))
             {
                 continue;
@@ -134,9 +152,17 @@ extern "C" UINT __stdcall SchedJsonFile(
             WcaLog(LOGMSG_VERBOSE, "Element path: %ls", pxfc->pwzElementPath);
             ExitOnFailure(hr, "failed to write ElementPath to custom action data: %ls", pxfc->pwzElementPath)
 
-                hr = WcaWriteStringToCaData(pxfc->pwzValue, &pwzCustomActionData);
+            hr = WcaWriteStringToCaData(pxfc->pwzValue, &pwzCustomActionData);
             WcaLog(LOGMSG_VERBOSE, "Value: %ls", pxfc->pwzValue);
             ExitOnFailure(hr, "failed to write Value to custom action data: %ls", pxfc->pwzValue)
+
+            hr = WcaWriteIntegerToCaData(pxfc->iIndex, &pwzCustomActionData);
+            WcaLog(LOGMSG_VERBOSE, "Index: %d", pxfc->iIndex);
+            ExitOnFailure(hr, "failed to write Index to custom action data")
+
+            hr = WcaWriteStringToCaData(pxfc->pwzSchemaFile, &pwzCustomActionData);
+            WcaLog(LOGMSG_VERBOSE, "Schema file: %ls", pxfc->pwzSchemaFile);
+            ExitOnFailure(hr, "failed to write SchemaFile to custom action data: %ls", pxfc->pwzSchemaFile)
 
             ++cFiles;
         }

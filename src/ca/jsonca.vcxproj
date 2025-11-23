@@ -93,13 +93,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AppendJsonArray.cpp" />
     <ClCompile Include="CustomAction.cpp" />
     <ClCompile Include="DeleteJsonPath.cpp" />
     <ClCompile Include="Errors.cpp" />
     <ClCompile Include="ExecJsonFile.cpp" />
     <ClCompile Include="ExecJsonFileRollback.cpp" />
+    <ClCompile Include="InsertJsonArray.cpp" />
     <ClCompile Include="ReadJsonFileTable.cpp" />
     <ClCompile Include="ReadValueJsonFile.cpp" />
+    <ClCompile Include="RemoveJsonArrayElement.cpp" />
     <ClCompile Include="SchedJsonFile.cpp" />
     <ClCompile Include="SetJsonPathObject.cpp" />
     <ClCompile Include="SetJsonPathValue.cpp" />
@@ -108,6 +111,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="UpdateJsonFile.cpp" />
+    <ClCompile Include="ValidateJsonSchema.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CustomAction.def" />

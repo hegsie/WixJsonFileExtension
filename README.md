@@ -42,9 +42,15 @@ Today, a third format has become popular, especially in web applications: [JSON]
 
 ## Status
 
-✅ **JSONPath supported for install-only applications**
+✅ **Full JSONPath Support with Array Operations**
 
-The extension currently supports JSONPath syntax for querying and modifying JSON files during installation. More complex scenarios with multi-select queries inside arrays may have limited support. Please report issues for specific use cases that don't work as expected.
+The extension now provides comprehensive JSONPath support powered by jsoncons, including:
+- **Multi-select queries** - Query multiple elements at once with wildcards (`$..price`, `$.store.book[*]`)
+- **Advanced filters** - Filter arrays with complex conditions (`$.book[?(@.price > 10)]`)
+- **Array operations** - Append, insert, and remove array elements
+- **Schema validation** - Validate JSON files against JSON schemas to prevent configuration corruption
+
+All operations are performed during installation with full rollback support.
 
 ## Prerequisites
 
@@ -114,6 +120,9 @@ The `JsonFile` element supports the following actions:
 | `deleteValue` | Deletes the value(s) at the specified path | JSONPath | Removing configuration entries |
 | `replaceJsonValue` | Replaces an entire JSON object or array with new JSON content | JSONPath | Replacing complex nested structures |
 | `createJsonPointerValue` | Creates a new value using JSONPointer syntax (useful for creating nested paths that don't exist) | JSONPointer | Creating new configuration sections |
+| `appendArray` | Appends a value to an array | JSONPath | Adding new items to configuration arrays |
+| `insertArray` | Inserts a value at a specific index in an array | JSONPath | Adding items at specific positions in arrays |
+| `removeArrayElement` | Removes element(s) from an array by value or path | JSONPath | Removing specific items from configuration arrays |
 
 ### JsonFile Element Attributes
 
@@ -123,10 +132,12 @@ The `JsonFile` element supports the following actions:
 | `File` | Yes | Path to the JSON file to modify. Can use file references like `[#FileId]` or formatted paths like `[INSTALLFOLDER]config.json` |
 | `ElementPath` | Yes | JSONPath or JSONPointer expression to locate the element(s) to modify |
 | `Action` | No | The action to perform (see Available Actions table). Defaults to `setValue` |
-| `Value` | Conditional | The value to set. Required for `setValue`, `replaceJsonValue`, and `createJsonPointerValue` actions. Can be a simple value, property reference like `[PROPERTY_NAME]`, or JSON-formatted string |
+| `Value` | Conditional | The value to set. Required for `setValue`, `replaceJsonValue`, `createJsonPointerValue`, `appendArray`, and `insertArray` actions. For `removeArrayElement`, `Value` is optional: if omitted, elements matched by the JSONPath expression are removed; if provided, all array elements matching that value are removed. Can be a simple value, property reference like `[PROPERTY_NAME]`, or JSON-formatted string |
 | `DefaultValue` | No | Default value to use if the path doesn't exist (used with `readValue`) |
 | `Property` | Conditional | Windows Installer property to store the read value. Required for `readValue` action |
 | `Sequence` | No | Order in which modifications are applied (default: 1). Lower numbers execute first |
+| `Index` | No | For `insertArray` action: specifies the index at which to insert. Use -1 or omit to append to end |
+| `SchemaFile` | No | Path to a JSON schema file for validation. The JSON file will be validated against this schema after modifications |
 
 ### JSONPath vs JSONPointer
 
@@ -314,6 +325,202 @@ For the JSON structure:
 }
 ```
 
+### Working with Arrays
+
+#### Appending to Arrays
+
+Add new elements to the end of an array:
+
+```xml
+<!-- Append a new book to the books array -->
+<Json:JsonFile 
+  Id="AppendBook" 
+  File="[#JsonConfig]" 
+  ElementPath="$.store.book" 
+  Value='{"category":"science","author":"Carl Sagan","title":"Cosmos","price":14.99}' 
+  Action="appendArray" />
+```
+
+#### Inserting into Arrays
+
+Insert elements at specific positions:
+
+```xml
+<!-- Insert a book at the beginning of the array (index 0) -->
+<Json:JsonFile 
+  Id="InsertBook" 
+  File="[#JsonConfig]" 
+  ElementPath="$.store.book" 
+  Value='{"category":"biography","author":"Walter Isaacson","title":"Steve Jobs","price":18.99}' 
+  Action="insertArray"
+  Index="0" />
+
+<!-- Append to the end using Index="-1" -->
+<Json:JsonFile 
+  Id="AppendBookWithIndex" 
+  File="[#JsonConfig]" 
+  ElementPath="$.store.book" 
+  Value='{"category":"history","author":"Yuval Noah Harari","title":"Sapiens","price":16.99}' 
+  Action="insertArray"
+  Index="-1" />
+```
+
+#### Removing Array Elements
+
+Remove elements by matching value:
+
+```xml
+<!-- Remove all books with a specific ISBN -->
+<Json:JsonFile 
+  Id="RemoveBook" 
+  File="[#JsonConfig]" 
+  ElementPath="$.store.book" 
+  Value='{"isbn":"0-553-21311-3"}' 
+  Action="removeArrayElement" />
+
+<!-- Remove elements using JSONPath filters -->
+<Json:JsonFile 
+  Id="RemoveExpensiveBooks" 
+  File="[#JsonConfig]" 
+  ElementPath="$.store.book[\[]?(@.price > 20)[\]]" 
+  Action="removeArrayElement" />
+```
+
+### JSON Schema Validation
+
+Validate JSON files against a schema to ensure data integrity:
+
+```xml
+<!-- Update a value and validate against schema -->
+<Json:JsonFile 
+  Id="SetServerWithValidation" 
+  File="[#JsonConfig]" 
+  ElementPath="$.ConnectionStrings.Database" 
+  Value="Server=myserver;Database=mydb;Trusted_Connection=True;" 
+  Action="setValue"
+  SchemaFile="[INSTALLFOLDER]config-schema.json" />
+```
+
+Example schema file (`config-schema.json`):
+
+```json
+{
+  "type": "object",
+  "required": ["ConnectionStrings", "Logging"],
+  "properties": {
+    "ConnectionStrings": {
+      "type": "object",
+      "properties": {
+        "Database": {
+          "type": "string"
+        }
+      }
+    },
+    "Logging": {
+      "type": "object",
+      "properties": {
+        "LogLevel": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}
+```
+
+The installer will fail if the modified JSON does not conform to the schema, preventing configuration corruption.
+
+**Schema Validation Capabilities:**
+
+The extension provides basic JSON Schema validation including:
+- ✅ Root type validation (object, array, string, number, boolean, null)
+- ✅ Required properties checking
+- ✅ Property type validation
+- ✅ Basic integer/number type matching
+
+**Limitations:**
+- ❌ Integer values are not checked for whole numbers (any numeric value is accepted)
+- ❌ $ref references not supported
+- ❌ Pattern, enum, min/max constraints not validated
+- ❌ Complex schemas with conditional logic (if/then/else) not supported
+- ❌ Format validation not implemented
+
+For more complex validation needs, consider pre-validating your JSON files separately or using a dedicated JSON Schema validation tool.
+
+### Advanced JSONPath Features
+
+The extension supports complex JSONPath expressions powered by jsoncons:
+
+#### Multi-Select Queries
+
+Select multiple elements at once:
+
+```xml
+<!-- Update all prices in the store -->
+<Json:JsonFile 
+  Id="UpdateAllPrices" 
+  File="[#JsonConfig]" 
+  ElementPath="$..price" 
+  Value="9.99" 
+  Action="setValue" />
+```
+
+#### Array Filters
+
+Use filters to select specific array elements:
+
+```xml
+<!-- Update books by a specific author -->
+<Json:JsonFile 
+  Id="UpdateMelvilleBooks" 
+  File="[#JsonConfig]" 
+  ElementPath="$.store.book[\[]?(@.author == 'Herman Melville')[\]].price" 
+  Value="12.99" 
+  Action="setValue" />
+
+<!-- Update all fiction books -->
+<Json:JsonFile 
+  Id="UpdateFictionBooks" 
+  File="[#JsonConfig]" 
+  ElementPath="$.store.book[\[]?(@.category == 'fiction')[\]].price" 
+  Value="11.99" 
+  Action="setValue" />
+```
+
+#### Wildcards
+
+Use wildcards to match any element:
+
+```xml
+<!-- Access all book elements regardless of position -->
+<Json:JsonFile 
+  Id="ReadAllBooks" 
+  File="[#JsonConfig]" 
+  ElementPath="$.store.book[\[]*[\]]" 
+  Action="readValue"
+  Property="ALL_BOOKS" />
+```
+
+#### Complex Filters
+
+Combine multiple conditions:
+
+```xml
+<!-- Update expensive fiction books -->
+<Json:JsonFile 
+  Id="UpdateExpensiveFiction" 
+  File="[#JsonConfig]" 
+  ElementPath="$.store.book[\[]?(@.category == 'fiction' &amp;&amp; @.price > 10)[\]].price" 
+  Value="15.99" 
+  Action="setValue" />
+```
+
+**Note**: When using logical operators in XML, remember to escape them:
+- `&&` becomes `&amp;&amp;`
+- `||` becomes `||` (no escaping needed)
+- `<` becomes `&lt;`
+- `>` becomes `&gt;`
+
 ## Escaping Special Characters
 
 When working with JSONPath in WiX XML files, you need to be aware of multiple layers of escaping:
@@ -357,7 +564,7 @@ Value="[INSTALLFOLDER]config.json"
 ### Common Issues
 
 1. **"Element not found" errors**
-   - Verify your JSONPath is correct using online JSONPath evaluators
+   - Verify your JSONPath is correct using online JSONPath evaluators like [JSONPath Online Evaluator](https://jsonpath.com/)
    - Check that square brackets are properly escaped: `[\[]` and `[\]]`
    - Ensure the JSON file is valid and well-formed
 
@@ -366,21 +573,29 @@ Value="[INSTALLFOLDER]config.json"
    - Ensure the path exists before trying to set a value (or use `createJsonPointerValue`)
    - Verify the file reference `[#FileId]` matches your File element's Id
 
-3. **Complex queries not working**
-   - Some advanced JSONPath features (like multi-select in arrays) may have limited support
-   - Try simplifying your query or report the specific case as an issue
-   - Consider breaking complex operations into multiple steps
+3. **Array operations failing**
+   - Ensure the ElementPath points to an array when using `appendArray`, `insertArray`, or `removeArrayElement`
+   - For `insertArray`, verify the Index is valid or use -1 to append
+   - For `removeArrayElement`, ensure the Value matches the element structure you want to remove
 
-4. **Property values not expanding**
+4. **Schema validation errors**
+   - Verify the schema file path is correct and the file is accessible during installation
+   - Check that the schema file is valid JSON Schema format
+   - Review the MSI log for specific validation error messages
+   - Note: This extension provides basic schema validation (type checking, required properties). For full JSON Schema Draft 7+ support, ensure your schemas use supported features
+
+5. **Property values not expanding**
    - Ensure property names are in uppercase and enclosed in brackets: `[MY_PROPERTY]`
    - Check that the property is set before the JsonFile action executes
 
 ### Debugging Tips
 
 - Use the `readValue` action to verify paths are correct before modifying
-- Test your JSONPath expressions in an online evaluator
+- Test your JSONPath expressions in an online evaluator like [jsonpath.com](https://jsonpath.com/)
+- For complex queries, test with the jsoncons library directly or use its online playground
 - Check the MSI log file for detailed error messages: `msiexec /i YourInstaller.msi /l*v install.log`
 - Refer to the example in `TestJsonConfigInstaller/Product.wxs` for working patterns
+- When using schema validation, test your JSON against the schema separately first using tools like [jsonschemavalidator.net](https://www.jsonschemavalidator.net/)
 
 ## Building from Source
 

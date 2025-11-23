@@ -1,0 +1,130 @@
+#include "stdafx.h"
+#include "JsonFile.h"
+
+HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, int iIndex)
+{
+    try
+    {
+        // Input validation
+        if (NULL == wzFile || L'\0' == *wzFile)
+        {
+            WcaLog(LOGMSG_STANDARD, "Invalid file path parameter");
+            return E_INVALIDARG;
+        }
+
+        if (sElementPath.empty())
+        {
+            WcaLog(LOGMSG_STANDARD, "Invalid element path parameter");
+            return E_INVALIDARG;
+        }
+
+        if (NULL == wzValue || L'\0' == *wzValue)
+        {
+            WcaLog(LOGMSG_STANDARD, "Invalid value parameter");
+            return E_INVALIDARG;
+        }
+
+        _bstr_t bFile(wzFile);
+        char* cFile = bFile;
+
+        _bstr_t bValue(wzValue);
+        char* cValue = bValue;
+        HRESULT hr = S_OK;
+
+        if (fs::exists(fs::path(wzFile))) {
+            json j;
+            std::ifstream is(cFile);
+
+            if (!is.is_open())
+            {
+                WcaLog(LOGMSG_STANDARD, "Failed to open file for reading: %s", cFile);
+                return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
+            }
+
+            is >> j;
+            is.close();
+
+            // Query the array using JSONPath
+            auto query = jsonpath::json_query(j, sElementPath);
+
+            if (query.empty())
+            {
+                WcaLog(LOGMSG_STANDARD, "Array not found at path: %s", sElementPath.c_str());
+                return HRESULT_FROM_WIN32(ERROR_OBJECT_NOT_FOUND);
+            }
+
+            // Parse the value to insert
+            json valueToInsert;
+            try {
+                std::string s = cValue;
+                valueToInsert = json::parse(s);
+            }
+            catch (const std::exception&) {
+                // If parsing fails, treat as a string value
+                valueToInsert = json(cValue);
+            }
+
+            WcaLog(LOGMSG_STANDARD, "Inserting value at index %d in array at: %s", iIndex, sElementPath.c_str());
+
+            // Insert into the array
+            auto f = [valueToInsert, iIndex](const std::string& /*path*/, json& value)
+                {
+                    if (value.is_array())
+                    {
+                        int arraySize = static_cast<int>(value.size());
+                        
+                        // Negative index means append to end
+                        if (iIndex < 0)
+                        {
+                            value.push_back(valueToInsert);
+                        }
+                        // Out of bounds index: append to end
+                        else if (iIndex >= arraySize)
+                        {
+                            value.push_back(valueToInsert);
+                        }
+                        // Valid index: insert at specified position
+                        else
+                        {
+                            value.insert(value.array_range().begin() + iIndex, valueToInsert);
+                        }
+                    }
+                };
+
+            jsonpath::json_replace(j, sElementPath, f);
+
+            WcaLog(LOGMSG_STANDARD, "Successfully inserted value into array");
+
+            std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
+
+            if (!os.is_open())
+            {
+                WcaLog(LOGMSG_STANDARD, "Failed to open output file stream for writing: %ls", wzFile);
+                return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
+            }
+
+            pretty_print(j).dump(os);
+            os.close();
+        }
+        else {
+            WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
+            return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
+        }
+        return S_OK;
+    }
+    catch (_com_error& e)
+    {
+        WcaLog(LOGMSG_STANDARD, "encountered COM error: %ls", e.ErrorMessage());
+        return E_FAIL;
+    }
+    catch (std::exception& e)
+    {
+        WcaLog(LOGMSG_STANDARD, "encountered error %s", e.what());
+        return E_FAIL;
+    }
+    catch (...)
+    {
+        WcaLog(LOGMSG_STANDARD, "encountered unknown error");
+        return E_FAIL;
+    }
+}
