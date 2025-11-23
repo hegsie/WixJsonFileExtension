@@ -63,10 +63,24 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
 
         WcaLog(LOGMSG_STANDARD, "Validating JSON against schema");
 
-        // Basic schema validation
-        // Note: jsoncons has limited JSON schema support out of the box
-        // For full JSON Schema validation, a dedicated library would be needed
-        // This implementation provides basic structure validation
+        // Basic schema validation implementation
+        // Supported features:
+        //   - Root type validation
+        //   - Required properties checking (for objects)
+        //   - Property type validation
+        //   - Integer types treated as numbers (no whole number validation)
+        //
+        // Unsupported features (would require full JSON Schema library):
+        //   - $ref references
+        //   - Pattern validation
+        //   - Enum validation
+        //   - Min/max constraints
+        //   - Array items validation beyond type
+        //   - Nested object validation beyond type
+        //   - Format validation
+        //   - Conditional schemas (if/then/else)
+        //
+        // For full JSON Schema Draft 7+ compliance, consider using a dedicated library
 
         // Check if schema has "type" property
         if (schemaData.contains("type"))
@@ -135,7 +149,8 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
                         if (!typeMatches && expectedType == "integer" && actualType == "number")
                         {
                             // Allow numeric values for integer schema types (basic validation only)
-                            // Note: This doesn't verify the number is a whole number
+                            // Limitation: This doesn't verify the number is a whole number.
+                            // For strict integer validation, a full JSON Schema library would be needed.
                             typeMatches = true;
                         }
 

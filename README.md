@@ -430,6 +430,23 @@ Example schema file (`config-schema.json`):
 
 The installer will fail if the modified JSON does not conform to the schema, preventing configuration corruption.
 
+**Schema Validation Capabilities:**
+
+The extension provides basic JSON Schema validation including:
+- ✅ Root type validation (object, array, string, number, boolean, null)
+- ✅ Required properties checking
+- ✅ Property type validation
+- ✅ Basic integer/number type matching
+
+**Limitations:**
+- ❌ Integer values are not checked for whole numbers (any numeric value is accepted)
+- ❌ $ref references not supported
+- ❌ Pattern, enum, min/max constraints not validated
+- ❌ Complex schemas with conditional logic (if/then/else) not supported
+- ❌ Format validation not implemented
+
+For more complex validation needs, consider pre-validating your JSON files separately or using a dedicated JSON Schema validation tool.
+
 ### Advanced JSONPath Features
 
 The extension supports complex JSONPath expressions powered by jsoncons:

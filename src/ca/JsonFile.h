@@ -44,8 +44,8 @@ enum eXmlAction
     jaReadValue = 16,
     jaAppendArray = 32,
     jaInsertArray = 64,
-    jaRemoveArrayElement = 128,
-    jaValidateSchema = 256
+    jaRemoveArrayElement = 128
+    // Note: ValidateSchema (256) is a flag, not an action
 };
 
 #define msierrJsonFileFailedRead         25530
