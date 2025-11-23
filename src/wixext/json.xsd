@@ -1,0 +1,513 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (c) Ben Hegarty and contributors. All rights reserved. Licensed under the MIT License. -->
+
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+          xmlns:xse="http://wixtoolset.org/schemas/XmlSchemaExtension"
+          xmlns:html="http://www.w3.org/1999/xhtml"
+          xmlns:wxs="http://wixtoolset.org/schemas/v4/wxs"
+          targetNamespace="http://schemas.hegsie.com/wix/JsonExtension"
+          xmlns="http://schemas.hegsie.com/wix/JsonExtension">
+  <xs:annotation>
+    <xs:documentation>
+      The source code schema for the WiX Toolset JSON File Extension.
+      This extension enables manipulation of JSON files during Windows Installer execution,
+      including reading, setting, creating, and deleting JSON values using JSONPath or JSONPointer syntax.
+    </xs:documentation>
+  </xs:annotation>
+
+  <xs:import namespace="http://wixtoolset.org/schemas/v4/wxs" />
+
+  <xs:simpleType name="ActionType">
+    <xs:annotation>
+      <xs:documentation>
+        The type of modification to be made to the JSON file when the component is installed or uninstalled.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:NMTOKEN">
+      <xs:enumeration value="readValue">
+        <xs:annotation>
+          <xs:documentation>
+            Reads a value from the JSON file and stores it in a Windows Installer property.
+            Requires the Property attribute to be set.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="setValue">
+        <xs:annotation>
+          <xs:documentation>
+            Sets or updates a value at the specified path. This is the default action if not specified.
+            Uses JSONPath syntax to locate the element(s) to modify.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="deleteValue">
+        <xs:annotation>
+          <xs:documentation>
+            Deletes the value(s) at the specified path.
+            Uses JSONPath syntax to locate the element(s) to delete.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="replaceJsonValue">
+        <xs:annotation>
+          <xs:documentation>
+            Replaces an entire JSON object or array with new JSON content.
+            The Value attribute must contain valid JSON.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="createJsonPointerValue">
+        <xs:annotation>
+          <xs:documentation>
+            Creates a new value using JSONPointer syntax (useful for creating nested paths that don't exist).
+            ElementPath should use JSONPointer format (e.g., /path/to/element).
+          </xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="appendArray">
+        <xs:annotation>
+          <xs:documentation>
+            Appends a value to an array. ElementPath must point to an array.
+            The Value attribute specifies the element to append.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="insertArray">
+        <xs:annotation>
+          <xs:documentation>
+            Inserts a value at a specific index in an array. ElementPath must point to an array.
+            Use the Index attribute to specify the position. Index -1 appends to the end.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="removeArrayElement">
+        <xs:annotation>
+          <xs:documentation>
+            Removes element(s) from an array. If Value is provided, removes all matching elements.
+            If Value is omitted, removes elements matched by the ElementPath JSONPath expression.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="distinctValues">
+        <xs:annotation>
+          <xs:documentation>
+            Removes duplicate values from an array. ElementPath must point to an array.
+            Compares elements by their serialized JSON representation.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:element name="JsonFile">
+    <xs:annotation>
+      <xs:appinfo>
+        <xse:parent namespace="http://wixtoolset.org/schemas/v4/wxs" ref="Component" />
+      </xs:appinfo>
+      <xs:documentation>
+        Modifies a JSON file at install or uninstall time. This element can read, set, create, delete,
+        or manipulate JSON values using JSONPath or JSONPointer syntax. Multiple JsonFile elements can
+        be used within a component to perform complex JSON manipulations.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:any namespace="##other" processContents="lax">
+          <xs:annotation>
+            <xs:documentation>
+              Extensibility point in the WiX XML Schema. Schema extensions can register additional
+              elements at this point in the schema.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:any>
+      </xs:choice>
+      <xs:attribute name="Id" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            Unique identifier for this JSON file modification. This Id is used for tracking and scheduling.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="File" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            Path to the JSON file to modify. Can use file references like [#FileId] or formatted paths like [INSTALLFOLDER]config.json.
+            File references are recommended for files installed by the component.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="ElementPath" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            JSONPath or JSONPointer expression to locate the element(s) to modify.
+            
+            JSONPath examples:
+            - $.store.book - Access the 'book' property under 'store'
+            - $.store.book[0] - First book in the array
+            - $.store.book[?(@.isbn == '0-553-21311-3')] - Filter books by ISBN
+            - $..price - All 'price' properties at any depth
+            
+            JSONPointer examples (use with createJsonPointerValue action):
+            - /store/book - Access the 'book' property under 'store'
+            - /store/book/0 - First book in the array
+            
+            Note: Square brackets in JSONPath must be escaped as [\[] and [\]] because they are MSI formatting characters.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Action" type="ActionType" default="setValue">
+        <xs:annotation>
+          <xs:documentation>
+            The action to perform on the JSON file. Default is 'setValue'.
+            Choose from: readValue, setValue, deleteValue, replaceJsonValue, createJsonPointerValue,
+            appendArray, insertArray, removeArrayElement, distinctValues.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Value" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>
+            The value to set or use in the operation. Required for setValue, replaceJsonValue, createJsonPointerValue,
+            appendArray, and insertArray actions. Optional for removeArrayElement (if omitted, removes elements
+            matched by ElementPath). Can be a simple value, property reference like [PROPERTY_NAME], or JSON-formatted string.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="DefaultValue" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>
+            Default value to use if the path doesn't exist. Used with readValue action.
+            If the element is not found, this value is assigned to the Property.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Property" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>
+            Windows Installer property to store the read value. Required for readValue action.
+            Property names should be uppercase by convention (e.g., MY_PROPERTY).
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Sequence" type="wxs:Integer" default="1">
+        <xs:annotation>
+          <xs:documentation>
+            Order in which modifications are applied (default: 1). Lower numbers execute first.
+            Use this to ensure JSON changes happen in the correct order or before services start.
+            All JSON modifications run after InstallFiles and before StartServices in the standard InstallExecuteSequence.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Index" type="wxs:Integer">
+        <xs:annotation>
+          <xs:documentation>
+            For insertArray action: specifies the index at which to insert. Use -1 or omit to append to end.
+            Zero-based index. Negative values other than -1 are not supported.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="SchemaFile" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>
+            Path to a JSON schema file for validation. The JSON file will be validated against this schema
+            after modifications. If validation fails, the installation will fail.
+            Supports basic JSON Schema features (type checking, required properties).
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="OnlyIfExists" type="wxs:YesNoTypeUnion" default="no">
+        <xs:annotation>
+          <xs:documentation>
+            When set to 'yes', the action is only performed if the ElementPath already exists in the JSON file.
+            This is useful for conditional updates that should only modify existing values without creating new ones.
+            Applies to setValue, createJsonPointerValue, and replaceJsonValue actions. Default is 'no'.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:anyAttribute namespace="##other" processContents="lax">
+        <xs:annotation>
+          <xs:documentation>
+            Extensibility point in the WiX XML Schema. Schema extensions can register additional
+            attributes at this point in the schema.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:anyAttribute>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="JsonTransaction">
+    <xs:annotation>
+      <xs:appinfo>
+        <xse:parent namespace="http://wixtoolset.org/schemas/v4/wxs" ref="Component" />
+      </xs:appinfo>
+      <xs:documentation>
+        Groups multiple related JSON file modifications under a single logical element for cleaner authoring
+        and easier management. All nested JsonFile elements will be executed in sequence order.
+        This is a convenience element that helps organize complex JSON manipulations.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="JsonFile" minOccurs="1" maxOccurs="unbounded">
+          <xs:annotation>
+            <xs:documentation>
+              One or more JsonFile modifications to be performed as a logical group.
+              Each JsonFile element can have its own Sequence attribute to control order within the transaction.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:element>
+        <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+          <xs:annotation>
+            <xs:documentation>
+              Extensibility point in the WiX XML Schema.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:any>
+      </xs:sequence>
+      <xs:attribute name="Id" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            Unique identifier for this JSON transaction group.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="File" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>
+            Optional default file path for all nested JsonFile elements that don't specify their own File attribute.
+            Can use file references like [#FileId] or formatted paths like [INSTALLFOLDER]config.json.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="BaseSequence" type="wxs:Integer" default="1">
+        <xs:annotation>
+          <xs:documentation>
+            Base sequence number for this transaction. Nested JsonFile elements without explicit Sequence
+            will be assigned sequential numbers starting from BaseSequence.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:anyAttribute namespace="##other" processContents="lax">
+        <xs:annotation>
+          <xs:documentation>
+            Extensibility point in the WiX XML Schema.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:anyAttribute>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="AppSettings">
+    <xs:annotation>
+      <xs:appinfo>
+        <xse:parent namespace="http://wixtoolset.org/schemas/v4/wxs" ref="Component" />
+      </xs:appinfo>
+      <xs:documentation>
+        High-level element for configuring .NET application settings in appsettings.json files.
+        This composite element expands into lower-level JsonFile actions for common .NET configuration patterns.
+        Simplifies the authoring of typical .NET Core / .NET 6+ application configuration.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:any namespace="##other" processContents="lax">
+          <xs:annotation>
+            <xs:documentation>
+              Extensibility point in the WiX XML Schema.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:any>
+      </xs:choice>
+      <xs:attribute name="Id" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            Unique identifier for this application settings configuration.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="File" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            Path to the appsettings.json file. Can use file references like [#FileId] or formatted paths.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Key" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            The configuration key path in dot notation (e.g., "ApplicationSettings.Environment" maps to $.ApplicationSettings.Environment in the JSON).
+            This will be converted to the appropriate JSONPath expression.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Value" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            The value to set for the configuration key. Can be a simple value or property reference like [PROPERTY_NAME].
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Sequence" type="wxs:Integer" default="1">
+        <xs:annotation>
+          <xs:documentation>
+            Order in which this setting is applied (default: 1).
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="CreateIfMissing" type="wxs:YesNoTypeUnion" default="yes">
+        <xs:annotation>
+          <xs:documentation>
+            When set to 'yes' (default), creates the nested path if it doesn't exist.
+            When set to 'no', only updates if the path already exists (equivalent to OnlyIfExists="yes").
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:anyAttribute namespace="##other" processContents="lax">
+        <xs:annotation>
+          <xs:documentation>
+            Extensibility point in the WiX XML Schema.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:anyAttribute>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="ConnectionString">
+    <xs:annotation>
+      <xs:appinfo>
+        <xse:parent namespace="http://wixtoolset.org/schemas/v4/wxs" ref="Component" />
+      </xs:appinfo>
+      <xs:documentation>
+        High-level element for configuring database connection strings in .NET configuration files.
+        Automatically creates or updates the ConnectionStrings section in appsettings.json files
+        following .NET conventions.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:any namespace="##other" processContents="lax">
+          <xs:annotation>
+            <xs:documentation>
+              Extensibility point in the WiX XML Schema.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:any>
+      </xs:choice>
+      <xs:attribute name="Id" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            Unique identifier for this connection string configuration.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="File" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            Path to the appsettings.json file. Can use file references like [#FileId] or formatted paths.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Name" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            The name of the connection string (e.g., "DefaultConnection").
+            This will be set at $.ConnectionStrings.{Name} in the JSON file.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Value" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            The connection string value (e.g., "Server=localhost;Database=mydb;Integrated Security=true;").
+            Can be a property reference like [CONNECTION_STRING].
+            
+            SECURITY WARNING: Avoid storing passwords in plain text. Use Integrated Security or external secret management in production.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Sequence" type="wxs:Integer" default="1">
+        <xs:annotation>
+          <xs:documentation>
+            Order in which this connection string is applied (default: 1).
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:anyAttribute namespace="##other" processContents="lax">
+        <xs:annotation>
+          <xs:documentation>
+            Extensibility point in the WiX XML Schema.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:anyAttribute>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="LoggingLevel">
+    <xs:annotation>
+      <xs:appinfo>
+        <xse:parent namespace="http://wixtoolset.org/schemas/v4/wxs" ref="Component" />
+      </xs:appinfo>
+      <xs:documentation>
+        High-level element for configuring logging levels in .NET configuration files.
+        Automatically creates or updates the Logging.LogLevel section in appsettings.json files
+        following .NET logging conventions.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:any namespace="##other" processContents="lax">
+          <xs:annotation>
+            <xs:documentation>
+              Extensibility point in the WiX XML Schema.
+            </xs:documentation>
+          </xs:annotation>
+        </xs:any>
+      </xs:choice>
+      <xs:attribute name="Id" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            Unique identifier for this logging level configuration.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="File" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            Path to the appsettings.json file. Can use file references like [#FileId] or formatted paths.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Category" type="xs:string" default="Default">
+        <xs:annotation>
+          <xs:documentation>
+            The logging category (e.g., "Default", "Microsoft", "System", or a custom namespace).
+            This will be set at $.Logging.LogLevel.{Category} in the JSON file. Default is "Default".
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Level" type="xs:string" use="required">
+        <xs:annotation>
+          <xs:documentation>
+            The logging level value. Common values: Trace, Debug, Information, Warning, Error, Critical, None.
+            Can be a property reference like [LOG_LEVEL].
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Sequence" type="wxs:Integer" default="1">
+        <xs:annotation>
+          <xs:documentation>
+            Order in which this logging level is applied (default: 1).
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:anyAttribute namespace="##other" processContents="lax">
+        <xs:annotation>
+          <xs:documentation>
+            Extensibility point in the WiX XML Schema.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:anyAttribute>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

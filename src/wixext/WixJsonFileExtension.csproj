@@ -37,6 +37,7 @@
   <ItemGroup>
     <Content Include="$(MSBuildProjectName).targets" PackagePath="build" />
     <Content Include="$(TargetPath)" PackagePath="$(WixExtensionPackageFolder)" />
+    <Content Include="json.xsd" PackagePath="schemas" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="..\wixlib\bin\x64\$(Configuration)\Hegsie.Wix.JsonExtension.Data.json.wixlib">
