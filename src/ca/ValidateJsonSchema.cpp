@@ -3,6 +3,20 @@
 
 HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
 {
+    // Basic JSON Schema validation implementation
+    // 
+    // Supported features:
+    //   - Root type validation
+    //   - Required properties checking (for objects)
+    //   - Property type validation
+    //
+    // Known limitations:
+    //   - Integer types accept any numeric value (not validated for whole numbers)
+    //   - No support for: $ref, patterns, enums, min/max, format validation, 
+    //     conditional schemas, or nested validation beyond type checking
+    //
+    // For full JSON Schema Draft 7+ compliance, use a dedicated JSON Schema library.
+    
     try
     {
         // Input validation
@@ -85,6 +99,12 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
         // Check if schema has "type" property
         if (schemaData.contains("type"))
         {
+            if (!schemaData["type"].is_string())
+            {
+                WcaLog(LOGMSG_STANDARD, "Invalid schema: 'type' must be a string");
+                return E_FAIL;
+            }
+            
             std::string expectedType = schemaData["type"].as<std::string>();
             std::string actualType;
 

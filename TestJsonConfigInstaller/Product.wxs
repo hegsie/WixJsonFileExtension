@@ -67,7 +67,7 @@
                Index="0"
                Sequence="3"/>
 
-        <!-- Remove books by matching value -->
+        <!-- Remove books by matching value (using JSONPath filter with price > 20) -->
         <Json:JsonFile Id="removeExpensiveBooks"
                File="[#JsonConfig]"
                ElementPath="$.store.book[\[]?(@.price &gt; 20)[\]]"
