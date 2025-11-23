@@ -40,9 +40,33 @@ namespace Hegsie.Wix.JsonExtension
 						case "JsonFile":
 							ParseJsonFileElement(element, componentId, directoryId, section);
 							break;
+						case "JsonTransaction":
+							ParseJsonTransactionElement(element, componentId, directoryId, section);
+							break;
+						case "AppSettings":
+							ParseAppSettingsElement(element, componentId, directoryId, section);
+							break;
+						case "ConnectionString":
+							ParseConnectionStringElement(element, componentId, directoryId, section);
+							break;
+						case "LoggingLevel":
+							ParseLoggingLevelElement(element, componentId, directoryId, section);
+							break;
 						default:
 							ParseHelper.UnexpectedElement(parentElement, element);
 							break;
+					}
+					break;
+				case "JsonTransaction":
+					if (element.Name.LocalName == "JsonFile")
+					{
+						string componentId2 = context["ComponentId"];
+						string directoryId2 = context["DirectoryId"];
+						ParseJsonFileElement(element, componentId2, directoryId2, section);
+					}
+					else
+					{
+						ParseHelper.UnexpectedElement(parentElement, element);
 					}
 					break;
 				default:
@@ -581,6 +605,411 @@ namespace Hegsie.Wix.JsonExtension
 						node.Name.ToString(), attributeName, propertyRef));
 				}
 			}
+		}
+
+		/// <summary>
+		/// Validates that a string only contains valid property name characters (alphanumeric, underscore, dot).
+		/// </summary>
+		private bool IsValidPropertyName(string name)
+		{
+			if (string.IsNullOrEmpty(name))
+			{
+				return false;
+			}
+
+			// Check if the name contains only alphanumeric characters, dots, and underscores
+			foreach (char c in name)
+			{
+				if (!char.IsLetterOrDigit(c) && c != '.' && c != '_')
+				{
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		/// <summary>
+		/// Parses a JsonTransaction element that groups multiple JsonFile operations.
+		/// </summary>
+		private void ParseJsonTransactionElement(XElement node, string componentId, string parentDirectory,
+			IntermediateSection section)
+		{
+			var sourceLineNumbers = ParseHelper.GetSourceLineNumbers(node);
+			string id = null;
+			string defaultFile = null;
+			int? baseSequence = 1;
+
+			// Parse attributes
+			foreach (var attribute in node.Attributes())
+			{
+				if (string.IsNullOrEmpty(attribute.Name.NamespaceName) || Namespace == attribute.Name.Namespace)
+				{
+					switch (attribute.Name.LocalName)
+					{
+						case "Id":
+							id = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							break;
+						case "File":
+							defaultFile = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							break;
+						case "BaseSequence":
+							baseSequence = ToNullableInt(ParseHelper.GetAttributeValue(sourceLineNumbers, attribute));
+							break;
+						default:
+							ParseHelper.UnexpectedAttribute(node, attribute);
+							break;
+					}
+				}
+			}
+
+			// Validate required attributes
+			if (string.IsNullOrEmpty(id))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Id"));
+			}
+
+			if (Messaging.EncounteredError)
+			{
+				return;
+			}
+
+			// Parse child JsonFile elements
+			int sequenceOffset = 0;
+			int childCount = 0;
+			foreach (var child in node.Elements())
+			{
+				if (child.Name.Namespace == Namespace && child.Name.LocalName == "JsonFile")
+				{
+					childCount++;
+					
+					// If the child doesn't have File attribute and we have a default, inject it
+					if (!string.IsNullOrEmpty(defaultFile) && child.Attribute("File") == null)
+					{
+						child.SetAttributeValue("File", defaultFile);
+					}
+
+					// If the child doesn't have Sequence attribute, assign one based on baseSequence
+					if (child.Attribute("Sequence") == null && baseSequence.HasValue)
+					{
+						child.SetAttributeValue("Sequence", (baseSequence.Value + sequenceOffset).ToString());
+					}
+					
+					sequenceOffset++;
+
+					ParseJsonFileElement(child, componentId, parentDirectory, section);
+				}
+				else if (child.Name.Namespace == Namespace)
+				{
+					ParseHelper.UnexpectedElement(node, child);
+				}
+			}
+
+			// Validate that at least one child element exists
+			if (childCount == 0)
+			{
+				Messaging.Write(ErrorMessages.ExpectedElement(sourceLineNumbers, node.Name.ToString(), "JsonFile"));
+			}
+		}
+
+		/// <summary>
+		/// Parses an AppSettings composite element for .NET application settings.
+		/// </summary>
+		private void ParseAppSettingsElement(XElement node, string componentId, string parentDirectory,
+			IntermediateSection section)
+		{
+			var sourceLineNumbers = ParseHelper.GetSourceLineNumbers(node);
+			Identifier id = null;
+			string file = null;
+			string key = null;
+			string value = null;
+			int? sequence = 1;
+			bool createIfMissing = true;
+
+			// Parse attributes
+			foreach (var attribute in node.Attributes())
+			{
+				if (string.IsNullOrEmpty(attribute.Name.NamespaceName) || Namespace == attribute.Name.Namespace)
+				{
+					switch (attribute.Name.LocalName)
+					{
+						case "Id":
+							id = ParseHelper.GetAttributeIdentifier(sourceLineNumbers, attribute);
+							break;
+						case "File":
+							file = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							break;
+						case "Key":
+							key = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							break;
+						case "Value":
+							value = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							break;
+						case "Sequence":
+							sequence = ToNullableInt(ParseHelper.GetAttributeValue(sourceLineNumbers, attribute));
+							break;
+						case "CreateIfMissing":
+							string createValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							if (string.IsNullOrEmpty(createValue))
+							{
+								createIfMissing = true; // Default to true if not specified
+							}
+							else if (createValue.Equals("yes", System.StringComparison.OrdinalIgnoreCase))
+							{
+								createIfMissing = true;
+							}
+							else if (createValue.Equals("no", System.StringComparison.OrdinalIgnoreCase))
+							{
+								createIfMissing = false;
+							}
+							else
+							{
+								Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
+									"CreateIfMissing", createValue, "yes", "no"));
+								createIfMissing = false; // Default to false for invalid value
+							}
+							break;
+						default:
+							ParseHelper.UnexpectedAttribute(node, attribute);
+							break;
+					}
+				}
+			}
+
+			// Validate required attributes
+			if (null == id)
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Id"));
+			}
+			if (string.IsNullOrEmpty(file))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "File"));
+			}
+			if (string.IsNullOrEmpty(key))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Key"));
+			}
+			if (string.IsNullOrEmpty(value))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Value"));
+			}
+
+			if (Messaging.EncounteredError)
+			{
+				return;
+			}
+
+			// Validate key format - warn if it contains special JSONPath characters
+			if (!string.IsNullOrEmpty(key) && !IsValidPropertyName(key))
+			{
+				Messaging.Write(WarningMessages.InvalidPropertyNameCharacters(sourceLineNumbers, node.Name.ToString(), "Key", key));
+			}
+
+			// Convert dot notation to JSONPath
+			// e.g., "ApplicationSettings.Environment" -> "$.ApplicationSettings.Environment"
+			string elementPath = "$." + key;
+
+			// Create underlying JsonFile symbol
+			int flags = (int)JsonAction.SetValue; // Default to setValue
+			if (!createIfMissing)
+			{
+				flags |= (int)JsonFlags.OnlyIfExists;
+			}
+
+			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
+			{
+				File = file,
+				ElementPath = elementPath,
+				Value = value,
+				Flags = flags,
+				ComponentRef = componentId,
+				Sequence = sequence
+			});
+
+			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,
+				CustomActionPlatforms.X64);
+		}
+
+		/// <summary>
+		/// Parses a ConnectionString composite element for .NET connection strings.
+		/// </summary>
+		private void ParseConnectionStringElement(XElement node, string componentId, string parentDirectory,
+			IntermediateSection section)
+		{
+			var sourceLineNumbers = ParseHelper.GetSourceLineNumbers(node);
+			Identifier id = null;
+			string file = null;
+			string name = null;
+			string value = null;
+			int? sequence = 1;
+
+			// Parse attributes
+			foreach (var attribute in node.Attributes())
+			{
+				if (string.IsNullOrEmpty(attribute.Name.NamespaceName) || Namespace == attribute.Name.Namespace)
+				{
+					switch (attribute.Name.LocalName)
+					{
+						case "Id":
+							id = ParseHelper.GetAttributeIdentifier(sourceLineNumbers, attribute);
+							break;
+						case "File":
+							file = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							break;
+						case "Name":
+							name = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							break;
+						case "Value":
+							value = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							break;
+						case "Sequence":
+							sequence = ToNullableInt(ParseHelper.GetAttributeValue(sourceLineNumbers, attribute));
+							break;
+						default:
+							ParseHelper.UnexpectedAttribute(node, attribute);
+							break;
+					}
+				}
+			}
+
+			// Validate required attributes
+			if (null == id)
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Id"));
+			}
+			if (string.IsNullOrEmpty(file))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "File"));
+			}
+			if (string.IsNullOrEmpty(name))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Name"));
+			}
+			if (string.IsNullOrEmpty(value))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Value"));
+			}
+
+			if (Messaging.EncounteredError)
+			{
+				return;
+			}
+
+			// Create JSONPath for ConnectionStrings section
+			// Validate name format - warn if it contains special JSONPath characters
+			if (!string.IsNullOrEmpty(name) && !IsValidPropertyName(name))
+			{
+				Messaging.Write(WarningMessages.InvalidPropertyNameCharacters(sourceLineNumbers, node.Name.ToString(), "Name", name));
+			}
+
+			string elementPath = $"$.ConnectionStrings.{name}";
+
+			// Create underlying JsonFile symbol with setValue action
+			int flags = (int)JsonAction.SetValue;
+
+			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
+			{
+				File = file,
+				ElementPath = elementPath,
+				Value = value,
+				Flags = flags,
+				ComponentRef = componentId,
+				Sequence = sequence
+			});
+
+			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,
+				CustomActionPlatforms.X64);
+		}
+
+		/// <summary>
+		/// Parses a LoggingLevel composite element for .NET logging configuration.
+		/// </summary>
+		private void ParseLoggingLevelElement(XElement node, string componentId, string parentDirectory,
+			IntermediateSection section)
+		{
+			var sourceLineNumbers = ParseHelper.GetSourceLineNumbers(node);
+			Identifier id = null;
+			string file = null;
+			string category = "Default";
+			string level = null;
+			int? sequence = 1;
+
+			// Parse attributes
+			foreach (var attribute in node.Attributes())
+			{
+				if (string.IsNullOrEmpty(attribute.Name.NamespaceName) || Namespace == attribute.Name.Namespace)
+				{
+					switch (attribute.Name.LocalName)
+					{
+						case "Id":
+							id = ParseHelper.GetAttributeIdentifier(sourceLineNumbers, attribute);
+							break;
+						case "File":
+							file = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							break;
+						case "Category":
+							category = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							if (string.IsNullOrEmpty(category))
+							{
+								category = "Default";
+							}
+							break;
+						case "Level":
+							level = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							break;
+						case "Sequence":
+							sequence = ToNullableInt(ParseHelper.GetAttributeValue(sourceLineNumbers, attribute));
+							break;
+						default:
+							ParseHelper.UnexpectedAttribute(node, attribute);
+							break;
+					}
+				}
+			}
+
+			// Validate required attributes
+			if (null == id)
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Id"));
+			}
+			if (string.IsNullOrEmpty(file))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "File"));
+			}
+			if (string.IsNullOrEmpty(level))
+			{
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Level"));
+			}
+
+			if (Messaging.EncounteredError)
+			{
+				return;
+			}
+
+			// Create JSONPath for Logging.LogLevel section
+			// Validate category format - warn if it contains special JSONPath characters
+			if (!string.IsNullOrEmpty(category) && !IsValidPropertyName(category))
+			{
+				Messaging.Write(WarningMessages.InvalidPropertyNameCharacters(sourceLineNumbers, node.Name.ToString(), "Category", category));
+			}
+
+			string elementPath = $"$.Logging.LogLevel.{category}";
+
+			// Create underlying JsonFile symbol with setValue action
+			int flags = (int)JsonAction.SetValue;
+
+			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
+			{
+				File = file,
+				ElementPath = elementPath,
+				Value = level,
+				Flags = flags,
+				ComponentRef = componentId,
+				Sequence = sequence
+			});
+
+			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,
+				CustomActionPlatforms.X64);
 		}
 	}
 

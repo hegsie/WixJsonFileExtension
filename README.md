@@ -18,6 +18,10 @@ An extension to [Windows Installer XML (WiX) Toolset](http://wixtoolset.org/) to
 - [Documentation & Resources](#documentation--resources)
   - [Cookbook - Common Patterns](#cookbook---common-patterns)
   - [Example Fragments](#example-fragments)
+- [Improved Authoring Experience](#improved-authoring-experience)
+  - [XSD Schema with IntelliSense](#xsd-schema-with-intellisense)
+  - [Composite Elements for Common Patterns](#composite-elements-for-common-patterns)
+  - [Grouping with JsonTransaction](#grouping-with-jsontransaction)
 - [Detailed Usage](#detailed-usage)
   - [Available Actions](#available-actions)
   - [JsonFile Element Attributes](#jsonfile-element-attributes)
@@ -181,8 +185,223 @@ The **[examples/](examples/)** directory contains ready-to-use WiX fragment file
 - **[ApiEndpoints.wxs](examples/ApiEndpoints.wxs)** - API endpoint configuration
 - **[EnvironmentConfiguration.wxs](examples/EnvironmentConfiguration.wxs)** - Environment-based settings
 - **[AdvancedArrayOperations.wxs](examples/AdvancedArrayOperations.wxs)** ⭐ NEW - Advanced array operations and conditional updates
+- **[CompositeElements.wxs](examples/CompositeElements.wxs)** ⭐ NEW - High-level composite elements and JsonTransaction grouping
 
 See the [Examples README](examples/README.md) for usage instructions.
+
+## Improved Authoring Experience
+
+WixJsonFileExtension v6.0 includes significant improvements to the authoring experience, making it easier to write and maintain WiX installers that manipulate JSON files.
+
+### XSD Schema with IntelliSense
+
+The extension now includes a comprehensive XSD schema file (`json.xsd`) that provides rich IntelliSense support in Visual Studio, VS Code, and other XML editors.
+
+**Features:**
+- 📝 **Detailed attribute descriptions** - Hover over any attribute to see usage information
+- 🎯 **Strict typing for Action attribute** - Enum values with descriptions for each action type
+- ✅ **Validation at design time** - Catch errors before building
+- 🔍 **Auto-completion** - All elements and attributes available in IntelliSense
+- 📖 **Context-sensitive help** - Understand what each attribute does while authoring
+
+**Using the XSD Schema:**
+
+The schema is automatically available when you reference the extension namespace:
+
+```xml
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
+```
+
+**For VS Code users:** Configure the [XML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-xml) to get full IntelliSense support. The schema file is included in the NuGet package under the `schemas/` folder.
+
+### Composite Elements for Common Patterns
+
+Instead of writing verbose `JsonFile` elements for common .NET configuration patterns, you can now use high-level composite elements that expand into the appropriate low-level operations.
+
+#### Json:AppSettings
+
+Simplified syntax for .NET application settings:
+
+```xml
+<!-- Traditional approach -->
+<Json:JsonFile 
+  Id="SetEnvironment" 
+  File="[#AppSettings]" 
+  ElementPath="$.ApplicationSettings.Environment" 
+  Value="Production" 
+  Action="setValue" />
+
+<!-- New composite element approach -->
+<Json:AppSettings 
+  Id="SetEnvironment" 
+  File="[#AppSettings]" 
+  Key="ApplicationSettings.Environment" 
+  Value="Production" />
+```
+
+**Attributes:**
+- `Key` - Dot-notation path (automatically converted to JSONPath)
+- `Value` - The value to set
+- `CreateIfMissing` - (Optional) Create nested path if it doesn't exist (default: yes)
+
+#### Json:ConnectionString
+
+Simplified syntax for database connection strings:
+
+```xml
+<!-- Traditional approach -->
+<Json:JsonFile 
+  Id="SetConnection" 
+  File="[#AppSettings]" 
+  ElementPath="$.ConnectionStrings.DefaultConnection" 
+  Value="Server=myserver;Database=mydb;" 
+  Action="setValue" />
+
+<!-- New composite element approach -->
+<Json:ConnectionString 
+  Id="SetConnection" 
+  File="[#AppSettings]" 
+  Name="DefaultConnection" 
+  Value="Server=myserver;Database=mydb;" />
+```
+
+**Attributes:**
+- `Name` - The connection string name (e.g., "DefaultConnection")
+- `Value` - The connection string value
+
+**Security Note:** The composite element includes IntelliSense documentation warning about storing passwords in plain text and recommending Integrated Security or external secret management.
+
+#### Json:LoggingLevel
+
+Simplified syntax for .NET logging configuration:
+
+```xml
+<!-- Traditional approach -->
+<Json:JsonFile 
+  Id="SetLogLevel" 
+  File="[#AppSettings]" 
+  ElementPath="$.Logging.LogLevel.Default" 
+  Value="Information" 
+  Action="setValue" />
+
+<!-- New composite element approach -->
+<Json:LoggingLevel 
+  Id="SetLogLevel" 
+  File="[#AppSettings]" 
+  Category="Default" 
+  Level="Information" />
+```
+
+**Attributes:**
+- `Category` - Logging category (default: "Default", also supports "Microsoft", "System", or custom namespaces)
+- `Level` - Log level (Trace, Debug, Information, Warning, Error, Critical, None)
+
+**Benefits of Composite Elements:**
+- 🎯 **Cleaner syntax** - Less verbose than low-level JsonFile elements
+- 📚 **Self-documenting** - Element names clearly indicate purpose
+- ✅ **Type safety** - Specific attributes for each pattern
+- 🔒 **Best practices** - Follows .NET conventions automatically
+- 📖 **Better IntelliSense** - Contextual help for .NET-specific configurations
+
+### Grouping with JsonTransaction
+
+For complex JSON manipulations that involve multiple related edits, you can now use the `JsonTransaction` element to group operations together for cleaner authoring.
+
+**Example:**
+
+```xml
+<Component Id="DatabaseConfig" Guid="{YOUR-GUID}">
+  <File Id="AppSettings" Name="appsettings.json" Source="appsettings.json" />
+  
+  <!-- Group all database-related configuration together -->
+  <Json:JsonTransaction 
+    Id="DatabaseConfiguration" 
+    File="[#AppSettings]" 
+    BaseSequence="10">
+    
+    <!-- All nested JsonFile elements automatically use the same file -->
+    <!-- Sequences are automatically assigned: 10, 11, 12, 13 -->
+    <Json:JsonFile 
+      Id="SetConnection" 
+      ElementPath="$.ConnectionStrings.DefaultConnection" 
+      Value="Server=[DB_SERVER];Database=[DB_NAME];" 
+      Action="setValue" />
+    
+    <Json:JsonFile 
+      Id="SetTimeout" 
+      ElementPath="$.Database.CommandTimeout" 
+      Value="30" 
+      Action="setValue" />
+    
+    <Json:JsonFile 
+      Id="SetRetry" 
+      ElementPath="$.Database.MaxRetryCount" 
+      Value="3" 
+      Action="setValue" />
+    
+    <Json:JsonFile 
+      Id="SetPoolSize" 
+      ElementPath="$.Database.MaxPoolSize" 
+      Value="100" 
+      Action="setValue" />
+  </Json:JsonTransaction>
+</Component>
+```
+
+**Attributes:**
+- `Id` - Unique identifier for the transaction group
+- `File` - (Optional) Default file path for all nested JsonFile elements
+- `BaseSequence` - (Optional) Base sequence number for automatic sequencing (default: 1)
+
+**Benefits:**
+- 🗂️ **Logical grouping** - Related operations are visually grouped together
+- 🔢 **Automatic sequencing** - No need to manually assign sequence numbers
+- 📝 **Reduced repetition** - File path specified once for all operations
+- 📚 **Better maintainability** - Easier to understand and modify complex configurations
+- 🎯 **Clear intent** - Transaction name documents the purpose of the grouped operations
+
+**Complete Example:**
+
+```xml
+<Component Id="AppConfig" Guid="{YOUR-GUID}">
+  <File Id="ProdConfig" Name="appsettings.Production.json" Source="appsettings.json" />
+  
+  <!-- Use composite elements for simple settings -->
+  <Json:ConnectionString 
+    Id="MainDb" 
+    File="[#ProdConfig]" 
+    Name="MainDatabase" 
+    Value="Server=[DB_SERVER];Database=[DB_NAME];Integrated Security=true;" />
+  
+  <Json:LoggingLevel 
+    Id="DefaultLog" 
+    File="[#ProdConfig]" 
+    Level="Warning" />
+  
+  <!-- Use JsonTransaction for complex related settings -->
+  <Json:JsonTransaction 
+    Id="CacheConfiguration" 
+    File="[#ProdConfig]" 
+    BaseSequence="10">
+    
+    <Json:JsonFile 
+      Id="EnableCache" 
+      ElementPath="$.CacheSettings.EnableCaching" 
+      Value="true" 
+      Action="setValue" />
+    
+    <Json:JsonFile 
+      Id="CacheExpiry" 
+      ElementPath="$.CacheSettings.DefaultExpirationMinutes" 
+      Value="60" 
+      Action="setValue" />
+  </Json:JsonTransaction>
+</Component>
+```
+
+See **[CompositeElements.wxs](examples/CompositeElements.wxs)** for more comprehensive examples.
+
 
 ## Detailed Usage
 

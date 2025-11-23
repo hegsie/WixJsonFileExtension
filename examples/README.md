@@ -102,6 +102,38 @@ Advanced array manipulation and conditional updates.
 - Bulk operations with filters (`$.features[?(@.priority > 5)].enabled`)
 - Combining multiple operations in sequence
 
+### 7. CompositeElements.wxs ⭐ NEW
+High-level composite elements and JsonTransaction grouping for cleaner authoring.
+
+**Scenarios covered:**
+- Using `Json:AppSettings` for .NET application settings
+- Using `Json:ConnectionString` for database connections
+- Using `Json:LoggingLevel` for logging configuration
+- Grouping operations with `Json:JsonTransaction`
+- Combining composite elements with regular JsonFile elements
+- Real-world complete application setup examples
+
+**Usage:**
+```xml
+<ComponentGroupRef Id="CompositeElementsExamples" />
+```
+
+**Features demonstrated:**
+- Simplified syntax with composite elements
+- Automatic sequence assignment in transactions
+- Grouping related configuration changes together
+- Mixing high-level and low-level elements
+- Production-ready configuration patterns
+- Cleaner, more maintainable WiX authoring
+
+**Key Benefits:**
+- 📝 **Less verbose** - Composite elements reduce boilerplate
+- 🗂️ **Better organization** - JsonTransaction groups related operations
+- 🎯 **Self-documenting** - Element names clearly indicate purpose
+- ✅ **Type safety** - Specific attributes for common patterns
+- 📚 **Best practices** - Follows .NET conventions automatically
+
+
 ## How to Use These Examples
 
 ### Method 1: Direct Inclusion

@@ -1,0 +1,273 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- Example demonstrating composite elements and JsonTransaction for cleaner authoring -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" 
+     xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
+  
+  <Fragment>
+    <ComponentGroup Id="CompositeElementsExamples" Directory="INSTALLFOLDER">
+      
+      <!-- Example 1: Using AppSettings composite element -->
+      <!-- This is equivalent to creating a JsonFile with setValue action -->
+      <Component Id="AppSettingsExample" Guid="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}">
+        <File Id="ExampleConfig1" Name="appsettings.example1.json" Source="appsettings.dotnet.json" />
+        
+        <!-- Simple, high-level syntax for .NET application settings -->
+        <Json:AppSettings 
+          Id="SetEnvironment" 
+          File="[#ExampleConfig1]" 
+          Key="ApplicationSettings.Environment" 
+          Value="Production" 
+          Sequence="1" />
+        
+        <Json:AppSettings 
+          Id="SetApplicationName" 
+          File="[#ExampleConfig1]" 
+          Key="ApplicationSettings.Name" 
+          Value="[ProductName]" 
+          Sequence="2" />
+        
+        <Json:AppSettings 
+          Id="SetDataPath" 
+          File="[#ExampleConfig1]" 
+          Key="ApplicationSettings.DataPath" 
+          Value="[INSTALLFOLDER]Data" 
+          Sequence="3" />
+      </Component>
+      
+      <!-- Example 2: Using ConnectionString composite element -->
+      <Component Id="ConnectionStringExample" Guid="{B2C3D4E5-F6A7-8901-BCDE-F12345678901}">
+        <File Id="ExampleConfig2" Name="appsettings.example2.json" Source="appsettings.dotnet.json" />
+        
+        <!-- Simplified connection string configuration -->
+        <Json:ConnectionString 
+          Id="SetDefaultConnection" 
+          File="[#ExampleConfig2]" 
+          Name="DefaultConnection" 
+          Value="Server=[DB_SERVER];Database=[DB_NAME];Integrated Security=true;" 
+          Sequence="1" />
+        
+        <Json:ConnectionString 
+          Id="SetReportingConnection" 
+          File="[#ExampleConfig2]" 
+          Name="ReportingConnection" 
+          Value="Server=[REPORTING_SERVER];Database=Reports;Integrated Security=true;" 
+          Sequence="2" />
+      </Component>
+      
+      <!-- Example 3: Using LoggingLevel composite element -->
+      <Component Id="LoggingLevelExample" Guid="{C3D4E5F6-A7B8-9012-CDEF-123456789012}">
+        <File Id="ExampleConfig3" Name="appsettings.example3.json" Source="appsettings.dotnet.json" />
+        
+        <!-- Simplified logging level configuration -->
+        <Json:LoggingLevel 
+          Id="SetDefaultLogLevel" 
+          File="[#ExampleConfig3]" 
+          Category="Default" 
+          Level="[LOG_LEVEL]" 
+          Sequence="1" />
+        
+        <Json:LoggingLevel 
+          Id="SetMicrosoftLogLevel" 
+          File="[#ExampleConfig3]" 
+          Category="Microsoft" 
+          Level="Warning" 
+          Sequence="2" />
+        
+        <Json:LoggingLevel 
+          Id="SetSystemLogLevel" 
+          File="[#ExampleConfig3]" 
+          Category="System" 
+          Level="Warning" 
+          Sequence="3" />
+      </Component>
+      
+      <!-- Example 4: Using JsonTransaction for grouping related operations -->
+      <Component Id="JsonTransactionExample" Guid="{D4E5F6A7-B8C9-0123-DEF1-234567890123}">
+        <File Id="ExampleConfig4" Name="appsettings.example4.json" Source="appsettings.dotnet.json" />
+        
+        <!-- Group all database-related configuration changes together -->
+        <Json:JsonTransaction 
+          Id="DatabaseConfiguration" 
+          File="[#ExampleConfig4]" 
+          BaseSequence="10">
+          
+          <!-- All these operations will be performed on the same file -->
+          <!-- Sequences will be automatically assigned: 10, 11, 12, 13 -->
+          <Json:JsonFile 
+            Id="SetDbConnection" 
+            ElementPath="$.ConnectionStrings.DefaultConnection" 
+            Value="Server=[DB_SERVER];Database=[DB_NAME];Integrated Security=true;" 
+            Action="setValue" />
+          
+          <Json:JsonFile 
+            Id="SetDbTimeout" 
+            ElementPath="$.Database.CommandTimeout" 
+            Value="30" 
+            Action="setValue" />
+          
+          <Json:JsonFile 
+            Id="SetDbRetryCount" 
+            ElementPath="$.Database.MaxRetryCount" 
+            Value="3" 
+            Action="setValue" />
+          
+          <Json:JsonFile 
+            Id="SetDbPoolSize" 
+            ElementPath="$.Database.MaxPoolSize" 
+            Value="100" 
+            Action="setValue" />
+        </Json:JsonTransaction>
+        
+        <!-- Another transaction for logging configuration -->
+        <Json:JsonTransaction 
+          Id="LoggingConfiguration" 
+          File="[#ExampleConfig4]" 
+          BaseSequence="20">
+          
+          <Json:JsonFile 
+            Id="SetLogDefault" 
+            ElementPath="$.Logging.LogLevel.Default" 
+            Value="Information" 
+            Action="setValue" />
+          
+          <Json:JsonFile 
+            Id="SetLogMicrosoft" 
+            ElementPath="$.Logging.LogLevel.Microsoft" 
+            Value="Warning" 
+            Action="setValue" />
+        </Json:JsonTransaction>
+      </Component>
+      
+      <!-- Example 5: Combining composite elements with transactions -->
+      <Component Id="CombinedExample" Guid="{E5F6A7B8-C9D0-1234-EF12-345678901234}">
+        <File Id="ExampleConfig5" Name="appsettings.example5.json" Source="appsettings.dotnet.json" />
+        
+        <!-- Group regular JsonFile elements within a transaction -->
+        <Json:JsonTransaction 
+          Id="CompleteAppConfiguration" 
+          File="[#ExampleConfig5]" 
+          BaseSequence="1">
+          
+          <!-- Regular JsonFile elements with automatic sequencing -->
+          <Json:JsonFile 
+            Id="SetAppName2" 
+            ElementPath="$.ApplicationSettings.Name" 
+            Value="[ProductName]" 
+            Action="setValue" />
+          
+          <Json:JsonFile 
+            Id="SetAppVersion" 
+            ElementPath="$.ApplicationSettings.Version" 
+            Value="[ProductVersion]" 
+            Action="setValue" />
+          
+          <Json:JsonFile 
+            Id="SetInstallPath" 
+            ElementPath="$.ApplicationSettings.InstallPath" 
+            Value="[INSTALLFOLDER]" 
+            Action="setValue" />
+        </Json:JsonTransaction>
+        
+        <!-- Use composite elements outside of transactions -->
+        <Json:ConnectionString 
+          Id="SetAppConnection" 
+          File="[#ExampleConfig5]" 
+          Name="ApplicationConnection" 
+          Value="Server=localhost;Database=MyApp;Integrated Security=true;" 
+          Sequence="10" />
+        
+        <!-- Separate logging configuration -->
+        <Json:LoggingLevel 
+          Id="SetAppLogLevel" 
+          File="[#ExampleConfig5]" 
+          Level="Information" 
+          Sequence="11" />
+      </Component>
+      
+      <!-- Example 6: Real-world scenario - Complete application setup -->
+      <Component Id="CompleteAppSetup" Guid="{F6A7B8C9-D0E1-2345-F123-456789012345}">
+        <File Id="ProductionConfig" Name="appsettings.Production.json" Source="appsettings.dotnet.json" />
+        
+        <!-- Use composite elements for clean, maintainable configuration -->
+        
+        <!-- Database connections -->
+        <Json:ConnectionString 
+          Id="ProdMainDb" 
+          File="[#ProductionConfig]" 
+          Name="MainDatabase" 
+          Value="Server=[PROD_DB_SERVER];Database=[PROD_DB_NAME];Integrated Security=true;MultipleActiveResultSets=true;" 
+          Sequence="1" />
+        
+        <Json:ConnectionString 
+          Id="ProdReportDb" 
+          File="[#ProductionConfig]" 
+          Name="ReportingDatabase" 
+          Value="Server=[REPORTING_SERVER];Database=Reports;Integrated Security=true;" 
+          Sequence="2" />
+        
+        <!-- Application settings -->
+        <Json:AppSettings 
+          Id="ProdEnvironment" 
+          File="[#ProductionConfig]" 
+          Key="Environment" 
+          Value="Production" 
+          Sequence="3" />
+        
+        <Json:AppSettings 
+          Id="ProdServiceUrl" 
+          File="[#ProductionConfig]" 
+          Key="ApiSettings.ServiceUrl" 
+          Value="https://api.production.company.com" 
+          Sequence="4" />
+        
+        <Json:AppSettings 
+          Id="ProdApiKey" 
+          File="[#ProductionConfig]" 
+          Key="ApiSettings.ApiKey" 
+          Value="[API_KEY]" 
+          Sequence="5" />
+        
+        <!-- Logging configuration -->
+        <Json:LoggingLevel 
+          Id="ProdDefaultLog" 
+          File="[#ProductionConfig]" 
+          Category="Default" 
+          Level="Warning" 
+          Sequence="6" />
+        
+        <Json:LoggingLevel 
+          Id="ProdAppLog" 
+          File="[#ProductionConfig]" 
+          Category="MyCompany.MyApp" 
+          Level="Information" 
+          Sequence="7" />
+        
+        <!-- Additional configuration with JsonTransaction -->
+        <Json:JsonTransaction 
+          Id="ProdAdvancedSettings" 
+          File="[#ProductionConfig]" 
+          BaseSequence="10">
+          
+          <Json:JsonFile 
+            Id="ProdCaching" 
+            ElementPath="$.CacheSettings.EnableCaching" 
+            Value="true" 
+            Action="setValue" />
+          
+          <Json:JsonFile 
+            Id="ProdCacheExpiration" 
+            ElementPath="$.CacheSettings.DefaultExpirationMinutes" 
+            Value="60" 
+            Action="setValue" />
+          
+          <Json:JsonFile 
+            Id="ProdSessionTimeout" 
+            ElementPath="$.SessionSettings.TimeoutMinutes" 
+            Value="30" 
+            Action="setValue" />
+        </Json:JsonTransaction>
+      </Component>
+      
+    </ComponentGroup>
+  </Fragment>
+</Wix>
