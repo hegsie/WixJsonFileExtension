@@ -41,20 +41,6 @@
         <Json:JsonFile Id="log_file" File="[#JsonConfig]" ElementPath="$.Serilog.WriteTo[\[]0[\]].Args.configure[\[]0[\]].Args.path" Value="[LOG_DIRECTORY]PowerCommunications\\OutgoingCommunicationDispatcher\\CommunicationService.Outgoing-.log" Sequence="5" />
 
         <!-- Create new configuration section -->
-        <!-- Replace entire JSON object -->
-        <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" />
-
-        <!-- Delete value with wildcard -->
-        <Json:JsonFile Id="appSettingsDeletePrices" File="[#JsonConfig]" ElementPath="$..book[\[]*[\]].OldPrice" Action="deleteValue" />
-
-        <!-- Set value with filter -->
-        <Json:JsonFile Id="appSettingsUpdatePrice" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].price" Value="1.67" Action="setValue" />
-        <Json:JsonFile Id="appSettingsUpdateCategory" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].category" Value="[MY_VALUE]" Action="setValue" />
-
-        <!-- Update deeply nested path -->
-        <Json:JsonFile Id="log_file" File="[#JsonConfig]" ElementPath="$.Serilog.WriteTo[\[]0[\]].Args.configure[\[]0[\]].Args.path" Value="[LOG_DIRECTORY]PowerCommunications\\OutgoingCommunicationDispatcher\\CommunicationService.Outgoing-.log"/>
-
-        <!-- Create new path using JSON Pointer -->
         <Json:JsonFile Id="non_existing_setting"
                File="[#JsonConfig]"
                ElementPath="/NonExisting"
