@@ -797,6 +797,7 @@ Modern .NET applications commonly store connection strings in the `ConnectionStr
     ElementPath="$.ConnectionStrings.DefaultConnection" 
     Value="Server=[DB_SERVER];Database=[DB_NAME];User Id=[DB_USER];Password=[DB_PASSWORD];" 
     Action="setValue" />
+    <!-- SECURITY WARNING: Avoid storing passwords in plain text. Use Integrated Security or external secret management -->
 </Component>
 ```
 

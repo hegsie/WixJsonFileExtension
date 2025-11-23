@@ -1,6 +1,8 @@
 ﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" 
      xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
-  <Package Name="DotNetConfigTest" Language="1033" Version="1.0.0.0" Manufacturer="Testing" UpgradeCode="de23c83e-41e6-413d-9bde-1510e10bb2a3" ProductCode="{C9A3F6AF-7F4F-473F-BFFC-6143EB1AA0D5}">
+  <!-- NOTE: This is an example file demonstrating .NET configuration patterns -->
+  <!-- ProductCode="*" allows WiX to auto-generate a new GUID for each build, enabling proper minor upgrades -->
+  <Package Name="DotNetConfigTest" Language="1033" Version="1.0.0.0" Manufacturer="Testing" UpgradeCode="de23c83e-41e6-413d-9bde-1510e10bb2a3" ProductCode="*">
 
     <Media Id="1" Cabinet="cab1.cab" EmbedCab="yes" />
 
@@ -32,6 +34,8 @@
         <File Id="DotNetConfig" Name="appsettings.json" Source="appsettings.dotnet.json" />
 
         <!-- Connection String Configuration -->
+        <!-- SECURITY WARNING: Always use Integrated Security or external secret management in production -->
+        <!-- Never store passwords in plain text in configuration files -->
         <Json:JsonFile 
           Id="SetDefaultConnection" 
           File="[#DotNetConfig]" 
