@@ -685,7 +685,7 @@ namespace Hegsie.Wix.JsonExtension
 			IntermediateSection section)
 		{
 			var sourceLineNumbers = ParseHelper.GetSourceLineNumbers(node);
-			string id = null;
+			Identifier id = null;
 			string file = null;
 			string key = null;
 			string value = null;
@@ -700,7 +700,7 @@ namespace Hegsie.Wix.JsonExtension
 					switch (attribute.Name.LocalName)
 					{
 						case "Id":
-							id = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							id = ParseHelper.GetAttributeIdentifier(sourceLineNumbers, attribute);
 							break;
 						case "File":
 							file = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
@@ -726,7 +726,7 @@ namespace Hegsie.Wix.JsonExtension
 			}
 
 			// Validate required attributes
-			if (string.IsNullOrEmpty(id))
+			if (null == id)
 			{
 				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Id"));
 			}
@@ -759,7 +759,7 @@ namespace Hegsie.Wix.JsonExtension
 				flags |= (int)JsonFlags.OnlyIfExists;
 			}
 
-			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, ParseHelper.GetIdentifier(sourceLineNumbers, id))
+			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
 				File = file,
 				ElementPath = elementPath,
@@ -780,7 +780,7 @@ namespace Hegsie.Wix.JsonExtension
 			IntermediateSection section)
 		{
 			var sourceLineNumbers = ParseHelper.GetSourceLineNumbers(node);
-			string id = null;
+			Identifier id = null;
 			string file = null;
 			string name = null;
 			string value = null;
@@ -794,7 +794,7 @@ namespace Hegsie.Wix.JsonExtension
 					switch (attribute.Name.LocalName)
 					{
 						case "Id":
-							id = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							id = ParseHelper.GetAttributeIdentifier(sourceLineNumbers, attribute);
 							break;
 						case "File":
 							file = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
@@ -816,7 +816,7 @@ namespace Hegsie.Wix.JsonExtension
 			}
 
 			// Validate required attributes
-			if (string.IsNullOrEmpty(id))
+			if (null == id)
 			{
 				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Id"));
 			}
@@ -844,7 +844,7 @@ namespace Hegsie.Wix.JsonExtension
 			// Create underlying JsonFile symbol with setValue action
 			int flags = (int)JsonAction.SetValue;
 
-			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, ParseHelper.GetIdentifier(sourceLineNumbers, id))
+			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
 				File = file,
 				ElementPath = elementPath,
@@ -865,7 +865,7 @@ namespace Hegsie.Wix.JsonExtension
 			IntermediateSection section)
 		{
 			var sourceLineNumbers = ParseHelper.GetSourceLineNumbers(node);
-			string id = null;
+			Identifier id = null;
 			string file = null;
 			string category = "Default";
 			string level = null;
@@ -879,7 +879,7 @@ namespace Hegsie.Wix.JsonExtension
 					switch (attribute.Name.LocalName)
 					{
 						case "Id":
-							id = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+							id = ParseHelper.GetAttributeIdentifier(sourceLineNumbers, attribute);
 							break;
 						case "File":
 							file = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
@@ -905,7 +905,7 @@ namespace Hegsie.Wix.JsonExtension
 			}
 
 			// Validate required attributes
-			if (string.IsNullOrEmpty(id))
+			if (null == id)
 			{
 				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Id"));
 			}
@@ -929,7 +929,7 @@ namespace Hegsie.Wix.JsonExtension
 			// Create underlying JsonFile symbol with setValue action
 			int flags = (int)JsonAction.SetValue;
 
-			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, ParseHelper.GetIdentifier(sourceLineNumbers, id))
+			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
 				File = file,
 				ElementPath = elementPath,
