@@ -1,5 +1,5 @@
-<!-- NOTE: This file is intentionally invalid JSON for testing error handling -->
 {
+  "_comment": "NOTE: This file is intentionally invalid JSON for testing error handling",
   "InvalidJson": "This JSON is missing a closing brace",
   "Data": {
     "Value": "test"
