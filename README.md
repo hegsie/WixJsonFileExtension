@@ -1,6 +1,8 @@
 # WixJsonFileExtension
 
 [![NuGet](https://img.shields.io/nuget/v/WixJsonFileExtension.svg)](https://www.nuget.org/packages/WixJsonFileExtension/)
+[![MSBuild](https://github.com/hegsie/WixJsonFileExtension/actions/workflows/msbuild.yml/badge.svg)](https://github.com/hegsie/WixJsonFileExtension/actions/workflows/msbuild.yml)
+[![Regression Tests](https://github.com/hegsie/WixJsonFileExtension/actions/workflows/regression-tests.yml/badge.svg)](https://github.com/hegsie/WixJsonFileExtension/actions/workflows/regression-tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An extension to [Windows Installer XML (WiX) Toolset](http://wixtoolset.org/) to create or modify JSON-formatted files during an installation.
@@ -729,6 +731,21 @@ Before submitting a pull request:
 1. Build the solution successfully
 2. Test with the example installer in `TestJsonConfigInstaller/`
 3. Ensure your changes don't break existing functionality
+4. Run the regression tests to verify common use cases
+
+### Continuous Integration
+
+This project uses GitHub Actions for continuous integration and testing:
+
+- **MSBuild Workflow** (`.github/workflows/msbuild.yml`): Runs on every push and pull request to build the solution and create the NuGet package
+- **Regression Tests Workflow** (`.github/workflows/regression-tests.yml`): Validates typical use cases including:
+  - Modifying existing JSON files
+  - Creating new JSON files
+  - Handling invalid JSON gracefully
+  - Common .NET configuration patterns (ConnectionStrings, Logging, etc.)
+  - JSONPath query patterns
+
+You can view the status of these workflows in the repository's Actions tab.
 
 ## Acknowledgements
 
