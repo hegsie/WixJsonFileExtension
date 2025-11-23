@@ -68,10 +68,12 @@ namespace Hegsie.Wix.JsonExtension
 			string value = null;
 			string defaultValue = null;
 			string property = null;
+			string schemaFile = null;
 			int on = CompilerConstants.IntegerNotSet;
 			int flags = 0;
 			int action = CompilerConstants.IntegerNotSet;
 			int? sequence = 1;
+			int? index = null;
 
 			if (node.Attributes().Any())
 			{
@@ -124,6 +126,18 @@ namespace Hegsie.Wix.JsonExtension
 							case "Sequence":
 								// Specifies the order in which the modification is to be attempted on the JSON file.  It is important to ensure that new elements are created before you attempt to modify them.
 								sequence = ToNullableInt(ParseHelper.GetAttributeValue(sourceLineNumbers, attribute));
+								break;
+							case "Index":
+								// For array operations, specifies the index at which to insert or remove an element. For insertArray, -1 means append to the end.
+								index = ToNullableInt(ParseHelper.GetAttributeValue(sourceLineNumbers, attribute));
+								break;
+							case "SchemaFile":
+								// Optional path to a JSON schema file for validation. The JSON file will be validated against this schema after modifications.
+								schemaFile = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+								if (!string.IsNullOrEmpty(schemaFile))
+								{
+									flags |= (int)JsonFlags.ValidateSchema;
+								}
 								break;
 							default:
 								ParseHelper.UnexpectedAttribute(node, attribute);
@@ -182,7 +196,9 @@ namespace Hegsie.Wix.JsonExtension
 				Flags = flags,
 				ComponentRef = componentId,
 				Sequence = sequence,
-				Property = property
+				Property = property,
+				Index = index,
+				SchemaFile = schemaFile
 			});
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section,
@@ -263,6 +279,9 @@ namespace Hegsie.Wix.JsonExtension
 			const string ActionCreateValue = "createJsonPointerValue";
 			const string ActionReplaceJsonValue = "replaceJsonValue";
 			const string ActionReadValue = "readValue";
+			const string ActionAppendArray = "appendArray";
+			const string ActionInsertArray = "insertArray";
+			const string ActionRemoveArrayElement = "removeArrayElement";
 
 			int action;
 			string actionValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
@@ -294,9 +313,22 @@ namespace Hegsie.Wix.JsonExtension
 						flags |= (int)JsonFlags.ReadValue;
 						action = (int)JsonAction.ReadValue;
 						break;
+					case ActionAppendArray:
+						flags |= (int)JsonFlags.AppendArray;
+						action = (int)JsonAction.AppendArray;
+						break;
+					case ActionInsertArray:
+						flags |= (int)JsonFlags.InsertArray;
+						action = (int)JsonAction.InsertArray;
+						break;
+					case ActionRemoveArrayElement:
+						flags |= (int)JsonFlags.RemoveArrayElement;
+						action = (int)JsonAction.RemoveArrayElement;
+						break;
 					default:
 						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
-							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue, ActionCreateValue, ActionReadValue));
+							"Action", actionValue, ActionDeleteValue, ActionSetValue, ActionReplaceJsonValue, 
+							ActionCreateValue, ActionReadValue, ActionAppendArray, ActionInsertArray, ActionRemoveArrayElement));
 						action = CompilerConstants.IllegalInteger;
 						break;
 				}

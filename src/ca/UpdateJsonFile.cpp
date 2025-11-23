@@ -5,7 +5,9 @@ HRESULT UpdateJsonFile(
     __in_z LPCWSTR wzFile,
     __in_z LPCWSTR wzElementPath,
     __in_z LPCWSTR wzValue,
-    __in int iFlags
+    __in int iFlags,
+    __in int iIndex,
+    __in_z LPCWSTR wzSchemaFile
 )
 {
     HRESULT hr = S_OK;
@@ -56,6 +58,29 @@ HRESULT UpdateJsonFile(
     else if (flags.test(FLAG_REPLACEJSONVALUE)) {
         WcaLog(LOGMSG_VERBOSE, "Replacing JSON object");
         hr = SetJsonPathObject(wzFile, elementPath, wzValue);
+    }
+    else if (flags.test(FLAG_APPENDARRAY)) {
+        WcaLog(LOGMSG_VERBOSE, "Appending to JSON array");
+        hr = AppendJsonArray(wzFile, elementPath, wzValue);
+    }
+    else if (flags.test(FLAG_INSERTARRAY)) {
+        WcaLog(LOGMSG_VERBOSE, "Inserting into JSON array at index %d", iIndex);
+        hr = InsertJsonArray(wzFile, elementPath, wzValue, iIndex);
+    }
+    else if (flags.test(FLAG_REMOVEARRAYELEMENT)) {
+        WcaLog(LOGMSG_VERBOSE, "Removing element from JSON array");
+        hr = RemoveJsonArrayElement(wzFile, elementPath, wzValue);
+    }
+
+    // Validate against schema if specified and if the operation succeeded
+    if (SUCCEEDED(hr) && flags.test(FLAG_VALIDATESCHEMA) && wzSchemaFile != NULL && L'\0' != *wzSchemaFile)
+    {
+        WcaLog(LOGMSG_VERBOSE, "Validating JSON against schema: %ls", wzSchemaFile);
+        hr = ValidateJsonSchema(wzFile, wzSchemaFile);
+        if (FAILED(hr))
+        {
+            WcaLog(LOGMSG_STANDARD, "Schema validation failed");
+        }
     }
 
     return hr;
