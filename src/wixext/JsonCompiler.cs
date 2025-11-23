@@ -370,16 +370,13 @@ namespace Hegsie.Wix.JsonExtension
 					Messaging.Write(WarningMessages.PropertyNameShouldBeUppercase(sourceLineNumbers, node.Name.ToString(), property));
 				}
 			}
-			else if (action == (int)JsonAction.SetValue || action == (int)JsonAction.ReplaceJsonValue || 
-			         action == (int)JsonAction.CreateJsonPointerValue)
+			else if ((action == (int)JsonAction.SetValue || action == (int)JsonAction.ReplaceJsonValue || 
+			         action == (int)JsonAction.CreateJsonPointerValue) && string.IsNullOrEmpty(value))
 			{
 				// These actions require Value attribute
-				if (string.IsNullOrEmpty(value))
-				{
-					string actionName = action == (int)JsonAction.SetValue ? "setValue" :
-					                   action == (int)JsonAction.ReplaceJsonValue ? "replaceJsonValue" : "createJsonPointerValue";
-					Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Value", "Action", actionName));
-				}
+				string actionName = action == (int)JsonAction.SetValue ? "setValue" :
+				                   action == (int)JsonAction.ReplaceJsonValue ? "replaceJsonValue" : "createJsonPointerValue";
+				Messaging.Write(ErrorMessages.ExpectedAttribute(sourceLineNumbers, node.Name.ToString(), "Value", "Action", actionName));
 			}
 
 			// Validate File attribute is present
