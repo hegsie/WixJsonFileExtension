@@ -750,6 +750,15 @@ Select multiple elements at once:
   Action="setValue" />
 ```
 
+**Behavior with Multiple Matches:**
+- **setValue**: All matched elements are updated with the same value
+- **deleteValue**: All matched elements are deleted
+- **replaceJsonValue**: All matched elements are replaced with the new JSON value
+- **readValue**: Returns the first matched element's value
+- **Array operations**: Apply to all matched arrays
+
+This allows for powerful bulk operations. For example, `$..price` will update every `price` property at any depth in the JSON structure.
+
 #### Array Filters
 
 Use filters to select specific array elements:
@@ -771,6 +780,13 @@ Use filters to select specific array elements:
   Value="11.99" 
   Action="setValue" />
 ```
+
+**Filter Examples:**
+- `$.store.book[?(@.price < 10)]` - Select all books cheaper than 10
+- `$.store.book[?(@.isbn)]` - Select all books that have an ISBN property
+- `$.store.book[?(@.category == 'fiction')]` - Select all fiction books
+
+When a filter matches multiple elements, the action is applied to all matching elements.
 
 #### Wildcards
 
