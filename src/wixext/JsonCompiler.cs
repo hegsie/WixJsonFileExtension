@@ -424,9 +424,36 @@ namespace Hegsie.Wix.JsonExtension
 		private bool ContainsUnescapedBrackets(string path)
 		{
 			// Look for patterns like [0] or [*] that are not escaped as [\[]0[\]]
-			// This is a simplified check - it looks for [ not followed by \[] or ]
-			var unescapedPattern = new Regex(@"\[(?!\\\[|\])");
-			return unescapedPattern.IsMatch(path);
+			// This is a simplified check - it looks for [ not followed by escaped bracket sequences
+			// Check if there are any [ characters that aren't part of MSI escape sequences
+			for (int i = 0; i < path.Length; i++)
+			{
+				if (path[i] == '[')
+				{
+					// Check if this is part of an escape sequence like [\[] or [\]]
+					if (i + 3 < path.Length)
+					{
+						string sequence = path.Substring(i, 4);
+						if (sequence == "[\\[]" || sequence == "[\\]]")
+						{
+							i += 3; // Skip the escape sequence
+							continue;
+						}
+					}
+					// Check if this is a property reference like [PROPERTY] or [#FileId]
+					int closeIndex = path.IndexOf(']', i + 1);
+					if (closeIndex > i)
+					{
+						string content = path.Substring(i + 1, closeIndex - i - 1);
+						// If it contains path-like characters, it might be unescaped JSONPath brackets
+						if (content.Contains("?") || content.Contains("@") || Regex.IsMatch(content, @"^\d+$"))
+						{
+							return true; // Likely unescaped JSONPath bracket
+						}
+					}
+				}
+			}
+			return false;
 		}
 
 		/// <summary>
@@ -437,11 +464,12 @@ namespace Hegsie.Wix.JsonExtension
 			// Check for common syntax errors
 			// This is not a complete JSONPath parser, just catches common mistakes
 
-			// Check for double dots without following path segment
-			if (jsonPath.Contains("..") && !Regex.IsMatch(jsonPath, @"\.\.[a-zA-Z_]"))
+			// Check for double dots without following valid path segment  
+			// Recursive descent can be followed by property name, bracket, or wildcard
+			if (jsonPath.Contains("..") && !Regex.IsMatch(jsonPath, @"\.\.[a-zA-Z_\[\*]"))
 			{
 				Messaging.Write(WarningMessages.InvalidJsonPathSyntax(sourceLineNumbers, node.Name.ToString(), 
-					jsonPath, "Recursive descent (..) should be followed by a property name"));
+					jsonPath, "Recursive descent (..) should be followed by a property name, bracket, or wildcard"));
 			}
 
 			// Check for invalid characters after $
@@ -505,14 +533,6 @@ namespace Hegsie.Wix.JsonExtension
 				{
 					Messaging.Write(WarningMessages.PropertyReferenceShouldBeUppercase(sourceLineNumbers, 
 						node.Name.ToString(), attributeName, propertyRef));
-				}
-
-				// Warn about reserved directory properties that might need $ prefix
-				var commonDirProperties = new[] { "ProgramFilesFolder", "CommonAppDataFolder", "LocalAppDataFolder", 
-					"TempFolder", "SystemFolder", "WindowsFolder", "DesktopFolder" };
-				if (commonDirProperties.Contains(propertyRef) && !attributeValue.Contains("[$" + propertyRef + "]"))
-				{
-					// This is just informational - these can be used without $
 				}
 			}
 		}

@@ -25,7 +25,7 @@ namespace Hegsie.Wix.JsonExtension
 		public static Message UnescapedBracketsInElementPath(SourceLineNumber sourceLineNumbers, string elementName, string elementPath)
 		{
 			return Message(sourceLineNumbers, Ids.UnescapedBracketsInElementPath,
-				"The ElementPath attribute in {0} element may contain unescaped square brackets. Square brackets must be escaped as [\\[] and [\\]] for MSI property formatting. Path: {1}",
+				@"The ElementPath attribute in {0} element may contain unescaped square brackets. Square brackets must be escaped as [\[] and [\]] for MSI property formatting. Path: {1}",
 				elementName, elementPath);
 		}
 
