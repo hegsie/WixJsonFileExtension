@@ -23,24 +23,64 @@
       <Component Id="ProductComponent" Guid="{51CDDB12-E903-436C-9371-2E4E93D3B109}">
         <File Id="JsonConfig" Name="appsettings.json" Source="appsettings.json" />
 
+        <!-- Read value examples -->
         <Json:JsonFile Id="appSettingsReadValue" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].category" DefaultValue="Empty" Action="readValue" Property="MY_PROPERTY" />
 
         <Json:JsonFile Id="appSettingsReadMissingValue" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-5')[\]].category" DefaultValue="MissingEmpty" Action="readValue" Property="MY_MISSING_PROPERTY" />
         
+        <!-- Replace entire JSON object -->
         <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" />
 
+        <!-- Delete value with wildcard -->
         <Json:JsonFile Id="appSettingsDeletePrices" File="[#JsonConfig]" ElementPath="$..book[\[]*[\]].OldPrice" Action="deleteValue" />
 
+        <!-- Set value with filter -->
         <Json:JsonFile Id="appSettingsUpdatePrice" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].price" Value="1.67" Action="setValue" />
         <Json:JsonFile Id="appSettingsUpdateCategory" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].category" Value="[MY_VALUE]" Action="setValue" />
 
+        <!-- Update deeply nested path -->
         <Json:JsonFile Id="log_file" File="[#JsonConfig]" ElementPath="$.Serilog.WriteTo[\[]0[\]].Args.configure[\[]0[\]].Args.path" Value="[LOG_DIRECTORY]PowerCommunications\\OutgoingCommunicationDispatcher\\CommunicationService.Outgoing-.log"/>
 
+        <!-- Create new path using JSON Pointer -->
         <Json:JsonFile Id="non_existing_setting"
                File="[#JsonConfig]"
                ElementPath="/NonExisting"
                Value="Value Not Set" 
                Action="createJsonPointerValue"/>
+
+        <!-- Array operation examples -->
+        
+        <!-- Append a new book to the array -->
+        <Json:JsonFile Id="appendNewBook"
+               File="[#JsonConfig]"
+               ElementPath="$.store.book"
+               Value='{"category":"science","author":"Carl Sagan","title":"Cosmos","price":14.99}'
+               Action="appendArray"
+               Sequence="2"/>
+
+        <!-- Insert a book at the beginning -->
+        <Json:JsonFile Id="insertBookAtStart"
+               File="[#JsonConfig]"
+               ElementPath="$.store.book"
+               Value='{"category":"biography","author":"Walter Isaacson","title":"Steve Jobs","price":18.99}'
+               Action="insertArray"
+               Index="0"
+               Sequence="3"/>
+
+        <!-- Remove books by matching value -->
+        <Json:JsonFile Id="removeExpensiveBooks"
+               File="[#JsonConfig]"
+               ElementPath="$.store.book[\[]?(@.price &gt; 20)[\]]"
+               Action="removeArrayElement"
+               Sequence="4"/>
+
+        <!-- Update all prices (multi-select) -->
+        <Json:JsonFile Id="updateAllPrices"
+               File="[#JsonConfig]"
+               ElementPath="$..price"
+               Value="9.99"
+               Action="setValue"
+               Sequence="5"/>
         
       </Component>
     </ComponentGroup>
