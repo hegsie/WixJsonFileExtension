@@ -2,6 +2,8 @@
   <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="6.0.1" />
   
   <ItemGroup>
+    <!-- Explicitly include Product.wxs to ensure it's compiled -->
+    <Compile Include="Product.wxs" />
     <Content Include="appsettings.json" />
     <Content Include="install.cmd">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
