@@ -30,7 +30,6 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
 
             SetLastError(0);
             std::ifstream is(cFile);
-            WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Opened file '%ls'", wzFile);
 
             if (!is.is_open())
             {
@@ -38,6 +37,8 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                 hr = ReturnLastError("Opening the file stream");
                 if (FAILED(hr)) return hr;
             }
+
+            WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Opened file '%ls'", wzFile);
 
             json j = json::parse(is);
             is.close();
