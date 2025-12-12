@@ -24,6 +24,7 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath)
 
         if (fs::exists(fs::path(wzFile))) {
             json j;
+            SetLastError(0);
             std::ifstream is(cFile);
 
             if (!is.is_open())
@@ -56,6 +57,7 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath)
                        locations.size(), sElementPath.c_str(), wzFile);
             }
 
+            SetLastError(0);
             std::ofstream os(wzFile,
                 std::ios_base::out | std::ios_base::trunc);
 

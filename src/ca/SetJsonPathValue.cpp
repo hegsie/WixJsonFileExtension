@@ -28,8 +28,8 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
         WcaLog(LOGMSG_STANDARD, "WixJsonFile: Checking if file '%ls' exists", wzFile);
         if (fs::exists(fs::path(wzFile))) {
 
+            SetLastError(0);
             std::ifstream is(cFile);
-            WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Opened file '%ls'", wzFile);
 
             if (!is.is_open())
             {
@@ -37,6 +37,8 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                 hr = ReturnLastError("Opening the file stream");
                 if (FAILED(hr)) return hr;
             }
+
+            WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Opened file '%ls'", wzFile);
 
             json j = json::parse(is);
             is.close();
@@ -52,6 +54,7 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                     return E_FAIL;
                 }
                 else {
+                    SetLastError(0);
                     std::ofstream os(wzFile,
                         std::ios_base::out | std::ios_base::trunc);
 
@@ -80,6 +83,7 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                             value = cValue;
                         };
 
+                    SetLastError(0);
                     jsonpath::json_replace(j, sElementPath, f);
 
                     hr = ReturnLastError("Replacing elements in the json");
@@ -88,6 +92,7 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                     WcaLog(LOGMSG_STANDARD, "WixJsonFile: Successfully updated path '%s' in file '%ls' with value '%s'", 
                            sElementPath.c_str(), wzFile, cValue);
 
+                    SetLastError(0);
                     std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
 
                     if (!os.is_open())
