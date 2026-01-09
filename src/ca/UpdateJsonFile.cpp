@@ -32,7 +32,71 @@ HRESULT UpdateJsonFile(
     // Check if file exists before attempting to parse
     if (!fs::exists(fs::path(wzFile)))
     {
-        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - File not found: '%ls'. Verify the file exists and the path is correct.", wzFile);
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - File not found: '%ls'", wzFile);
+
+        // Try to provide additional diagnostic information
+        fs::path filePath(wzFile);
+        fs::path parentDir = filePath.parent_path();
+        if (!parentDir.empty())
+        {
+            if (fs::exists(parentDir))
+            {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Parent directory exists: '%ls'", parentDir.wstring().c_str());
+                // List files in the directory to help diagnose
+                try
+                {
+                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Files in directory:");
+                    int fileCount = 0;
+                    for (const auto& entry : fs::directory_iterator(parentDir))
+                    {
+                        if (fileCount < 10) // Limit to first 10 files
+                        {
+                            WcaLog(LOGMSG_STANDARD, "WixJsonFile:   - %ls", entry.path().filename().wstring().c_str());
+                        }
+                        fileCount++;
+                    }
+                    if (fileCount > 10)
+                    {
+                        WcaLog(LOGMSG_STANDARD, "WixJsonFile:   ... and %d more files", fileCount - 10);
+                    }
+                    else if (fileCount == 0)
+                    {
+                        WcaLog(LOGMSG_STANDARD, "WixJsonFile:   (directory is empty)");
+                    }
+                }
+                catch (...)
+                {
+                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Could not list directory contents");
+                }
+            }
+            else
+            {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Parent directory does NOT exist: '%ls'", parentDir.wstring().c_str());
+                // Check if grandparent exists
+                fs::path grandparentDir = parentDir.parent_path();
+                if (!grandparentDir.empty() && fs::exists(grandparentDir))
+                {
+                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Grandparent directory exists: '%ls'", grandparentDir.wstring().c_str());
+                    // List subdirectories to help identify the issue
+                    try
+                    {
+                        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Subdirectories in grandparent:");
+                        for (const auto& entry : fs::directory_iterator(grandparentDir))
+                        {
+                            if (entry.is_directory())
+                            {
+                                WcaLog(LOGMSG_STANDARD, "WixJsonFile:   - %ls", entry.path().filename().wstring().c_str());
+                            }
+                        }
+                    }
+                    catch (...)
+                    {
+                        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Could not list grandparent directory contents");
+                    }
+                }
+            }
+        }
+
         return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
     }
 

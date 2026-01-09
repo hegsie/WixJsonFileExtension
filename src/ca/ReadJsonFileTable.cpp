@@ -77,9 +77,22 @@ HRESULT ReadJsonFileTable(
         er = ::MsiGetComponentStateW(WcaGetInstallHandle(), pwzData, &(*ppxfcTail)->isInstalled, &(*ppxfcTail)->isAction);
         ExitOnFailure(hr = HRESULT_FROM_WIN32(er), "failed to get install state for Component: %ls", pwzData)
 
-        // Get the json file
+        // Get the json file (first get raw value for debugging)
+        hr = WcaGetRecordString(hRec, jfqFile, &pwzData);
+        ExitOnFailure(hr, "failed to get raw file path for WixJsonFile: %ls", (*ppxfcTail)->wzId)
+        WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Raw file path: %ls", pwzData);
+
+        // Now get the formatted (resolved) value
         hr = WcaGetRecordFormattedString(hRec, jfqFile, &pwzData);
-        ExitOnFailure(hr, "failed to get xml file for WixJsonFile: %ls", (*ppxfcTail)->wzId)
+        ExitOnFailure(hr, "failed to get formatted file path for WixJsonFile: %ls", (*ppxfcTail)->wzId)
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Resolved file path: %ls", pwzData);
+
+        // Check for unresolved property references (indicates formatting failure)
+        if (pwzData && wcsstr(pwzData, L"[") != NULL)
+        {
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: WARNING - Path may contain unresolved properties: %ls", pwzData);
+        }
+
         hr = StringCchCopyW((*ppxfcTail)->wzFile, std::size((*ppxfcTail)->wzFile), pwzData);
         ExitOnFailure(hr, "failed to copy xml file path")
 

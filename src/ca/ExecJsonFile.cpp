@@ -38,7 +38,22 @@ extern "C" UINT WINAPI ExecJsonFile(
         hr = WcaReadStringFromCaData(&pwz, &sczFile);
         ExitOnFailure(hr, "WixJsonFile: Failed to read file name from custom action data")
 
-        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Configuring JSON file: %ls", sczFile);
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Configuring JSON file: %ls (flags=%d)", sczFile, iFlags);
+
+        // Check if file exists before attempting operations
+        if (sczFile && *sczFile)
+        {
+            DWORD dwAttrib = ::GetFileAttributesW(sczFile);
+            if (dwAttrib == INVALID_FILE_ATTRIBUTES)
+            {
+                DWORD dwError = ::GetLastError();
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: WARNING - File does not exist or is inaccessible: %ls (error=%d)", sczFile, dwError);
+            }
+            else
+            {
+                WcaLog(LOGMSG_VERBOSE, "WixJsonFile: File exists: %ls (attrib=0x%08X)", sczFile, dwAttrib);
+            }
+        }
 
         // Get path, name, and value to be written
         hr = WcaReadStringFromCaData(&pwz, &sczElementPath);

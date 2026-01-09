@@ -21,6 +21,10 @@
   <Fragment>
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
       <!-- Existing test component with scheduling examples -->
+      <Component Id="UpdateJsonToProd" Guid="{71FAF0FD-FEA3-4D2D-85AC-6183EB216F94}" Condition="PROD_OR_TEST=1">
+        <Json:JsonFile Id="UPJSON1" File="[INSTALLFOLDER]dbupgrader.appsettings.json" ElementPath="$.UpgradeMode" Value="Scheduler" Action="replaceJsonValue"/>
+      </Component>
+      
       <Component Id="ProductComponent" Guid="{51CDDB12-E903-436C-9371-2E4E93D3B109}">
         <File Id="JsonConfig" Name="appsettings.json" Source="appsettings.json" />
 

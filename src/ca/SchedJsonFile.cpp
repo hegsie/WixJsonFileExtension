@@ -145,7 +145,7 @@ extern "C" UINT __stdcall SchedJsonFile(
             }
 
             hr = WcaWriteStringToCaData(pxfc->wzFile, &pwzCustomActionData);
-            WcaLog(LOGMSG_VERBOSE, "Processing file: %ls", pxfc->wzFile);
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Scheduling operation for file: %ls", pxfc->wzFile);
             ExitOnFailure(hr, "failed to write file to custom action data: %ls", pxfc->wzFile)
 
             hr = WcaWriteStringToCaData(pxfc->pwzElementPath, &pwzCustomActionData);
