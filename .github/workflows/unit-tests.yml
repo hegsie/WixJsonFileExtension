@@ -1,0 +1,58 @@
+name: Unit Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  SOLUTION_FILE_PATH: .
+  BUILD_CONFIGURATION: Release
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore NuGet packages
+      run: nuget restore ${{ env.SOLUTION_FILE_PATH }}
+
+    # Build the full solution first: this produces the wixlib that the wixext embeds (required for the
+    # C# test project to build) and restores the WiX native packages the C++ test project imports.
+    - name: Build Solution
+      run: msbuild /m /p:Configuration=${{ env.BUILD_CONFIGURATION }} ${{ env.SOLUTION_FILE_PATH }}
+
+    # SolutionDir is passed so the wixext PostBuild xcopy target resolves when the test project builds
+    # the wixext outside of the .sln.
+    - name: Run C# unit tests
+      run: >
+        dotnet test test/WixJsonFileExtension.Tests/WixJsonFileExtension.Tests.csproj
+        --configuration ${{ env.BUILD_CONFIGURATION }}
+        -p:SolutionDir=${{ github.workspace }}\
+
+    - name: Build C++ unit tests
+      run: msbuild /p:Configuration=${{ env.BUILD_CONFIGURATION }} /p:Platform=x64 test\jsonca.tests\jsonca.tests.vcxproj
+
+    - name: Run C++ unit tests
+      shell: pwsh
+      run: |
+        $exe = Get-ChildItem -Path "test\jsonca.tests" -Filter "jsonca.tests.exe" -Recurse | Select-Object -First 1
+        if (-not $exe) { Write-Error "jsonca.tests.exe not found"; exit 1 }
+        Write-Host "Running $($exe.FullName)"
+        & $exe.FullName
+        if ($LASTEXITCODE -ne 0) { Write-Error "C++ unit tests failed with exit code $LASTEXITCODE"; exit 1 }

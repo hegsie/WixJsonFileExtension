@@ -428,7 +428,7 @@ namespace Hegsie.Wix.JsonExtension
 		/// <summary>
 		/// Checks if the path contains unescaped square brackets (MSI formatting issue).
 		/// </summary>
-		private bool ContainsUnescapedBrackets(string path)
+		internal bool ContainsUnescapedBrackets(string path)
 		{
 			// Look for patterns like [0] or [*] that are not escaped as [\[]0[\]]
 			// This is a simplified heuristic check that looks for likely JSONPath bracket expressions
@@ -539,7 +539,7 @@ namespace Hegsie.Wix.JsonExtension
 		/// <summary>
 		/// Validates that a string only contains valid property name characters (alphanumeric, underscore, dot).
 		/// </summary>
-		private bool IsValidPropertyName(string name)
+		internal bool IsValidPropertyName(string name)
 		{
 			if (string.IsNullOrEmpty(name))
 			{
