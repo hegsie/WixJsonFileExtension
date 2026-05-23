@@ -1,0 +1,6 @@
+{
+  "_comment": "Valid JSON, but intentionally violates appsettings-schema.json (missing the required 'store' property) so schema validation fails.",
+  "notStore": {
+    "value": 1
+  }
+}

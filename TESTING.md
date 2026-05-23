@@ -343,13 +343,38 @@ Test with various application configurations:
 
 ## Automated Testing with CI
 
-The project includes automated regression tests in `.github/workflows/regression-tests.yml` that:
+The project includes automated regression tests in `.github/workflows/regression-tests.yml`.
+Rather than re-implementing JSON semantics in PowerShell, these tests **install the real test
+MSI** and assert the extension's behaviour by inspecting the JSON files it writes (and the install
+log). Every JsonFile action/flag is exercised with both happy and sad paths:
 
-1. Build the solution
-2. Build the test installer
-3. Validate JSON syntax
-4. Test common .NET patterns
-5. Test JSONPath patterns
+| Flag / action | Happy path | Sad / variation path |
+| --- | --- | --- |
+| `readValue` | reads an existing value into a property | missing element falls back to `DefaultValue` |
+| `setValue` | JSONPath filter, deeply nested path, recursive-descent multi-select | combined with `OnlyIfExists` |
+| `replaceJsonValue` | replaces an entire array from an installer property | — |
+| `createJsonPointerValue` | creates a new top-level path; builds a whole file from `{}` | — |
+| `deleteValue` | wildcard delete across an array | — |
+| `appendArray` | appends an element | — |
+| `insertArray` | inserts at index 0 | — |
+| `removeArrayElement` | removes elements via a JSONPath filter | — |
+| `distinctValues` | de-duplicates string arrays | — |
+| `validateSchema` (`SchemaFile`) | passes for a valid file | schema violation aborts the install |
+| `OnlyIfExists` | updates an existing element | skips a missing element |
+| non-ASCII values | UTF-8 (Cyrillic) value is preserved | — |
+| invalid JSON | — | malformed JSON aborts the install |
+
+Sad paths that must abort the installation are driven by gated components in
+`TestJsonConfigInstaller/Product.wxs`, enabled per-run via installer properties
+(`TEST_INVALID_JSON=1`, `TEST_SCHEMA_FAILURE=1`) so they never affect a normal install.
+
+The high-level steps are:
+
+1. Build the solution and the test installer
+2. Install the MSI (happy path) and assert every flag type against the installed JSON
+3. Verify `readValue` and `validateSchema` outcomes from the install log
+4. Run the invalid-JSON and schema-failure installs and confirm they fail and roll back
+5. Sanity-check the repository's JSON fixtures
 
 These tests run automatically on:
 - Every push to main

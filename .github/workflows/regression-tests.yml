@@ -91,411 +91,250 @@ jobs:
           TestJsonConfigInstaller\bin\**\${{env.BUILD_CONFIGURATION}}\**\*.msi
         if-no-files-found: error
 
-    - name: Test JSON Validation
+    # ---------------------------------------------------------------------------
+    # End-to-end flag-type regression coverage.
+    #
+    # These steps install the real test MSI and assert the *extension's* behaviour
+    # by inspecting the JSON files it writes (and the install log). Every JsonFile
+    # action/flag is exercised, with both happy and sad paths:
+    #
+    #   readValue              - happy + missing element -> DefaultValue
+    #   setValue               - filtered, nested, multi-select, + OnlyIfExists
+    #   replaceJsonValue       - replace whole array from a property
+    #   createJsonPointerValue - create new paths / build a file from {}
+    #   deleteValue            - wildcard delete
+    #   appendArray            - append element
+    #   insertArray            - insert at index 0
+    #   removeArrayElement     - JSONPath filter delete
+    #   distinctValues         - de-duplicate arrays
+    #   validateSchema         - happy (passes) + sad (install fails)
+    #   OnlyIfExists           - update existing + skip missing
+    #   invalid JSON           - sad path (install fails)
+    # ---------------------------------------------------------------------------
+
+    - name: Prepare readValue source file
       shell: pwsh
       run: |
-        Write-Host "Testing JSON file validation..."
-
-        # Test 1: Valid JSON file
-        $validJson = @"
+        # readValue (WixPropertyJsonFile) runs after CostFinalize, i.e. BEFORE InstallFiles, so it
+        # cannot read a file installed in the same transaction. The test installer therefore reads
+        # this pre-existing file from a fixed location.
+        $dir = "C:\JsonRegression"
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        $source = @"
         {
-          "ConnectionStrings": {
-            "DefaultConnection": "Server=localhost;Database=Test;"
-          },
-          "Logging": {
-            "LogLevel": {
-              "Default": "Information"
-            }
+          "config": {
+            "environment": "Staging"
           }
         }
         "@
+        $source | Out-File -FilePath (Join-Path $dir "read-source.json") -Encoding UTF8
+        Write-Host "✓ Created C:\JsonRegression\read-source.json"
 
-        $testFile = "test-valid.json"
-        $validJson | Out-File -FilePath $testFile -Encoding UTF8
-
-        try {
-          $null = Get-Content $testFile | ConvertFrom-Json
-          Write-Host "✓ Valid JSON test passed"
-        } catch {
-          Write-Error "✗ Valid JSON test failed: $_"
-          exit 1
-        }
-
-        # Test 2: Invalid JSON file
-        $invalidJson = '{ "key": "value" '
-        $invalidFile = "test-invalid.json"
-        $invalidJson | Out-File -FilePath $invalidFile -Encoding UTF8
-
-        try {
-          $null = Get-Content $invalidFile | ConvertFrom-Json
-          Write-Error "✗ Invalid JSON test failed: Should have thrown an error"
-          exit 1
-        } catch {
-          Write-Host "✓ Invalid JSON test passed: Error caught as expected"
-        }
-
-        # Test 3: Verify test JSON files exist
-        $testJsonFiles = @(
-          "TestJsonConfigInstaller\appsettings.json",
-          "TestJsonConfigInstaller\appsettings.dotnet.json"
-        )
-
-        foreach ($file in $testJsonFiles) {
-          if (Test-Path $file) {
-            Write-Host "✓ Found: $file"
-            try {
-              $null = Get-Content $file | ConvertFrom-Json
-              Write-Host "  - Valid JSON structure"
-            } catch {
-              Write-Error "  - Invalid JSON structure: $_"
-              exit 1
-            }
-          } else {
-            Write-Error "✗ Missing: $file"
-            exit 1
-          }
-        }
-
-    - name: Test Non-ASCII JSON Values
+    - name: Install test MSI (happy path)
       shell: pwsh
       run: |
-        Write-Host "Testing non-ASCII JSON value handling through MSI installation..."
+        $msi = (Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse | Select-Object -First 1).FullName
+        if (-not $msi) { Write-Host "✗ Test installer MSI not found"; exit 1 }
+        Write-Host "Installing: $msi"
+
+        $log = Join-Path $env:RUNNER_TEMP "happy-install.log"
+
+        # MY_VALUE uses Cyrillic text to also regression-test non-ASCII (UTF-8) value handling.
+        # Passing it as its own Start-Process argument keeps it Unicode-safe.
+        $expectedCategory = "КатегорияПривет"
+        $argline = "/i `"$msi`" /qn /norestart /l*v `"$log`" MY_VALUE=$expectedCategory LOG_DIRECTORY=C:\temp\"
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList $argline -Wait -PassThru
+        Write-Host "msiexec exit code: $($p.ExitCode)"
+
+        if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
+          Write-Host "✗ Happy-path install failed"
+          if (Test-Path $log) { Write-Host "----- msiexec log -----"; Get-Content -Path $log }
+          exit 1
+        }
+        Write-Host "✓ Happy-path install succeeded"
+
+    - name: Verify all flag types in installed JSON (happy paths)
+      shell: pwsh
+      run: |
+        $failed = $false
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg" } else { Write-Host "  [FAIL] $msg"; $script:failed = $true }
+        }
 
         $expectedCategory = "КатегорияПривет"
+        $installDir = Join-Path $env:ProgramFiles "TestJsonConfigInstaller"
 
-        # Find the built test MSI
-        $msiFiles = Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse
-        if ($msiFiles.Count -eq 0) {
-          Write-Error "✗ Test installer MSI not found"
+        $appPath = Join-Path $installDir "appsettings.json"
+        $cfgPath = Join-Path $installDir "config.json"
+        $setPath = Join-Path $installDir "settings.json"
+
+        foreach ($f in @($appPath, $cfgPath, $setPath)) {
+          if (-not (Test-Path $f)) { Write-Host "✗ Expected installed file missing: $f"; exit 1 }
+        }
+
+        $j = Get-Content -Path $appPath -Raw -Encoding UTF8 | ConvertFrom-Json
+
+        Write-Host "replaceJsonValue / setValue (filter) / non-ASCII:"
+        $books = @($j.store.book)
+        $moby = $books | Where-Object { $_.isbn -eq '0-553-21311-3' } | Select-Object -First 1
+        Check ($null -ne $moby) "book with isbn 0-553-21311-3 exists after replaceJsonValue"
+        Check ($moby.author -eq 'HermanMelville') "replaceJsonValue replaced array contents from MY_BOOKS"
+        Check ($moby.category -eq $expectedCategory) "setValue (JSONPath filter) wrote non-ASCII value to category"
+
+        Write-Host "appendArray / insertArray / removeArrayElement:"
+        Check ($books.Count -eq 3) "net array size is 3 (append + insert at 0 - remove price>20)"
+        Check ($books[0].title -eq 'Steve Jobs') "insertArray placed 'Steve Jobs' at index 0"
+        Check ((@($books | Where-Object { $_.title -eq 'Cosmos' })).Count -eq 1) "appendArray added 'Cosmos'"
+        Check ((@($books | Where-Object { $_.author -eq 'NigelRees' })).Count -eq 0) "removeArrayElement removed books priced > 20"
+
+        Write-Host "setValue (multi-select recursive descent):"
+        $prices = @($books.price) + @($j.store.bicycle.price)
+        $offPrice = @($prices | Where-Object { [math]::Abs([double]$_ - 9.99) -gt 0.001 })
+        Check ($offPrice.Count -eq 0) "`$..price multi-select set every price to 9.99"
+
+        Write-Host "deleteValue (wildcard):"
+        $withOldPrice = @($books | Where-Object { $_.PSObject.Properties.Name -contains 'OldPrice' })
+        Check ($withOldPrice.Count -eq 0) "deleteValue removed OldPrice from all books"
+
+        Write-Host "createJsonPointerValue:"
+        Check ($j.NonExisting -eq 'Value Not Set') "createJsonPointerValue created top-level /NonExisting"
+
+        Write-Host "setValue (deeply nested) using LOG_DIRECTORY property:"
+        $logPath = $j.Serilog.WriteTo[0].Args.configure[0].Args.path
+        Check ($logPath -like 'C:\temp\*') "nested setValue substituted [LOG_DIRECTORY]"
+        Check ($logPath -like '*PowerCommunications*') "nested setValue preserved path suffix"
+
+        Write-Host "OnlyIfExists:"
+        Check ($j.expensive -eq 15) "OnlyIfExists=yes updated existing 'expensive' to 15"
+        Check (-not ($j.PSObject.Properties.Name -contains 'nonExistentPath')) "OnlyIfExists=yes skipped missing 'nonExistentPath'"
+
+        Write-Host "distinctValues:"
+        $tags = @($j.tags)
+        Check ($tags.Count -eq 4) "distinctValues de-duplicated tags (6 -> 4)"
+        Check ((@($tags | Select-Object -Unique)).Count -eq $tags.Count) "tags contain no duplicates"
+        $feat = @($j.features.enabled)
+        Check ($feat.Count -eq 3) "distinctValues de-duplicated features.enabled (4 -> 3)"
+
+        Write-Host "setValue on a template file:"
+        $cfg = Get-Content -Path $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        Check ($cfg.Application.Name -eq 'MyInstalledApp') "setValue updated Application.Name in template config"
+
+        Write-Host "createJsonPointerValue building a file from '{}':"
+        $set = Get-Content -Path $setPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        Check ($set.Application.Name -eq 'MyApplication') "built Application.Name from empty file"
+        Check ($set.Application.Version -eq '2.0.0') "built Application.Version from empty file"
+        Check ($set.Logging.Level -eq 'Debug') "built Logging.Level from empty file"
+
+        if ($script:failed) { Write-Host "`nOne or more flag-type assertions FAILED"; exit 1 }
+        Write-Host "`n✓ All installed-JSON flag-type assertions passed"
+
+    - name: Verify readValue and validateSchema (from install log)
+      shell: pwsh
+      run: |
+        $failed = $false
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg" } else { Write-Host "  [FAIL] $msg"; $script:failed = $true }
+        }
+
+        $log = Join-Path $env:RUNNER_TEMP "happy-install.log"
+        if (-not (Test-Path $log)) { Write-Host "✗ Install log not found: $log"; exit 1 }
+        $content = Get-Content -Path $log -Raw
+
+        Write-Host "readValue:"
+        Check ($content -match "REG_READ_PRESENT.*Staging") "readValue read existing value ('Staging') into a property"
+        Check ($content -match "REG_READ_MISSING.*READ_DEFAULT") "readValue applied DefaultValue for a missing element"
+
+        Write-Host "validateSchema (happy):"
+        Check ($content -match "JSON schema validation successful") "SchemaFile validation passed for the valid file"
+
+        if ($script:failed) { Write-Host "`nreadValue/validateSchema log assertions FAILED"; exit 1 }
+        Write-Host "`n✓ readValue and validateSchema (happy) assertions passed"
+
+    - name: Uninstall happy-path product
+      shell: pwsh
+      run: |
+        $log = Join-Path $env:RUNNER_TEMP "uninstall.log"
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x {C9A3F6AF-7F4F-473F-BFFC-6143EB1AA0D4} /qn /norestart /l*v `"$log`"" -Wait -PassThru
+        Write-Host "Uninstall exit code: $($p.ExitCode)"
+
+    - name: Sad path - invalid JSON aborts install
+      shell: pwsh
+      run: |
+        $msi = (Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse | Select-Object -First 1).FullName
+        $log = Join-Path $env:RUNNER_TEMP "invalid-json.log"
+
+        # TEST_INVALID_JSON=1 enables a component that operates on malformed JSON; the custom action
+        # must fail, which aborts and rolls back the installation.
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msi`" /qn /norestart /l*v `"$log`" TEST_INVALID_JSON=1" -Wait -PassThru
+        Write-Host "msiexec exit code: $($p.ExitCode)"
+
+        if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) {
+          Write-Host "✗ Install unexpectedly SUCCEEDED with invalid JSON (expected failure)"
+          # Best-effort cleanup so later steps start clean.
+          Start-Process -FilePath "msiexec.exe" -ArgumentList "/x {C9A3F6AF-7F4F-473F-BFFC-6143EB1AA0D4} /qn /norestart" -Wait | Out-Null
           exit 1
         }
-        $msiPath = $msiFiles[0].FullName
-        Write-Host "Using MSI: $msiPath"
+        Write-Host "✓ Invalid JSON correctly aborted the install (exit $($p.ExitCode))"
 
-        # Install the MSI with a Cyrillic installer property that is written by the JsonFile custom
-        # action. Only MY_VALUE is passed here (Unicode-safe via Start-Process); the remaining
-        # properties such as MY_BOOKS and LOG_DIRECTORY have defaults defined in Product.wxs.
-        $logPath = Join-Path $env:RUNNER_TEMP "nonascii-install.log"
-        $install = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msiPath`" /qn /norestart /l*v `"$logPath`" MY_VALUE=$expectedCategory" -Wait -PassThru
-        if ($install.ExitCode -ne 0) {
-          # Use Write-Host (not Write-Error) so the log dump still runs: GitHub Actions sets
-          # $ErrorActionPreference='Stop', which would otherwise terminate the step immediately.
-          Write-Host "✗ MSI installation failed with exit code $($install.ExitCode)"
-          if (Test-Path $logPath) {
-            Write-Host "----- msiexec log -----"
-            Get-Content -Path $logPath
+        if (Test-Path $log) {
+          $content = Get-Content -Path $log -Raw
+          if ($content -match "invalid.json") {
+            Write-Host "✓ Install log references the invalid JSON file"
           } else {
-            Write-Host "(no msiexec log was produced at $logPath)"
+            Write-Host "  (note: invalid.json not referenced in log; relying on non-zero exit code)"
           }
-          exit 1
         }
 
-        # Verify the installed JSON file remains valid and contains the expected Cyrillic value
-        $installedJsonPath = Join-Path $env:ProgramFiles "TestJsonConfigInstaller\appsettings.json"
-        if (-not (Test-Path $installedJsonPath)) {
-          Write-Error "✗ Installed JSON file not found at $installedJsonPath"
-          exit 1
-        }
-
-        try {
-          $installedJson = Get-Content -Path $installedJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        } catch {
-          Write-Error "✗ Installed JSON file is not valid UTF-8 JSON: $_"
-          exit 1
-        }
-
-        $updatedBook = $installedJson.store.book | Where-Object { $_.isbn -eq "0-553-21311-3" } | Select-Object -First 1
-        if ($null -eq $updatedBook) {
-          Write-Error "✗ Could not find target book entry in installed JSON"
-          exit 1
-        }
-
-        if ($updatedBook.category -ne $expectedCategory) {
-          Write-Error "✗ Cyrillic value was not preserved correctly. Expected '$expectedCategory', got '$($updatedBook.category)'"
-          exit 1
-        }
-
-        Write-Host "✓ Non-ASCII JSON value tests passed"
-
-    - name: Test Common .NET Patterns
+    - name: Sad path - schema validation failure aborts install
       shell: pwsh
       run: |
-        Write-Host "Testing common .NET configuration patterns..."
+        $msi = (Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse | Select-Object -First 1).FullName
+        $log = Join-Path $env:RUNNER_TEMP "schema-failure.log"
 
-        # Create a test appsettings.json
-        $testConfig = @"
-        {
-          "ConnectionStrings": {
-            "DefaultConnection": "Server=localhost;Database=MyDb;"
-          },
-          "Logging": {
-            "LogLevel": {
-              "Default": "Information",
-              "Microsoft": "Warning"
-            }
-          },
-          "ApplicationSettings": {
-            "DataPath": "C:\\ProgramData\\MyApp\\Data"
+        # TEST_SCHEMA_FAILURE=1 enables a component whose JSON is valid but violates the schema
+        # (missing required "store"); schema validation must fail and abort the install.
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msi`" /qn /norestart /l*v `"$log`" TEST_SCHEMA_FAILURE=1" -Wait -PassThru
+        Write-Host "msiexec exit code: $($p.ExitCode)"
+
+        if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) {
+          Write-Host "✗ Install unexpectedly SUCCEEDED despite schema violation (expected failure)"
+          Start-Process -FilePath "msiexec.exe" -ArgumentList "/x {C9A3F6AF-7F4F-473F-BFFC-6143EB1AA0D4} /qn /norestart" -Wait | Out-Null
+          exit 1
+        }
+        Write-Host "✓ Schema violation correctly aborted the install (exit $($p.ExitCode))"
+
+        if (Test-Path $log) {
+          $content = Get-Content -Path $log -Raw
+          if ($content -match "Schema validation failed" -or $content -match "Required property missing") {
+            Write-Host "✓ Install log shows the schema validation failure"
+          } else {
+            Write-Host "  (note: schema failure message not found in log; relying on non-zero exit code)"
           }
         }
-        "@
 
-        $configFile = "test-config.json"
-        $testConfig | Out-File -FilePath $configFile -Encoding UTF8
-
-        # Parse and verify structure
-        $config = Get-Content $configFile | ConvertFrom-Json
-
-        # Test ConnectionStrings
-        if ($config.ConnectionStrings.DefaultConnection) {
-          Write-Host "✓ ConnectionStrings.DefaultConnection exists"
-        } else {
-          Write-Error "✗ ConnectionStrings.DefaultConnection not found"
-          exit 1
-        }
-
-        # Test Logging
-        if ($config.Logging.LogLevel.Default -eq "Information") {
-          Write-Host "✓ Logging.LogLevel.Default is correct"
-        } else {
-          Write-Error "✗ Logging.LogLevel.Default is incorrect"
-          exit 1
-        }
-
-        # Test Application Settings
-        if ($config.ApplicationSettings.DataPath) {
-          Write-Host "✓ ApplicationSettings.DataPath exists"
-        } else {
-          Write-Error "✗ ApplicationSettings.DataPath not found"
-          exit 1
-        }
-
-        Write-Host "All common .NET pattern tests passed!"
-
-    - name: Test JSONPath Patterns
+    - name: Verify repository test JSON fixtures
       shell: pwsh
       run: |
-        Write-Host "Testing JSONPath pattern scenarios..."
-
-        # Create test JSON with nested arrays
-        $complexJson = @"
-        {
-          "store": {
-            "book": [
-              {
-                "category": "reference",
-                "author": "Nigel Rees",
-                "title": "Sayings of the Century",
-                "price": 8.95
-              },
-              {
-                "category": "fiction",
-                "author": "Herman Melville",
-                "title": "Moby Dick",
-                "isbn": "0-553-21311-3",
-                "price": 8.99
-              }
-            ]
-          }
-        }
-        "@
-
-        $jsonFile = "test-jsonpath.json"
-        $complexJson | Out-File -FilePath $jsonFile -Encoding UTF8
-
-        $data = Get-Content $jsonFile | ConvertFrom-Json
-
-        # Test array access
-        if ($data.store.book[0].title -eq "Sayings of the Century") {
-          Write-Host "✓ Array access test passed"
-        } else {
-          Write-Error "✗ Array access test failed"
-          exit 1
+        $failed = $false
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg" } else { Write-Host "  [FAIL] $msg"; $script:failed = $true }
         }
 
-        # Test nested property access
-        if ($data.store.book[1].isbn -eq "0-553-21311-3") {
-          Write-Host "✓ Nested property access test passed"
-        } else {
-          Write-Error "✗ Nested property access test failed"
-          exit 1
+        # Valid fixtures should parse.
+        foreach ($f in @("TestJsonConfigInstaller\appsettings.json", "TestJsonConfigInstaller\appsettings.dotnet.json")) {
+          $ok = $true
+          try { $null = Get-Content $f -Raw | ConvertFrom-Json } catch { $ok = $false }
+          Check $ok "fixture parses as valid JSON: $f"
         }
 
-        Write-Host "All JSONPath pattern tests passed!"
-
-    - name: Test distinctValues Action
-      shell: pwsh
-      run: |
-        Write-Host "Testing distinctValues action..."
-
-        # Create test JSON with duplicate values in arrays
-        $jsonWithDuplicates = @"
-        {
-          "tags": ["production", "webapp", "production", "backend", "webapp", "api"],
-          "features": {
-            "enabled": ["feature1", "feature2", "feature1", "feature3"]
-          },
-          "settings": {
-            "values": [1, 2, 3, 2, 4, 1, 5]
-          }
-        }
-        "@
-
-        $testFile = "test-duplicates.json"
-        $jsonWithDuplicates | Out-File -FilePath $testFile -Encoding UTF8
-
-        # Verify the test file has duplicates
-        $data = Get-Content $testFile | ConvertFrom-Json
-
-        # Test 1: Verify tags array has duplicates
-        $uniqueTags = $data.tags | Select-Object -Unique
-        if ($uniqueTags.Count -lt $data.tags.Count) {
-          Write-Host "✓ Test data contains duplicate tags (expected)"
-        } else {
-          Write-Error "✗ Test data should contain duplicate tags"
-          exit 1
+        # Intentionally invalid fixtures should NOT parse.
+        foreach ($f in @("TestJsonConfigInstaller\invalid.json")) {
+          $ok = $false
+          try { $null = Get-Content $f -Raw | ConvertFrom-Json } catch { $ok = $true }
+          Check $ok "fixture is correctly malformed: $f"
         }
 
-        # Test 2: Verify features.enabled array has duplicates
-        $uniqueFeatures = $data.features.enabled | Select-Object -Unique
-        if ($uniqueFeatures.Count -lt $data.features.enabled.Count) {
-          Write-Host "✓ Test data contains duplicate features (expected)"
-        } else {
-          Write-Error "✗ Test data should contain duplicate features"
-          exit 1
-        }
-
-        # Test 3: Verify numeric array has duplicates
-        $uniqueValues = $data.settings.values | Select-Object -Unique
-        if ($uniqueValues.Count -lt $data.settings.values.Count) {
-          Write-Host "✓ Test data contains duplicate numeric values (expected)"
-        } else {
-          Write-Error "✗ Test data should contain duplicate numeric values"
-          exit 1
-        }
-
-        Write-Host "All distinctValues action tests passed!"
-
-    - name: Test OnlyIfExists Attribute
-      shell: pwsh
-      run: |
-        Write-Host "Testing OnlyIfExists attribute..."
-
-        # Create test JSON with some existing and some missing paths
-        $testJson = @"
-        {
-          "ConnectionStrings": {
-            "Database": "Server=localhost;Database=Test;"
-          },
-          "Logging": {
-            "LogLevel": {
-              "Default": "Information"
-            }
-          },
-          "AppSettings": {
-            "Version": "1.0.0"
-          }
-        }
-        "@
-
-        $testFile = "test-onlyifexists.json"
-        $testJson | Out-File -FilePath $testFile -Encoding UTF8
-
-        $data = Get-Content $testFile | ConvertFrom-Json
-
-        # Test 1: Verify existing path - ConnectionStrings.Database
-        if ($data.ConnectionStrings.Database) {
-          Write-Host "✓ ConnectionStrings.Database exists (should be updated with OnlyIfExists=yes)"
-        } else {
-          Write-Error "✗ ConnectionStrings.Database should exist"
-          exit 1
-        }
-
-        # Test 2: Verify existing path - Logging.LogLevel.Default
-        if ($data.Logging.LogLevel.Default) {
-          Write-Host "✓ Logging.LogLevel.Default exists (should be updated with OnlyIfExists=yes)"
-        } else {
-          Write-Error "✗ Logging.LogLevel.Default should exist"
-          exit 1
-        }
-
-        # Test 3: Verify non-existing path - NonExistentSection
-        if (-not $data.NonExistentSection) {
-          Write-Host "✓ NonExistentSection does not exist (should be skipped with OnlyIfExists=yes)"
-        } else {
-          Write-Error "✗ NonExistentSection should not exist"
-          exit 1
-        }
-
-        # Test 4: Verify non-existing nested path
-        if (-not $data.AppSettings.NonExistentProperty) {
-          Write-Host "✓ AppSettings.NonExistentProperty does not exist (should be skipped with OnlyIfExists=yes)"
-        } else {
-          Write-Error "✗ AppSettings.NonExistentProperty should not exist"
-          exit 1
-        }
-
-        Write-Host "All OnlyIfExists attribute tests passed!"
-
-    - name: Test Multi-Select and Filter Operations
-      shell: pwsh
-      run: |
-        Write-Host "Testing multi-select and filter operations..."
-
-        # Create test JSON with multiple matching elements
-        $multiSelectJson = @"
-        {
-          "products": [
-            {"name": "Product A", "price": 10.00, "category": "electronics"},
-            {"name": "Product B", "price": 25.00, "category": "electronics"},
-            {"name": "Product C", "price": 15.00, "category": "books"},
-            {"name": "Product D", "price": 30.00, "category": "electronics"}
-          ],
-          "settings": {
-            "timeout": 30,
-            "nested": {
-              "timeout": 60
-            }
-          }
-        }
-        "@
-
-        $testFile = "test-multiselect.json"
-        $multiSelectJson | Out-File -FilePath $testFile -Encoding UTF8
-
-        $data = Get-Content $testFile | ConvertFrom-Json
-
-        # Test 1: Verify multiple elements can be selected by category
-        $electronicsProducts = $data.products | Where-Object { $_.category -eq "electronics" }
-        if ($electronicsProducts.Count -eq 3) {
-          Write-Host "✓ Filter by category works (found 3 electronics products)"
-        } else {
-          Write-Error "✗ Filter by category failed (expected 3, found $($electronicsProducts.Count))"
-          exit 1
-        }
-
-        # Test 2: Verify filter by price range
-        $expensiveProducts = $data.products | Where-Object { $_.price -gt 20 }
-        if ($expensiveProducts.Count -eq 2) {
-          Write-Host "✓ Filter by price range works (found 2 products > 20)"
-        } else {
-          Write-Error "✗ Filter by price range failed (expected 2, found $($expensiveProducts.Count))"
-          exit 1
-        }
-
-        # Test 3: Verify recursive descent (all timeout values)
-        $timeoutCount = 0
-        if ($data.settings.timeout) { $timeoutCount++ }
-        if ($data.settings.nested.timeout) { $timeoutCount++ }
-
-        if ($timeoutCount -eq 2) {
-          Write-Host "✓ Recursive descent works (found 2 timeout properties)"
-        } else {
-          Write-Error "✗ Recursive descent failed (expected 2, found $timeoutCount)"
-          exit 1
-        }
-
-        Write-Host "All multi-select and filter tests passed!"
+        if ($script:failed) { exit 1 }
 
     - name: Summary
       shell: pwsh
@@ -504,13 +343,16 @@ jobs:
         Write-Host "========================================" -ForegroundColor Green
         Write-Host "  Regression Test Summary" -ForegroundColor Green
         Write-Host "========================================" -ForegroundColor Green
-        Write-Host "✓ Solution build successful" -ForegroundColor Green
-        Write-Host "✓ Test installer built successfully" -ForegroundColor Green
-        Write-Host "✓ JSON validation tests passed" -ForegroundColor Green
-        Write-Host "✓ Non-ASCII JSON value tests passed" -ForegroundColor Green
-        Write-Host "✓ Common .NET patterns validated" -ForegroundColor Green
-        Write-Host "✓ JSONPath patterns validated" -ForegroundColor Green
-        Write-Host "✓ distinctValues action tests passed" -ForegroundColor Green
-        Write-Host "✓ OnlyIfExists attribute tests passed" -ForegroundColor Green
-        Write-Host "✓ Multi-select and filter tests passed" -ForegroundColor Green
+        Write-Host "✓ Solution + test installer built" -ForegroundColor Green
+        Write-Host "✓ readValue (happy + missing -> default)" -ForegroundColor Green
+        Write-Host "✓ setValue (filter, nested, multi-select, OnlyIfExists)" -ForegroundColor Green
+        Write-Host "✓ replaceJsonValue" -ForegroundColor Green
+        Write-Host "✓ createJsonPointerValue (new path + build from {})" -ForegroundColor Green
+        Write-Host "✓ deleteValue (wildcard)" -ForegroundColor Green
+        Write-Host "✓ appendArray / insertArray / removeArrayElement" -ForegroundColor Green
+        Write-Host "✓ distinctValues" -ForegroundColor Green
+        Write-Host "✓ validateSchema (happy + sad)" -ForegroundColor Green
+        Write-Host "✓ OnlyIfExists (update existing + skip missing)" -ForegroundColor Green
+        Write-Host "✓ non-ASCII (UTF-8) value preservation" -ForegroundColor Green
+        Write-Host "✓ invalid JSON aborts install" -ForegroundColor Green
         Write-Host "========================================" -ForegroundColor Green
