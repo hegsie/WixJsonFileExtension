@@ -179,7 +179,7 @@ namespace Hegsie.Wix.JsonExtension
 					}
 					else
 					{
-						ErrorMessages.UnsupportedExtensionAttribute(sourceLineNumbers, attribute.Parent.Name.ToString(), attribute.Name.ToString());
+						Messaging.Write(ErrorMessages.UnsupportedExtensionAttribute(sourceLineNumbers, attribute.Parent.Name.ToString(), attribute.Name.ToString()));
 					}
 				}
 			}
@@ -187,7 +187,8 @@ namespace Hegsie.Wix.JsonExtension
 			if (CompilerConstants.IntegerNotSet == action)
 			{
 				// default is set value
-				flags |= 2;
+				action = (int)JsonAction.SetValue;
+				flags |= (int)JsonFlags.SetValue;
 			}
 
 			foreach (var child in node.Elements())
@@ -199,11 +200,11 @@ namespace Hegsie.Wix.JsonExtension
 
 				if (child.Name.Namespace == Namespace)
 				{
-					ErrorMessages.UnexpectedElement(sourceLineNumbers, node.Name.ToString(), child.Name.ToString());
+					Messaging.Write(ErrorMessages.UnexpectedElement(sourceLineNumbers, node.Name.ToString(), child.Name.ToString()));
 				}
 				else
 				{
-					ErrorMessages.UnsupportedExtensionElement(sourceLineNumbers, node.Name.ToString(), child.Name.ToString());
+					Messaging.Write(ErrorMessages.UnsupportedExtensionElement(sourceLineNumbers, node.Name.ToString(), child.Name.ToString()));
 				}
 			}
 
@@ -738,7 +739,7 @@ namespace Hegsie.Wix.JsonExtension
 			string elementPath = "$." + key;
 
 			// Create underlying JsonFile symbol
-			int flags = (int)JsonAction.SetValue; // Default to setValue
+			int flags = (int)JsonFlags.SetValue; // Default to setValue
 			if (!createIfMissing)
 			{
 				flags |= (int)JsonFlags.OnlyIfExists;
@@ -833,7 +834,7 @@ namespace Hegsie.Wix.JsonExtension
 			string elementPath = $"$.ConnectionStrings.{name}";
 
 			// Create underlying JsonFile symbol with setValue action
-			int flags = (int)JsonAction.SetValue;
+			int flags = (int)JsonFlags.SetValue;
 
 			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
@@ -924,7 +925,7 @@ namespace Hegsie.Wix.JsonExtension
 			string elementPath = $"$.Logging.LogLevel.{category}";
 
 			// Create underlying JsonFile symbol with setValue action
-			int flags = (int)JsonAction.SetValue;
+			int flags = (int)JsonFlags.SetValue;
 
 			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{

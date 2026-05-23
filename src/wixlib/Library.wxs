@@ -6,6 +6,14 @@
     <CustomAction Id="WixExecJsonFile_X64" DllEntry="ExecJsonFile" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca.dll" />
     <CustomAction Id="WixExecJsonFileRollback_X64" DllEntry="ExecJsonFileRollback" Execute="rollback" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca.dll" />
     
+    <!--
+      WixSchedJsonFile is sequenced in the InstallExecuteSequence and therefore runs on install,
+      uninstall, and repair. The custom action self-gates on component install state
+      (WcaIsInstalling), so it is a no-op on uninstall. Consequently JSON modifications are applied
+      on install/repair and are NOT reverted on uninstall; the rollback action only restores files
+      that were captured before a failed install. Install/uninstall timing control is tracked as a
+      future enhancement (see issue #39).
+    -->
     <InstallExecuteSequence>
       <Custom Action="WixPropertyJsonFile_X64" After="CostFinalize" />
       <Custom Action="WixSchedJsonFile_X64" After="InstallFiles" />

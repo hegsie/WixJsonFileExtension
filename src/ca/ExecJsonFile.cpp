@@ -79,6 +79,7 @@ extern "C" UINT WINAPI ExecJsonFile(
     }
 
 LExit:
+    ReleaseStr(pwzCustomActionData)
     ReleaseStr(sczFile)
     ReleaseStr(sczElementPath)
     ReleaseStr(sczValue)

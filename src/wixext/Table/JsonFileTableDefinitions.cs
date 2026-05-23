@@ -16,7 +16,8 @@ namespace Hegsie.Wix.JsonExtension.Table
 				new ColumnDefinition("DefaultValue", ColumnType.String, 0, primaryKey: false, nullable: true, ColumnCategory.Formatted, description: "Default Value used to load into a property in a readValue action when unable to locate json value", modularizeType: ColumnModularizeType.Property),
 				new ColumnDefinition("Flags", ColumnType.Number, 4, primaryKey: false, nullable: false, ColumnCategory.Unknown,  minValue: 0, maxValue: 65536, 
 				description: "Action flags: deleteValue=1, setValue=2, replaceJsonValue=4, createJsonPointerValue=8, " +
-				            "readValue=16, appendArray=32, insertArray=64, removeArrayElement=128, validateSchema=256"),
+				            "readValue=16, appendArray=32, insertArray=64, removeArrayElement=128, validateSchema=256, " +
+				            "distinctValues=512, onlyIfExists=1024"),
 				new ColumnDefinition("Component_", ColumnType.String, 72, primaryKey: false, nullable: false, ColumnCategory.Identifier, keyTable: "Component", keyColumn: 1, description: "Foreign key, Component used to determine install state", modularizeType: ColumnModularizeType.Column),
 				new ColumnDefinition("Sequence", ColumnType.Number, 2, primaryKey: false, nullable: true, ColumnCategory.Unknown, description: "Order to execute the JSON file modifications."),
 				new ColumnDefinition("Property", ColumnType.String, 0, primaryKey: false, nullable: true, ColumnCategory.Unknown, description: "Property to load the json value into when executing a readValue action"),

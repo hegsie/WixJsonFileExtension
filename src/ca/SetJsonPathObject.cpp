@@ -44,7 +44,7 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
             {
                 WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to open file stream for '%ls'", wzFile);
                 hr = ReturnLastError("Opening the file stream");
-                if (FAILED(hr)) return hr;
+                return FAILED(hr) ? hr : HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
             }
 
             is >> j;
@@ -83,19 +83,26 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
             WcaLog(LOGMSG_STANDARD, "WixJsonFile: Successfully replaced JSON object at path '%s' in file '%ls'", 
                    sElementPath.c_str(), wzFile);
 
-            SetLastError(0);
-            std::ofstream os(wzFile,
-                std::ios_base::out | std::ios_base::trunc);
+            // Serialize before truncating so a serialization failure cannot leave the file empty.
+            std::ostringstream serialized;
+            serialized << pretty_print(j);
 
+            SetLastError(0);
+            std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
             if (!os.is_open())
             {
                 WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to create output stream for file '%ls'", wzFile);
                 hr = ReturnLastError("creating the output stream");
-                if (FAILED(hr)) return hr;
+                return FAILED(hr) ? hr : HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
             }
 
-            pretty_print(j).dump(os);
+            os << serialized.str();
             os.close();
+            if (os.fail())
+            {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to write file '%ls'", wzFile);
+                return HRESULT_FROM_WIN32(ERROR_WRITE_FAULT);
+            }
         }
         else {
             WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Unable to locate file '%ls'. Verify the file exists and the path is correct.", wzFile);
