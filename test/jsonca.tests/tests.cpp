@@ -2,32 +2,56 @@
 //
 // These compile the production transform sources (see jsonca.tests.vcxproj) and call the real
 // file-based functions against temp files, then assert on the resulting JSON. No external test
-// framework is used so the project builds with just the WiX native NuGet packages; the process exit
-// code is the number of failures (0 == success), which CI checks.
+// framework is used. Results are written as JUnit XML (path from argv[1], default "cpp-tests.xml")
+// so CI can publish them as a PR check; the process exit code is the number of failed tests.
 
 #include "JsonFile.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <vector>
 #include <atomic>
 #include <chrono>
 
+struct TestResult
+{
+    std::string name;
+    bool failed = false;
+    std::string message;
+};
+
+static std::vector<TestResult> g_results;
+static size_t g_currentIndex = 0;
 static int g_pass = 0;
 static int g_fail = 0;
+
+static void RecordFailure(const char* file, int line, const std::string& expr)
+{
+    ++g_fail;
+    std::printf("FAIL %s:%d: %s\n", file, line, expr.c_str());
+    if (g_currentIndex < g_results.size())
+    {
+        g_results[g_currentIndex].failed = true;
+        g_results[g_currentIndex].message += expr + " (" + file + ":" + std::to_string(line) + ")\n";
+    }
+}
 
 #define CHECK(cond)                                                                            \
     do {                                                                                       \
         if (cond) { ++g_pass; }                                                                \
-        else { ++g_fail; std::printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); }         \
+        else { RecordFailure(__FILE__, __LINE__, #cond); }                                     \
     } while (0)
 
 #define CHECK_HR(expr)                                                                         \
     do {                                                                                       \
         HRESULT _hr = (expr);                                                                  \
         if (SUCCEEDED(_hr)) { ++g_pass; }                                                      \
-        else { ++g_fail; std::printf("FAIL %s:%d: HRESULT 0x%08X from %s\n",                   \
-                                     __FILE__, __LINE__, (unsigned)_hr, #expr); }              \
+        else {                                                                                 \
+            char _buf[300];                                                                    \
+            std::snprintf(_buf, sizeof(_buf), "%s -> HRESULT 0x%08X", #expr, (unsigned)_hr);   \
+            RecordFailure(__FILE__, __LINE__, _buf);                                           \
+        }                                                                                      \
     } while (0)
 
 static std::atomic<int> g_counter{ 0 };
@@ -109,7 +133,6 @@ static void Test_OnlyIfExists_SkipsMissingPath()
 {
     auto path = WriteTempJson(R"({"config":{"value":"old"}})");
     int flags = FlagFor(FLAG_SETVALUE) | FlagFor(FLAG_ONLYIFEXISTS);
-    // Path does not exist: with OnlyIfExists the operation must be skipped (and succeed).
     CHECK_HR(UpdateJsonFile(path.c_str(), L"$.config.missing", L"x", flags, -1, L""));
     auto j = ReadJson(path);
     CHECK(!j["config"].contains("missing"));
@@ -142,17 +165,77 @@ static void Test_Schema_ValidPasses_InvalidFails()
     RemoveFile(badPath);
 }
 
-int main()
+static void RunTest(const char* name, void (*fn)())
 {
-    Test_SetValue_UpdatesExisting();
-    Test_CreatePointer_CreatesNestedPath();
-    Test_DeleteValue_RemovesKey();
-    Test_AppendArray_AddsElement();
-    Test_InsertArray_AtIndex();
-    Test_OnlyIfExists_SkipsMissingPath();
-    Test_OnlyIfExists_AppliesWhenPresent();
-    Test_Schema_ValidPasses_InvalidFails();
+    g_results.push_back(TestResult{ name });
+    g_currentIndex = g_results.size() - 1;
+    fn();
+}
 
-    std::printf("\njsonca unit tests: %d passed, %d failed\n", g_pass, g_fail);
+static std::string XmlEscape(const std::string& s)
+{
+    std::string out;
+    for (char c : s)
+    {
+        switch (c)
+        {
+            case '&': out += "&amp;"; break;
+            case '<': out += "&lt;"; break;
+            case '>': out += "&gt;"; break;
+            case '"': out += "&quot;"; break;
+            case '\'': out += "&apos;"; break;
+            default: out += c; break;
+        }
+    }
+    return out;
+}
+
+static void WriteJUnit(const std::string& path)
+{
+    int failures = 0;
+    for (const auto& r : g_results)
+    {
+        if (r.failed) ++failures;
+    }
+
+    std::ofstream os(path, std::ios::binary | std::ios::trunc);
+    if (!os.is_open())
+    {
+        std::printf("WARN: could not write JUnit results to %s\n", path.c_str());
+        return;
+    }
+
+    os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    os << "<testsuites>\n";
+    os << "  <testsuite name=\"jsonca\" tests=\"" << g_results.size() << "\" failures=\"" << failures << "\">\n";
+    for (const auto& r : g_results)
+    {
+        os << "    <testcase classname=\"jsonca\" name=\"" << XmlEscape(r.name) << "\">";
+        if (r.failed)
+        {
+            os << "\n      <failure message=\"" << XmlEscape(r.message) << "\"></failure>\n    ";
+        }
+        os << "</testcase>\n";
+    }
+    os << "  </testsuite>\n";
+    os << "</testsuites>\n";
+    os.close();
+}
+
+int main(int argc, char** argv)
+{
+    RunTest("SetValue_UpdatesExisting", Test_SetValue_UpdatesExisting);
+    RunTest("CreatePointer_CreatesNestedPath", Test_CreatePointer_CreatesNestedPath);
+    RunTest("DeleteValue_RemovesKey", Test_DeleteValue_RemovesKey);
+    RunTest("AppendArray_AddsElement", Test_AppendArray_AddsElement);
+    RunTest("InsertArray_AtIndex", Test_InsertArray_AtIndex);
+    RunTest("OnlyIfExists_SkipsMissingPath", Test_OnlyIfExists_SkipsMissingPath);
+    RunTest("OnlyIfExists_AppliesWhenPresent", Test_OnlyIfExists_AppliesWhenPresent);
+    RunTest("Schema_ValidPasses_InvalidFails", Test_Schema_ValidPasses_InvalidFails);
+
+    std::string out = (argc > 1) ? argv[1] : "cpp-tests.xml";
+    WriteJUnit(out);
+
+    std::printf("\njsonca unit tests: %d passed, %d failed (results: %s)\n", g_pass, g_fail, out.c_str());
     return g_fail == 0 ? 0 : 1;
 }
