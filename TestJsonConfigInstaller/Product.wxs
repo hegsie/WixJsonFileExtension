@@ -7,6 +7,12 @@
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
 
+    <!-- Default values for the public properties consumed by the JsonFile operations below.
+         These keep a bare "msiexec /i ... " install (and the CI regression test) working without
+         having to pass every property on the command line; they can still be overridden. -->
+    <Property Id="MY_BOOKS" Value="[{&quot;author&quot;:&quot;NigelRees&quot;,&quot;category&quot;:&quot;reference&quot;,&quot;price&quot;:28.95,&quot;OldPrice&quot;:128.95,&quot;title&quot;:&quot;SayingsoftheCentury&quot;},{&quot;author&quot;:&quot;EvelynWaugh&quot;,&quot;category&quot;:&quot;fiction&quot;,&quot;price&quot;:22.99,&quot;OldPrice&quot;:168.95,&quot;title&quot;:&quot;SwordofHonour&quot;},{&quot;author&quot;:&quot;HermanMelville&quot;,&quot;category&quot;:&quot;fiction&quot;,&quot;isbn&quot;:&quot;0-553-21311-3&quot;,&quot;price&quot;:28.99,&quot;OldPrice&quot;:178.95,&quot;title&quot;:&quot;MobyDick&quot;}]" />
+    <Property Id="LOG_DIRECTORY" Value="C:\temp\" />
+
     <Feature Id="ProductFeature" Title="TestJsonConfigInstaller" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
     </Feature>

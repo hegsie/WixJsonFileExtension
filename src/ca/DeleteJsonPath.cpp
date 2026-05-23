@@ -18,14 +18,12 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath)
             return E_INVALIDARG;
         }
 
-        _bstr_t bFile(wzFile);
-        char* cFile = bFile;
         HRESULT hr = S_OK;
 
         if (fs::exists(fs::path(wzFile))) {
             json j;
             SetLastError(0);
-            std::ifstream is(cFile);
+            std::ifstream is{ fs::path(wzFile) };
 
             if (!is.is_open())
             {

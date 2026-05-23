@@ -18,18 +18,26 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
             return E_INVALIDARG;
         }
 
-        _bstr_t bFile(wzFile);
-        char* cFile = bFile;
-
-        _bstr_t bValue(wzValue);
-        char* cValue = bValue;
         HRESULT hr = S_OK;
+        std::string valueUtf8;
+
+        // A NULL value is treated as an empty string (preserves prior behavior); a non-NULL
+        // value is converted from UTF-16 to UTF-8 so non-ASCII characters survive the JSON write.
+        if (NULL != wzValue)
+        {
+            hr = WideToUtf8(wzValue, valueUtf8);
+            if (FAILED(hr))
+            {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to convert value to UTF-8 for path '%s' in file '%ls' (hr=0x%08X)", sElementPath.c_str(), wzFile, static_cast<unsigned int>(hr));
+                return hr;
+            }
+        }
 
         WcaLog(LOGMSG_STANDARD, "WixJsonFile: Checking if file '%ls' exists", wzFile);
         if (fs::exists(fs::path(wzFile))) {
 
             SetLastError(0);
-            std::ifstream is(cFile);
+            std::ifstream is{ fs::path(wzFile) };
 
             if (!is.is_open())
             {
@@ -46,7 +54,9 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
 
             if (createValue) {
                 std::error_code ec;
-                jsonpointer::add_if_absent(j, sElementPath, json(cValue), ec);
+                // create_if_missing=true so intermediate objects are created, allowing a nested
+                // pointer (e.g. /Application/Name) to be built from an empty/partial document.
+                jsonpointer::add_if_absent(j, sElementPath, json(valueUtf8), true, ec);
 
                 if (ec) {
                     WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - JSONPointer add_if_absent failed for path '%s' in file '%ls': %s", 
@@ -78,9 +88,9 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                        sElementPath.c_str(), query.size(), wzFile);
 
                 if (!query.empty()) {
-                    auto f = [cValue](const std::string& /*path*/, json& value)
+                    auto f = [valueUtf8](const std::string& /*path*/, json& value)
                         {
-                            value = cValue;
+                            value = valueUtf8;
                         };
 
                     SetLastError(0);
@@ -90,7 +100,7 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                     if (FAILED(hr)) return hr;
 
                     WcaLog(LOGMSG_STANDARD, "WixJsonFile: Successfully updated path '%s' in file '%ls' with value '%s'", 
-                           sElementPath.c_str(), wzFile, cValue);
+                           sElementPath.c_str(), wzFile, valueUtf8.c_str());
 
                     SetLastError(0);
                     std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);

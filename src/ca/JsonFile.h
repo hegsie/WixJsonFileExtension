@@ -2,6 +2,7 @@
 #include "stdafx.h"
 
 #include <atlbase.h>
+#include <vector>
 
 using namespace jsoncons;
 namespace fs = std::filesystem;
@@ -122,3 +123,69 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile);
 
 std::string GetLastErrorAsString();
 HRESULT ReturnLastError(const std::string& action);
+
+inline HRESULT WideToUtf8(__in_z LPCWSTR wzInput, std::string& value)
+{
+    value.clear();
+
+    if (NULL == wzInput)
+    {
+        return E_INVALIDARG;
+    }
+
+    DWORD dwFlags = 0;
+#ifdef WC_ERR_INVALID_CHARS
+    dwFlags = WC_ERR_INVALID_CHARS;
+#endif
+
+    int cchRequired = ::WideCharToMultiByte(CP_UTF8, dwFlags, wzInput, -1, NULL, 0, NULL, NULL);
+    if (cchRequired <= 0)
+    {
+        return HRESULT_FROM_WIN32(::GetLastError());
+    }
+
+    std::vector<char> utf8Buffer(cchRequired);
+
+    int cchWritten = ::WideCharToMultiByte(CP_UTF8, dwFlags, wzInput, -1, utf8Buffer.data(), cchRequired, NULL, NULL);
+    if (cchWritten <= 0)
+    {
+        return HRESULT_FROM_WIN32(::GetLastError());
+    }
+
+    value.assign(utf8Buffer.data(), static_cast<size_t>(cchWritten - 1)); // exclude null terminator
+
+    return S_OK;
+}
+
+inline HRESULT Utf8ToWide(__in_z LPCSTR szInput, std::wstring& value)
+{
+    value.clear();
+
+    if (NULL == szInput)
+    {
+        return E_INVALIDARG;
+    }
+
+    DWORD dwFlags = 0;
+#ifdef MB_ERR_INVALID_CHARS
+    dwFlags = MB_ERR_INVALID_CHARS;
+#endif
+
+    int cchRequired = ::MultiByteToWideChar(CP_UTF8, dwFlags, szInput, -1, NULL, 0);
+    if (cchRequired <= 0)
+    {
+        return HRESULT_FROM_WIN32(::GetLastError());
+    }
+
+    std::vector<wchar_t> wideBuffer(cchRequired);
+
+    int cchWritten = ::MultiByteToWideChar(CP_UTF8, dwFlags, szInput, -1, wideBuffer.data(), cchRequired);
+    if (cchWritten <= 0)
+    {
+        return HRESULT_FROM_WIN32(::GetLastError());
+    }
+
+    value.assign(wideBuffer.data(), static_cast<size_t>(cchWritten - 1)); // exclude null terminator
+
+    return S_OK;
+}

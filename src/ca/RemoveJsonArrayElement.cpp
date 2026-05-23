@@ -18,17 +18,15 @@ HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElemen
             return E_INVALIDARG;
         }
 
-        _bstr_t bFile(wzFile);
-        char* cFile = bFile;
         HRESULT hr = S_OK;
 
         if (fs::exists(fs::path(wzFile))) {
             json j;
-            std::ifstream is(cFile);
+            std::ifstream is{ fs::path(wzFile) };
 
             if (!is.is_open())
             {
-                WcaLog(LOGMSG_STANDARD, "Failed to open file for reading: %s", cFile);
+                WcaLog(LOGMSG_STANDARD, "Failed to open file for reading: %ls", wzFile);
                 return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
             }
 
@@ -41,18 +39,22 @@ HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElemen
             // Otherwise, the path should point to specific elements to remove
             if (wzValue != NULL && L'\0' != *wzValue)
             {
-                _bstr_t bValue(wzValue);
-                char* cValue = bValue;
+                std::string valueUtf8;
+                hr = WideToUtf8(wzValue, valueUtf8);
+                if (FAILED(hr))
+                {
+                    WcaLog(LOGMSG_STANDARD, "Failed to convert value to UTF-8 for path '%s' in file '%ls' (hr=0x%08X)", sElementPath.c_str(), wzFile, static_cast<unsigned int>(hr));
+                    return hr;
+                }
 
                 // Parse the value to match
                 json valueToMatch;
                 try {
-                    std::string s = cValue;
-                    valueToMatch = json::parse(s);
+                    valueToMatch = json::parse(valueUtf8);
                 }
                 catch (const std::exception&) {
                     // If parsing fails, treat as a string value
-                    valueToMatch = json(cValue);
+                    valueToMatch = json(valueUtf8);
                 }
 
                 // Find and remove matching elements
@@ -105,7 +107,7 @@ HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElemen
 
             if (!os.is_open())
             {
-                WcaLog(LOGMSG_STANDARD, "Failed to open output file stream for writing: %s", cFile);
+                WcaLog(LOGMSG_STANDARD, "Failed to open output file stream for writing: %ls", wzFile);
                 return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
             }
 
@@ -113,7 +115,7 @@ HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElemen
             os.close();
         }
         else {
-            WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
+            WcaLog(LOGMSG_STANDARD, "Unable to locate file: %ls", wzFile);
             return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
         return S_OK;

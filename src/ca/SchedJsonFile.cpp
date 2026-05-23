@@ -78,58 +78,27 @@ extern "C" UINT __stdcall SchedJsonFile(
         if (WcaIsInstalling(pxfc->isInstalled, pxfc->isAction))
         {
             std::bitset<32> flags(pxfc->iJsonFlags);
-            // Install the change
-            if (flags.test(FLAG_DELETEVALUE))
-            {
-                hr = WcaWriteIntegerToCaData((int)jaDeleteValue, &pwzCustomActionData);
-                WcaLog(LOGMSG_VERBOSE, "jaDeleteValue action for file: %ls", pxfc->wzFile);
-                ExitOnFailure(hr, "failed to write delete value action indicator to custom action data")
-            }
-            else if (flags.test(FLAG_SETVALUE))
-            {
-                hr = WcaWriteIntegerToCaData((int)jaSetValue, &pwzCustomActionData);
-                WcaLog(LOGMSG_VERBOSE, "jaSetValue action for file: %ls", pxfc->wzFile);
-                ExitOnFailure(hr, "failed to write set value action indicator to custom action data")
-            }
-            else if (flags.test(FLAG_REPLACEJSONVALUE))
-            {
-                hr = WcaWriteIntegerToCaData((int)jaReplaceJsonValue, &pwzCustomActionData);
-                WcaLog(LOGMSG_VERBOSE, "jaReplaceJsonValue action for file: %ls", pxfc->wzFile);
-                ExitOnFailure(hr, "failed to write replace json value action indicator to custom action data")
-            }
-            else if (flags.test(FLAG_CREATEVALUE))
-            {
-                hr = WcaWriteIntegerToCaData((int)jaCreateJsonPointerValue, &pwzCustomActionData);
-                WcaLog(LOGMSG_VERBOSE, "jaCreateJsonPointerValue action for file: %ls", pxfc->wzFile);
-                ExitOnFailure(hr, "failed to write create json pointer value action indicator to custom action data")
-            }
-            else if (flags.test(FLAG_APPENDARRAY))
-            {
-                hr = WcaWriteIntegerToCaData((int)jaAppendArray, &pwzCustomActionData);
-                WcaLog(LOGMSG_VERBOSE, "jaAppendArray action for file: %ls", pxfc->wzFile);
-                ExitOnFailure(hr, "failed to write append array action indicator to custom action data")
-            }
-            else if (flags.test(FLAG_INSERTARRAY))
-            {
-                hr = WcaWriteIntegerToCaData((int)jaInsertArray, &pwzCustomActionData);
-                WcaLog(LOGMSG_VERBOSE, "jaInsertArray action for file: %ls", pxfc->wzFile);
-                ExitOnFailure(hr, "failed to write insert array action indicator to custom action data")
-            }
-            else if (flags.test(FLAG_REMOVEARRAYELEMENT))
-            {
-                hr = WcaWriteIntegerToCaData((int)jaRemoveArrayElement, &pwzCustomActionData);
-                WcaLog(LOGMSG_VERBOSE, "jaRemoveArrayElement action for file: %ls", pxfc->wzFile);
-                ExitOnFailure(hr, "failed to write remove array element action indicator to custom action data")
-            }
-            else if (flags.test(FLAG_READVALUE))
+
+            // readValue is handled by the immediate ReadValueJsonFile action, not the deferred one.
+            if (flags.test(FLAG_READVALUE))
             {
                 continue;
             }
-            else
+
+            // Skip entries that don't carry a deferred write action.
+            if (!(flags.test(FLAG_DELETEVALUE) || flags.test(FLAG_SETVALUE) || flags.test(FLAG_REPLACEJSONVALUE) ||
+                  flags.test(FLAG_CREATEVALUE) || flags.test(FLAG_APPENDARRAY) || flags.test(FLAG_INSERTARRAY) ||
+                  flags.test(FLAG_REMOVEARRAYELEMENT) || flags.test(FLAG_DISTINCTVALUES)))
             {
                 WcaLog(LOGMSG_VERBOSE, "Unknown or no action flag set, skipping entry for file: %ls", pxfc->wzFile);
                 continue;
             }
+
+            // Pass the complete flag set (action plus modifiers such as OnlyIfExists and ValidateSchema)
+            // so the deferred ExecJsonFile action sees exactly what was authored in the WixJsonFile table.
+            hr = WcaWriteIntegerToCaData(pxfc->iJsonFlags, &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write flags to custom action data")
+            WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Scheduling operation (flags=%d) for file: %ls", pxfc->iJsonFlags, pxfc->wzFile);
 
             // Schedule rollback for this file if we haven't already
             if (!pwzCurrentFile || 0 != lstrcmpW(pwzCurrentFile, pxfc->wzFile))

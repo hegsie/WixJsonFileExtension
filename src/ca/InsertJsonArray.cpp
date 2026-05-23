@@ -24,20 +24,23 @@ HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, 
             return E_INVALIDARG;
         }
 
-        _bstr_t bFile(wzFile);
-        char* cFile = bFile;
-
-        _bstr_t bValue(wzValue);
-        char* cValue = bValue;
         HRESULT hr = S_OK;
+
+        std::string valueUtf8;
+        hr = WideToUtf8(wzValue, valueUtf8);
+        if (FAILED(hr))
+        {
+            WcaLog(LOGMSG_STANDARD, "Failed to convert value to UTF-8 for path '%s' in file '%ls' (hr=0x%08X)", sElementPath.c_str(), wzFile, static_cast<unsigned int>(hr));
+            return hr;
+        }
 
         if (fs::exists(fs::path(wzFile))) {
             json j;
-            std::ifstream is(cFile);
+            std::ifstream is{ fs::path(wzFile) };
 
             if (!is.is_open())
             {
-                WcaLog(LOGMSG_STANDARD, "Failed to open file for reading: %s", cFile);
+                WcaLog(LOGMSG_STANDARD, "Failed to open file for reading: %ls", wzFile);
                 return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
             }
 
@@ -56,12 +59,11 @@ HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, 
             // Parse the value to insert
             json valueToInsert;
             try {
-                std::string s = cValue;
-                valueToInsert = json::parse(s);
+                valueToInsert = json::parse(valueUtf8);
             }
             catch (const std::exception&) {
                 // If parsing fails, treat as a string value
-                valueToInsert = json(cValue);
+                valueToInsert = json(valueUtf8);
             }
 
             WcaLog(LOGMSG_STANDARD, "Inserting value at index %d in array at: %s", iIndex, sElementPath.c_str());
@@ -107,7 +109,7 @@ HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, 
             os.close();
         }
         else {
-            WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
+            WcaLog(LOGMSG_STANDARD, "Unable to locate file: %ls", wzFile);
             return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
         return S_OK;

@@ -26,8 +26,6 @@ HRESULT UpdateJsonFile(
         return E_INVALIDARG;
     }
 
-    _bstr_t bFile(wzFile);
-    char* cFile = bFile;
 
     // Check if file exists before attempting to parse
     if (!fs::exists(fs::path(wzFile)))
@@ -103,10 +101,13 @@ HRESULT UpdateJsonFile(
     std::bitset<32> flags(iFlags);
     WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Processing file '%ls' with flags: %i", wzFile, iFlags);
 
-    _bstr_t bElementPath(wzElementPath);
-    char* cElementPath = bElementPath;
-
-    std::string elementPath(cElementPath);
+    std::string elementPath;
+    hr = WideToUtf8(wzElementPath, elementPath);
+    if (FAILED(hr))
+    {
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to convert element path '%ls' to UTF-8 for file '%ls' (hr=0x%08X)", wzElementPath, wzFile, static_cast<unsigned int>(hr));
+        return hr;
+    }
 
     WcaLog(LOGMSG_VERBOSE, "Element path: %ls", wzElementPath);
 
@@ -119,7 +120,7 @@ HRESULT UpdateJsonFile(
         try
         {
             json j;
-            std::ifstream is(cFile);
+            std::ifstream is{ fs::path(wzFile) };
             if (is.is_open())
             {
                 try {
@@ -127,7 +128,7 @@ HRESULT UpdateJsonFile(
                 }
                 catch (const std::exception& e) {
                     is.close();
-                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Failed to parse JSON file for OnlyIfExists check: %s. Error: %s", cFile, e.what());
+                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Failed to parse JSON file for OnlyIfExists check: %ls. Error: %s", wzFile, e.what());
                     return E_FAIL;
                 }
                 is.close();
@@ -142,7 +143,7 @@ HRESULT UpdateJsonFile(
             }
             else
             {
-                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Failed to open file for OnlyIfExists check: %s", cFile);
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Failed to open file for OnlyIfExists check: %ls", wzFile);
                 return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
             }
         }
