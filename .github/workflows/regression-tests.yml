@@ -178,10 +178,14 @@ jobs:
         $logPath = Join-Path $env:RUNNER_TEMP "nonascii-install.log"
         $install = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msiPath`" /qn /norestart /l*v `"$logPath`" MY_VALUE=$expectedCategory" -Wait -PassThru
         if ($install.ExitCode -ne 0) {
-          Write-Error "✗ MSI installation failed with exit code $($install.ExitCode)"
+          # Use Write-Host (not Write-Error) so the log dump still runs: GitHub Actions sets
+          # $ErrorActionPreference='Stop', which would otherwise terminate the step immediately.
+          Write-Host "✗ MSI installation failed with exit code $($install.ExitCode)"
           if (Test-Path $logPath) {
             Write-Host "----- msiexec log -----"
             Get-Content -Path $logPath
+          } else {
+            Write-Host "(no msiexec log was produced at $logPath)"
           }
           exit 1
         }
