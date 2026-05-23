@@ -15,19 +15,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <!-- Used by the compiler tests to drive the WiX frontend. Keep the version aligned with
-         WixToolset.Extensibility referenced by the wixext project; bump together if you upgrade. -->
-    <PackageReference Include="WixToolset.Core.TestPackage" Version="6.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\wixext\WixJsonFileExtension.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="TestData\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
 </Project>
