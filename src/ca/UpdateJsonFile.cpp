@@ -120,7 +120,7 @@ HRESULT UpdateJsonFile(
         try
         {
             json j;
-            std::ifstream is(fs::path(wzFile));
+            std::ifstream is{ fs::path(wzFile) };
             if (is.is_open())
             {
                 try {

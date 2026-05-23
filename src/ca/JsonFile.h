@@ -133,7 +133,12 @@ inline HRESULT WideToUtf8(__in_z LPCWSTR wzInput, std::string& value)
         return E_INVALIDARG;
     }
 
-    int cchRequired = ::WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wzInput, -1, NULL, 0, NULL, NULL);
+    DWORD dwFlags = 0;
+#ifdef WC_ERR_INVALID_CHARS
+    dwFlags = WC_ERR_INVALID_CHARS;
+#endif
+
+    int cchRequired = ::WideCharToMultiByte(CP_UTF8, dwFlags, wzInput, -1, NULL, 0, NULL, NULL);
     if (cchRequired <= 0)
     {
         return HRESULT_FROM_WIN32(::GetLastError());
@@ -141,7 +146,7 @@ inline HRESULT WideToUtf8(__in_z LPCWSTR wzInput, std::string& value)
 
     std::vector<char> utf8Buffer(cchRequired);
 
-    int cchWritten = ::WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wzInput, -1, utf8Buffer.data(), cchRequired, NULL, NULL);
+    int cchWritten = ::WideCharToMultiByte(CP_UTF8, dwFlags, wzInput, -1, utf8Buffer.data(), cchRequired, NULL, NULL);
     if (cchWritten <= 0)
     {
         return HRESULT_FROM_WIN32(::GetLastError());

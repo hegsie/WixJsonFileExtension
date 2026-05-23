@@ -32,7 +32,7 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
         if (fs::exists(fs::path(wzFile))) {
 
             SetLastError(0);
-            std::ifstream is(fs::path(wzFile));
+            std::ifstream is{ fs::path(wzFile) };
 
             if (!is.is_open())
             {
