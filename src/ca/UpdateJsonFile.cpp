@@ -114,8 +114,12 @@ HRESULT UpdateJsonFile(
     // Check if OnlyIfExists flag is set
     bool onlyIfExists = flags.test(FLAG_ONLYIFEXISTS);
     
-    // For OnlyIfExists, check if path exists before proceeding with write operations
-    if (onlyIfExists && (flags.test(FLAG_SETVALUE) || flags.test(FLAG_CREATEVALUE) || flags.test(FLAG_REPLACEJSONVALUE)))
+    // OnlyIfExists applies to every write action: skip the operation unless the target path
+    // already exists. createJsonPointerValue uses JSON Pointer syntax; all other actions use JSONPath.
+    bool isWriteAction = flags.test(FLAG_SETVALUE) || flags.test(FLAG_CREATEVALUE) || flags.test(FLAG_REPLACEJSONVALUE) ||
+                         flags.test(FLAG_DELETEVALUE) || flags.test(FLAG_APPENDARRAY) || flags.test(FLAG_INSERTARRAY) ||
+                         flags.test(FLAG_REMOVEARRAYELEMENT) || flags.test(FLAG_DISTINCTVALUES);
+    if (onlyIfExists && isWriteAction)
     {
         try
         {
@@ -133,9 +137,18 @@ HRESULT UpdateJsonFile(
                 }
                 is.close();
                 
-                // Query to see if the path exists
-                auto query = jsonpath::json_query(j, elementPath);
-                if (query.empty())
+                // Check whether the target path exists using the syntax appropriate to the action.
+                bool pathExists;
+                if (flags.test(FLAG_CREATEVALUE))
+                {
+                    pathExists = jsonpointer::contains(j, elementPath);
+                }
+                else
+                {
+                    pathExists = !jsonpath::json_query(j, elementPath).empty();
+                }
+
+                if (!pathExists)
                 {
                     WcaLog(LOGMSG_STANDARD, "WixJsonFile: Skipping operation - path does not exist and OnlyIfExists=yes: '%ls'", wzElementPath);
                     return S_OK; // Skip the operation but return success

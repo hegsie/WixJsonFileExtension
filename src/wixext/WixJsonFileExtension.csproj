@@ -26,6 +26,8 @@
     <EmbeddedResource Remove="Properties\**" />
     <None Remove="Properties\**" />
 
+    <InternalsVisibleTo Include="WixJsonFileExtension.Tests" />
+
     <None Include="$(OutDir)WixJsonFileExtension.dll" Pack="true" PackagePath="wixext5/" />
 
     <None Include="..\..\LICENSE">

@@ -10,18 +10,23 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+
+# Cancel superseded in-progress runs for the same ref.
+concurrency:
+  group: msbuild-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   # Path to the solution file relative to the root of the project.
   SOLUTION_FILE_PATH: .
 
   # Configuration type to build.
-  # You can convert this to a build matrix if you need coverage of multiple configuration types.
-  # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
   BUILD_CONFIGURATION: Release
 
 permissions:
   contents: read
+  checks: write
 
 jobs:
   build:
@@ -33,22 +38,67 @@ jobs:
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v2
 
-    - name: Restore NuGet packages
-      working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: nuget restore ${{env.SOLUTION_FILE_PATH}}
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
 
+    - name: Restore NuGet packages
+      run: nuget restore ${{ env.SOLUTION_FILE_PATH }}
+
+    # Single build of the solution. The unit tests below reuse its output: the wixext embeds the
+    # wixlib produced here, and the C++ test project links the WiX native packages restored above.
     - name: Build
-      working-directory: ${{env.GITHUB_WORKSPACE}}
-      # Add additional options to the MSBuild command line here (like platform or verbosity level).
-      # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
-      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}}
+      run: msbuild /m /p:Configuration=${{ env.BUILD_CONFIGURATION }} ${{ env.SOLUTION_FILE_PATH }}
+
+    # continue-on-error so both suites always run and produce result files; the reporter steps below
+    # fail the job if there are test failures. SolutionDir is passed so the wixext PostBuild xcopy
+    # target resolves when the test project builds the wixext outside of the .sln.
+    - name: Run C# unit tests
+      continue-on-error: true
+      run: >
+        dotnet test test/WixJsonFileExtension.Tests/WixJsonFileExtension.Tests.csproj
+        --configuration ${{ env.BUILD_CONFIGURATION }}
+        -p:SolutionDir=${{ github.workspace }}\
+        --logger "trx;LogFileName=csharp-tests.trx"
+        --results-directory ${{ github.workspace }}\TestResults
+
+    - name: Build C++ unit tests
+      run: msbuild /p:Configuration=${{ env.BUILD_CONFIGURATION }} /p:Platform=x64 test\jsonca.tests\jsonca.tests.vcxproj
+
+    - name: Run C++ unit tests
+      continue-on-error: true
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path TestResults | Out-Null
+        $exe = Get-ChildItem -Path "test\jsonca.tests" -Filter "jsonca.tests.exe" -Recurse | Select-Object -First 1
+        if (-not $exe) { Write-Error "jsonca.tests.exe not found"; exit 1 }
+        Write-Host "Running $($exe.FullName)"
+        & $exe.FullName "$env:GITHUB_WORKSPACE\TestResults\cpp-tests.xml"
+        Write-Host "C++ tests exit code: $LASTEXITCODE"
+
+    - name: Publish C# test results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: C# Unit Tests
+        path: TestResults/csharp-tests.trx
+        reporter: dotnet-trx
+
+    - name: Publish C++ test results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: C++ Unit Tests
+        path: TestResults/cpp-tests.xml
+        reporter: java-junit
 
     - name: Pack
-      working-directory: ${{env.SOLUTION_FILE_PATH}}\src\wixext\
-      run: dotnet pack --no-build --configuration ${{env.BUILD_CONFIGURATION}} /p:Version=6.0.0.${{github.run_number}}
+      working-directory: ${{ env.SOLUTION_FILE_PATH }}\src\wixext\
+      run: dotnet pack --no-build --configuration ${{ env.BUILD_CONFIGURATION }} /p:Version=6.0.0.${{ github.run_number }}
 
     - name: Upload NuGet Package
       uses: actions/upload-artifact@v4
       with:
         name: nuget-package
-        path: ${{env.SOLUTION_FILE_PATH}}\src\wixext\bin\${{env.BUILD_CONFIGURATION}}\*.nupkg
+        path: ${{ env.SOLUTION_FILE_PATH }}\src\wixext\bin\${{ env.BUILD_CONFIGURATION }}\*.nupkg

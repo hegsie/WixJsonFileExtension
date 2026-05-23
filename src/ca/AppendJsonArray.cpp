@@ -81,16 +81,24 @@ HRESULT AppendJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, 
 
             WcaLog(LOGMSG_STANDARD, "Successfully appended value to array");
 
-            std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
+            // Serialize before truncating so a serialization failure cannot leave the file empty.
+            std::ostringstream serialized;
+            serialized << pretty_print(j);
 
+            std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
             if (!os.is_open())
             {
                 WcaLog(LOGMSG_STANDARD, "Failed to open output file stream: %ls", wzFile);
                 return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
             }
 
-            pretty_print(j).dump(os);
+            os << serialized.str();
             os.close();
+            if (os.fail())
+            {
+                WcaLog(LOGMSG_STANDARD, "Failed to write output file: %ls", wzFile);
+                return HRESULT_FROM_WIN32(ERROR_WRITE_FAULT);
+            }
         }
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %ls", wzFile);

@@ -56,36 +56,36 @@
         <Json:JsonFile 
           Id="SetMicrosoftLogLevel" 
           File="[#DotNetConfig]" 
-          ElementPath="$.Logging.LogLevel.Microsoft" 
-          Value="Warning" 
-          Action="setValue" 
-          Sequence="2" />
+          ElementPath="$.Logging.LogLevel.Microsoft"
+          Value="Warning"
+          Action="setValue"
+          Sequence="3" />
 
         <!-- Application Settings -->
         <Json:JsonFile 
           Id="SetDataPath" 
           File="[#DotNetConfig]" 
-          ElementPath="$.ApplicationSettings.DataPath" 
-          Value="[DATA_PATH]" 
-          Action="setValue" 
-          Sequence="3" />
+          ElementPath="$.ApplicationSettings.DataPath"
+          Value="[DATA_PATH]"
+          Action="setValue"
+          Sequence="4" />
 
         <Json:JsonFile 
           Id="SetTempPath" 
           File="[#DotNetConfig]" 
-          ElementPath="$.ApplicationSettings.TempPath" 
-          Value="[DATA_PATH]\Temp" 
-          Action="setValue" 
-          Sequence="3" />
+          ElementPath="$.ApplicationSettings.TempPath"
+          Value="[DATA_PATH]\Temp"
+          Action="setValue"
+          Sequence="5" />
 
         <!-- Service Configuration -->
         <Json:JsonFile 
           Id="SetServiceName" 
           File="[#DotNetConfig]" 
-          ElementPath="$.ServiceSettings.ServiceName" 
-          Value="[SERVICE_NAME]" 
-          Action="setValue" 
-          Sequence="4" />
+          ElementPath="$.ServiceSettings.ServiceName"
+          Value="[SERVICE_NAME]"
+          Action="setValue"
+          Sequence="6" />
 
         <!-- Read existing configuration for validation -->
         <Json:JsonFile 
