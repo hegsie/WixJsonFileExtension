@@ -13,6 +13,23 @@
     <Property Id="MY_BOOKS" Value="[{&quot;author&quot;:&quot;NigelRees&quot;,&quot;category&quot;:&quot;reference&quot;,&quot;price&quot;:28.95,&quot;OldPrice&quot;:128.95,&quot;title&quot;:&quot;SayingsoftheCentury&quot;},{&quot;author&quot;:&quot;EvelynWaugh&quot;,&quot;category&quot;:&quot;fiction&quot;,&quot;price&quot;:22.99,&quot;OldPrice&quot;:168.95,&quot;title&quot;:&quot;SwordofHonour&quot;},{&quot;author&quot;:&quot;HermanMelville&quot;,&quot;category&quot;:&quot;fiction&quot;,&quot;isbn&quot;:&quot;0-553-21311-3&quot;,&quot;price&quot;:28.99,&quot;OldPrice&quot;:178.95,&quot;title&quot;:&quot;MobyDick&quot;}]" />
     <Property Id="LOG_DIRECTORY" Value="C:\temp\" />
 
+    <!-- readValue source path is overridable; defaults to the location the regression workflow
+         populates. The two REG_READ_* properties default to a distinct sentinel (NOT the readValue
+         DefaultValue) so the regression assertions can tell apart three cases: the element was read
+         ("Staging"), the element was missing and DefaultValue was applied ("READ_DEFAULT"), or the
+         readValue action never ran / the source file was absent ("PROPERTY_NOT_SET"). Using the
+         sentinel here prevents a false pass where readValue silently doing nothing would still
+         leave the expected default value in the property. -->
+    <Property Id="REG_READ_SOURCE" Value="C:\JsonRegression\read-source.json" />
+    <Property Id="REG_READ_PRESENT" Value="PROPERTY_NOT_SET" />
+    <Property Id="REG_READ_MISSING" Value="PROPERTY_NOT_SET" />
+
+    <!-- Switches for the property-gated sad-path components. Declared (default 0) so component
+         conditions reference known properties (silences ICE28); set to 1 on the msiexec command
+         line to enable the corresponding failure scenario. -->
+    <Property Id="TEST_INVALID_JSON" Value="0" />
+    <Property Id="TEST_SCHEMA_FAILURE" Value="0" />
+
     <Feature Id="ProductFeature" Title="TestJsonConfigInstaller" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
     </Feature>
@@ -38,6 +55,15 @@
         <Json:JsonFile Id="appSettingsReadValue" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-3')[\]].category" DefaultValue="Empty" Action="readValue" Property="MY_PROPERTY" />
 
         <Json:JsonFile Id="appSettingsReadMissingValue" File="[#JsonConfig]" ElementPath="$.store.book[\[]?(@.isbn == '0-553-21311-5')[\]].category" DefaultValue="MissingEmpty" Action="readValue" Property="MY_MISSING_PROPERTY" />
+
+        <!-- Regression: readValue reads from a pre-existing source file (created by the regression
+             workflow at C:\JsonRegression\read-source.json). The read custom action runs after
+             CostFinalize (before InstallFiles), so it must read a file that already exists on the
+             machine rather than one being installed in this same transaction.
+             REG_READ_PRESENT exercises the happy path; REG_READ_MISSING exercises the sad path where
+             the element is absent and the DefaultValue is applied instead. -->
+        <Json:JsonFile Id="regReadPresent" File="[REG_READ_SOURCE]" ElementPath="$.config.environment" DefaultValue="READ_DEFAULT" Action="readValue" Property="REG_READ_PRESENT" />
+        <Json:JsonFile Id="regReadMissing" File="[REG_READ_SOURCE]" ElementPath="$.config.missingKey" DefaultValue="READ_DEFAULT" Action="readValue" Property="REG_READ_MISSING" />
         
         <!-- Replace entire JSON object -->
         <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" Sequence="1" />
@@ -86,12 +112,17 @@
                Action="removeArrayElement"
                Sequence="9"/>
 
-        <!-- Update all prices (multi-select) -->
+        <!-- Update all prices (multi-select). SchemaFile validates the file against
+             appsettings-schema.json after this operation succeeds (validateSchema happy path).
+             Intentionally placed on a plain setValue (not an OnlyIfExists op): when OnlyIfExists
+             skips a missing path the operation short-circuits before schema validation runs, so
+             attaching SchemaFile here guarantees the validation actually executes. -->
         <Json:JsonFile Id="updateAllPrices"
                File="[#JsonConfig]"
                ElementPath="$..price"
                Value="9.99"
                Action="setValue"
+               SchemaFile="[#AppSettingsSchema]"
                Sequence="10"/>
 
         <!-- New: Remove duplicates from tags array -->
@@ -125,7 +156,32 @@
                Action="setValue"
                OnlyIfExists="yes"
                Sequence="14"/>
-        
+
+        <!-- Array operation variations on an isolated array ($.arrayOps starts as ["seed"]).
+             Exercises insertArray at the front (Index=0), insertArray append (Index=-1) and
+             appendArray, so the distinct index code paths are verified. Final order must be
+             ["first", "seed", "last", "appended"]. -->
+        <Json:JsonFile Id="arrayInsertFront"
+               File="[#JsonConfig]"
+               ElementPath="$.arrayOps"
+               Value="first"
+               Action="insertArray"
+               Index="0"
+               Sequence="20"/>
+        <Json:JsonFile Id="arrayInsertEnd"
+               File="[#JsonConfig]"
+               ElementPath="$.arrayOps"
+               Value="last"
+               Action="insertArray"
+               Index="-1"
+               Sequence="21"/>
+        <Json:JsonFile Id="arrayAppend"
+               File="[#JsonConfig]"
+               ElementPath="$.arrayOps"
+               Value="appended"
+               Action="appendArray"
+               Sequence="22"/>
+
       </Component>
 
       <!-- New: Template-based configuration -->
@@ -184,13 +240,68 @@
           Action="createJsonPointerValue" 
           Sequence="3" />
           
-        <Json:JsonFile 
-          Id="CreateLogLevel" 
-          File="[#EmptyConfig]" 
-          ElementPath="/Logging/Level" 
-          Value="Debug" 
-          Action="createJsonPointerValue" 
+        <Json:JsonFile
+          Id="CreateLogLevel"
+          File="[#EmptyConfig]"
+          ElementPath="/Logging/Level"
+          Value="Debug"
+          Action="createJsonPointerValue"
           Sequence="4" />
+
+        <!-- Write the values produced by the readValue operations (REG_READ_PRESENT /
+             REG_READ_MISSING) into this installed file so the regression test can verify
+             readValue end-to-end by inspecting file content rather than MSI log wording. -->
+        <Json:JsonFile
+          Id="WriteReadPresent"
+          File="[#EmptyConfig]"
+          ElementPath="/ReadResults/Present"
+          Value="[REG_READ_PRESENT]"
+          Action="createJsonPointerValue"
+          Sequence="5" />
+
+        <Json:JsonFile
+          Id="WriteReadMissing"
+          File="[#EmptyConfig]"
+          ElementPath="/ReadResults/Missing"
+          Value="[REG_READ_MISSING]"
+          Action="createJsonPointerValue"
+          Sequence="6" />
+      </Component>
+
+      <!-- Installs the JSON schema used for validateSchema coverage. Kept in its own component so
+           it can be referenced (via [#AppSettingsSchema]) by both the happy-path validation in
+           ProductComponent and the schema-failure regression component below. Must remain
+           unconditional: if it were ever gated, those [#AppSettingsSchema] references would resolve
+           to an empty path at runtime. -->
+      <Component Id="SchemaFileComponent" Guid="{58862E01-A058-4CB1-9FA3-66D81F5F6639}">
+        <File Id="AppSettingsSchema" Name="appsettings-schema.json" Source="appsettings-schema.json" KeyPath="yes" />
+      </Component>
+
+      <!-- Sad path: invalid JSON. Only installed when TEST_INVALID_JSON=1 is passed on the command
+           line. Attempting any operation on a malformed JSON file makes the custom action fail,
+           which aborts and rolls back the installation. -->
+      <Component Id="InvalidJsonComponent" Guid="{80054463-0503-45B7-8053-224623D99684}" Condition="TEST_INVALID_JSON=1">
+        <File Id="InvalidJsonFile" Name="invalid.json" Source="invalid.json" KeyPath="yes" />
+        <Json:JsonFile Id="modifyInvalidJson"
+               File="[#InvalidJsonFile]"
+               ElementPath="$.Data.Value"
+               Value="ShouldNeverBeWritten"
+               Action="setValue"
+               Sequence="1" />
+      </Component>
+
+      <!-- Sad path: schema validation failure. Only installed when TEST_SCHEMA_FAILURE=1 is passed.
+           schema-invalid.json is valid JSON (so the setValue succeeds) but is missing the required
+           "store" property, so validation against appsettings-schema.json fails and aborts the install. -->
+      <Component Id="SchemaFailureComponent" Guid="{069E7A31-B0F2-4187-A313-CBE659D385A5}" Condition="TEST_SCHEMA_FAILURE=1">
+        <File Id="SchemaInvalidFile" Name="schema-invalid.json" Source="schema-invalid.json" KeyPath="yes" />
+        <Json:JsonFile Id="validateSchemaFailure"
+               File="[#SchemaInvalidFile]"
+               ElementPath="$.notStore.value"
+               Value="2"
+               Action="setValue"
+               SchemaFile="[#AppSettingsSchema]"
+               Sequence="1" />
       </Component>
     </ComponentGroup>
   </Fragment>
