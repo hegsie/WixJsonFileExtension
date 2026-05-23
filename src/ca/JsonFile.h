@@ -122,3 +122,31 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile);
 
 std::string GetLastErrorAsString();
 HRESULT ReturnLastError(const std::string& action);
+
+inline HRESULT WideToUtf8(__in_z LPCWSTR wzInput, std::string& value)
+{
+    value.clear();
+
+    if (NULL == wzInput)
+    {
+        return E_INVALIDARG;
+    }
+
+    int cchRequired = ::WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wzInput, -1, NULL, 0, NULL, NULL);
+    if (cchRequired <= 0)
+    {
+        return HRESULT_FROM_WIN32(::GetLastError());
+    }
+
+    value.resize(cchRequired);
+
+    int cchWritten = ::WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wzInput, -1, &value[0], cchRequired, NULL, NULL);
+    if (cchWritten <= 0)
+    {
+        return HRESULT_FROM_WIN32(::GetLastError());
+    }
+
+    value.pop_back(); // remove null terminator
+
+    return S_OK;
+}
