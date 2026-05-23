@@ -136,7 +136,32 @@
                Action="setValue"
                OnlyIfExists="yes"
                Sequence="14"/>
-        
+
+        <!-- Array operation variations on an isolated array ($.arrayOps starts as ["seed"]).
+             Exercises insertArray at the front (Index=0), insertArray append (Index=-1) and
+             appendArray, so the distinct index code paths are verified. Final order must be
+             ["first", "seed", "last", "appended"]. -->
+        <Json:JsonFile Id="arrayInsertFront"
+               File="[#JsonConfig]"
+               ElementPath="$.arrayOps"
+               Value="first"
+               Action="insertArray"
+               Index="0"
+               Sequence="20"/>
+        <Json:JsonFile Id="arrayInsertEnd"
+               File="[#JsonConfig]"
+               ElementPath="$.arrayOps"
+               Value="last"
+               Action="insertArray"
+               Index="-1"
+               Sequence="21"/>
+        <Json:JsonFile Id="arrayAppend"
+               File="[#JsonConfig]"
+               ElementPath="$.arrayOps"
+               Value="appended"
+               Action="appendArray"
+               Sequence="22"/>
+
       </Component>
 
       <!-- New: Template-based configuration -->
@@ -195,13 +220,32 @@
           Action="createJsonPointerValue" 
           Sequence="3" />
           
-        <Json:JsonFile 
-          Id="CreateLogLevel" 
-          File="[#EmptyConfig]" 
+        <Json:JsonFile
+          Id="CreateLogLevel"
+          File="[#EmptyConfig]"
           ElementPath="/Logging/Level"
           Value="Debug"
           Action="createJsonPointerValue"
           Sequence="4" />
+
+        <!-- Write the values produced by the readValue operations (REG_READ_PRESENT /
+             REG_READ_MISSING) into this installed file so the regression test can verify
+             readValue end-to-end by inspecting file content rather than MSI log wording. -->
+        <Json:JsonFile
+          Id="WriteReadPresent"
+          File="[#EmptyConfig]"
+          ElementPath="/ReadResults/Present"
+          Value="[REG_READ_PRESENT]"
+          Action="createJsonPointerValue"
+          Sequence="5" />
+
+        <Json:JsonFile
+          Id="WriteReadMissing"
+          File="[#EmptyConfig]"
+          ElementPath="/ReadResults/Missing"
+          Value="[REG_READ_MISSING]"
+          Action="createJsonPointerValue"
+          Sequence="6" />
       </Component>
 
       <!-- Installs the JSON schema used for validateSchema coverage. Kept in its own component so

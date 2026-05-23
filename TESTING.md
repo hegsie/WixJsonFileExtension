@@ -356,7 +356,7 @@ log). Every JsonFile action/flag is exercised with both happy and sad paths:
 | `createJsonPointerValue` | creates a new top-level path; builds a whole file from `{}` | — |
 | `deleteValue` | wildcard delete across an array | — |
 | `appendArray` | appends an element | — |
-| `insertArray` | inserts at index 0 | — |
+| `insertArray` | inserts at index 0 | append via `Index="-1"` |
 | `removeArrayElement` | removes elements via a JSONPath filter | — |
 | `distinctValues` | de-duplicates string arrays | — |
 | `validateSchema` (`SchemaFile`) | passes for a valid file | schema violation aborts the install |
@@ -368,12 +368,19 @@ Sad paths that must abort the installation are driven by gated components in
 `TestJsonConfigInstaller/Product.wxs`, enabled per-run via installer properties
 (`TEST_INVALID_JSON=1`, `TEST_SCHEMA_FAILURE=1`) so they never affect a normal install.
 
+`readValue` is verified end-to-end by writing the read result back into an installed file and
+asserting that file's content (rather than relying on installer log wording). Every individual
+check and its pass/fail outcome is also written to the GitHub Actions job summary, so each run
+reports exactly which tests ran and their end state.
+
 The high-level steps are:
 
 1. Build the solution and the test installer
 2. Install the MSI (happy path) and assert every flag type against the installed JSON
-3. Verify `readValue` and `validateSchema` outcomes from the install log
-4. Run the invalid-JSON and schema-failure installs and confirm they fail and roll back
+   (including `readValue` results written back into `settings.json`)
+3. Verify the `validateSchema` happy path from the install log
+4. Run the invalid-JSON and schema-failure installs and confirm they fail, for the right
+   reason, and roll back
 5. Sanity-check the repository's JSON fixtures
 
 These tests run automatically on:

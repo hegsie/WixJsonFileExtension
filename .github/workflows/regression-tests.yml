@@ -10,6 +10,8 @@ on:
 env:
   SOLUTION_FILE_PATH: .
   BUILD_CONFIGURATION: Release
+  # ProductCode of TestJsonConfigInstaller (see TestJsonConfigInstaller/Product.wxs).
+  PRODUCT_CODE: "{C9A3F6AF-7F4F-473F-BFFC-6143EB1AA0D4}"
 
 permissions:
   contents: read
@@ -95,21 +97,14 @@ jobs:
     # End-to-end flag-type regression coverage.
     #
     # These steps install the real test MSI and assert the *extension's* behaviour
-    # by inspecting the JSON files it writes (and the install log). Every JsonFile
-    # action/flag is exercised, with both happy and sad paths:
+    # by inspecting the JSON files it writes (and, where there is no file artifact,
+    # the install log). Each individual check and its outcome is also written to the
+    # GitHub job summary so the run reports exactly which tests ran and passed/failed.
     #
-    #   readValue              - happy + missing element -> DefaultValue
-    #   setValue               - filtered, nested, multi-select, + OnlyIfExists
-    #   replaceJsonValue       - replace whole array from a property
-    #   createJsonPointerValue - create new paths / build a file from {}
-    #   deleteValue            - wildcard delete
-    #   appendArray            - append element
-    #   insertArray            - insert at index 0
-    #   removeArrayElement     - JSONPath filter delete
-    #   distinctValues         - de-duplicate arrays
-    #   validateSchema         - happy (passes) + sad (install fails)
-    #   OnlyIfExists           - update existing + skip missing
-    #   invalid JSON           - sad path (install fails)
+    # Coverage (happy + sad/variation) for every JsonFile flag:
+    #   readValue, setValue, replaceJsonValue, createJsonPointerValue, deleteValue,
+    #   appendArray, insertArray (Index 0 and -1), removeArrayElement, distinctValues,
+    #   validateSchema, OnlyIfExists, non-ASCII values, invalid JSON.
     # ---------------------------------------------------------------------------
 
     - name: Prepare readValue source file
@@ -133,11 +128,20 @@ jobs:
     - name: Install test MSI (happy path)
       shell: pwsh
       run: |
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        Note "# Regression Test Report"
+        Note ""
+        Note "## Install (happy path)"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
+
         $msi = (Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse | Select-Object -First 1).FullName
-        if (-not $msi) { Write-Host "✗ Test installer MSI not found"; exit 1 }
+        if (-not $msi) { Note "| ❌ | Test installer MSI not found |"; Write-Host "✗ MSI not found"; exit 1 }
         Write-Host "Installing: $msi"
 
         $log = Join-Path $env:RUNNER_TEMP "happy-install.log"
+        Remove-Item -Path $log -ErrorAction SilentlyContinue
 
         # MY_VALUE uses Cyrillic text to also regression-test non-ASCII (UTF-8) value handling.
         # Passing it as its own Start-Process argument keeps it Unicode-safe.
@@ -146,20 +150,31 @@ jobs:
         $p = Start-Process -FilePath "msiexec.exe" -ArgumentList $argline -Wait -PassThru
         Write-Host "msiexec exit code: $($p.ExitCode)"
 
-        if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
+        if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) {
+          Note "| ✅ | MSI install succeeded (exit $($p.ExitCode)) |"
+          Write-Host "✓ Happy-path install succeeded"
+        } else {
+          Note "| ❌ | MSI install failed (exit $($p.ExitCode)) |"
           Write-Host "✗ Happy-path install failed"
           if (Test-Path $log) { Write-Host "----- msiexec log -----"; Get-Content -Path $log }
           exit 1
         }
-        Write-Host "✓ Happy-path install succeeded"
 
     - name: Verify all flag types in installed JSON (happy paths)
       shell: pwsh
       run: |
         $failed = $false
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
         function Check([bool]$cond, [string]$msg) {
-          if ($cond) { Write-Host "  [PASS] $msg" } else { Write-Host "  [FAIL] $msg"; $script:failed = $true }
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
         }
+
+        Note ""
+        Note "## Installed-JSON flag-type assertions"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
 
         $expectedCategory = "КатегорияПривет"
         $installDir = Join-Path $env:ProgramFiles "TestJsonConfigInstaller"
@@ -169,7 +184,7 @@ jobs:
         $setPath = Join-Path $installDir "settings.json"
 
         foreach ($f in @($appPath, $cfgPath, $setPath)) {
-          if (-not (Test-Path $f)) { Write-Host "✗ Expected installed file missing: $f"; exit 1 }
+          if (-not (Test-Path $f)) { Note "| ❌ | Expected installed file missing: $f |"; Write-Host "✗ Missing $f"; exit 1 }
         }
 
         $j = Get-Content -Path $appPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -177,20 +192,28 @@ jobs:
         Write-Host "replaceJsonValue / setValue (filter) / non-ASCII:"
         $books = @($j.store.book)
         $moby = $books | Where-Object { $_.isbn -eq '0-553-21311-3' } | Select-Object -First 1
-        Check ($null -ne $moby) "book with isbn 0-553-21311-3 exists after replaceJsonValue"
+        Check ($null -ne $moby) "replaceJsonValue: book with isbn 0-553-21311-3 exists"
         Check ($moby.author -eq 'HermanMelville') "replaceJsonValue replaced array contents from MY_BOOKS"
         Check ($moby.category -eq $expectedCategory) "setValue (JSONPath filter) wrote non-ASCII value to category"
 
-        Write-Host "appendArray / insertArray / removeArrayElement:"
-        Check ($books.Count -eq 3) "net array size is 3 (append + insert at 0 - remove price>20)"
+        Write-Host "appendArray / insertArray / removeArrayElement (on store.book):"
+        Check ($books.Count -eq 3) "net array size is 3 (append + insert@0 - remove price>20)"
         Check ($books[0].title -eq 'Steve Jobs') "insertArray placed 'Steve Jobs' at index 0"
         Check ((@($books | Where-Object { $_.title -eq 'Cosmos' })).Count -eq 1) "appendArray added 'Cosmos'"
         Check ((@($books | Where-Object { $_.author -eq 'NigelRees' })).Count -eq 0) "removeArrayElement removed books priced > 20"
 
+        Write-Host "insertArray Index variations / appendArray (on isolated arrayOps):"
+        $ao = @($j.arrayOps)
+        Check ($ao.Count -eq 4) "arrayOps has 4 elements after insert(0)/insert(-1)/append"
+        Check ($ao[0] -eq 'first') "insertArray Index=0 inserted 'first' at front"
+        Check ($ao[1] -eq 'seed') "original 'seed' element retained in order"
+        Check ($ao[2] -eq 'last') "insertArray Index=-1 appended 'last'"
+        Check ($ao[3] -eq 'appended') "appendArray added 'appended' at the end"
+
         Write-Host "setValue (multi-select recursive descent):"
         $prices = @($books.price) + @($j.store.bicycle.price)
         $offPrice = @($prices | Where-Object { [math]::Abs([double]$_ - 9.99) -gt 0.001 })
-        Check ($offPrice.Count -eq 0) "`$..price multi-select set every price to 9.99"
+        Check ($offPrice.Count -eq 0) "`$..price multi-select set every price (books + bicycle) to 9.99"
 
         Write-Host "deleteValue (wildcard):"
         $withOldPrice = @($books | Where-Object { $_.PSObject.Properties.Name -contains 'OldPrice' })
@@ -201,8 +224,7 @@ jobs:
 
         Write-Host "setValue (deeply nested) using LOG_DIRECTORY property:"
         $logPath = $j.Serilog.WriteTo[0].Args.configure[0].Args.path
-        Check ($logPath -like 'C:\temp\*') "nested setValue substituted [LOG_DIRECTORY]"
-        Check ($logPath -like '*PowerCommunications*') "nested setValue preserved path suffix"
+        Check ($logPath -like 'C:\temp\PowerCommunications*CommunicationService.Outgoing-.log') "nested setValue substituted [LOG_DIRECTORY] and kept the literal suffix"
 
         Write-Host "OnlyIfExists:"
         Check ($j.expensive -eq 15) "OnlyIfExists=yes updated existing 'expensive' to 15"
@@ -225,100 +247,142 @@ jobs:
         Check ($set.Application.Version -eq '2.0.0') "built Application.Version from empty file"
         Check ($set.Logging.Level -eq 'Debug') "built Logging.Level from empty file"
 
+        Write-Host "readValue (verified via written-back file content):"
+        Check ($set.ReadResults.Present -eq 'Staging') "readValue read existing element ('Staging') -> written back to file"
+        Check ($set.ReadResults.Missing -eq 'READ_DEFAULT') "readValue applied DefaultValue for missing element -> written back to file"
+
         if ($script:failed) { Write-Host "`nOne or more flag-type assertions FAILED"; exit 1 }
         Write-Host "`n✓ All installed-JSON flag-type assertions passed"
 
-    - name: Verify readValue and validateSchema (from install log)
+    - name: Verify validateSchema (happy path) from install log
       shell: pwsh
       run: |
         $failed = $false
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
         function Check([bool]$cond, [string]$msg) {
-          if ($cond) { Write-Host "  [PASS] $msg" } else { Write-Host "  [FAIL] $msg"; $script:failed = $true }
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
         }
 
+        Note ""
+        Note "## validateSchema (happy path)"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
+
         $log = Join-Path $env:RUNNER_TEMP "happy-install.log"
-        if (-not (Test-Path $log)) { Write-Host "✗ Install log not found: $log"; exit 1 }
+        if (-not (Test-Path $log)) { Note "| ❌ | Install log not found |"; Write-Host "✗ log missing"; exit 1 }
         $content = Get-Content -Path $log -Raw
 
-        Write-Host "readValue:"
-        Check ($content -match "REG_READ_PRESENT.*Staging") "readValue read existing value ('Staging') into a property"
-        Check ($content -match "REG_READ_MISSING.*READ_DEFAULT") "readValue applied DefaultValue for a missing element"
+        # The validator logs this only when SchemaFile validation actually ran and passed.
+        Check ($content -match [regex]::Escape("JSON schema validation successful")) "SchemaFile validation passed for the valid file"
 
-        Write-Host "validateSchema (happy):"
-        Check ($content -match "JSON schema validation successful") "SchemaFile validation passed for the valid file"
-
-        if ($script:failed) { Write-Host "`nreadValue/validateSchema log assertions FAILED"; exit 1 }
-        Write-Host "`n✓ readValue and validateSchema (happy) assertions passed"
+        if ($script:failed) { exit 1 }
+        Write-Host "`n✓ validateSchema (happy) assertion passed"
 
     - name: Uninstall happy-path product
       shell: pwsh
       run: |
         $log = Join-Path $env:RUNNER_TEMP "uninstall.log"
-        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x {C9A3F6AF-7F4F-473F-BFFC-6143EB1AA0D4} /qn /norestart /l*v `"$log`"" -Wait -PassThru
+        Remove-Item -Path $log -ErrorAction SilentlyContinue
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$env:PRODUCT_CODE`" /qn /norestart /l*v `"$log`"" -Wait -PassThru
         Write-Host "Uninstall exit code: $($p.ExitCode)"
 
     - name: Sad path - invalid JSON aborts install
       shell: pwsh
       run: |
+        $failed = $false
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
+        }
+
+        Note ""
+        Note "## Sad path: invalid JSON aborts install"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
+
         $msi = (Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse | Select-Object -First 1).FullName
         $log = Join-Path $env:RUNNER_TEMP "invalid-json.log"
+        Remove-Item -Path $log -ErrorAction SilentlyContinue
 
         # TEST_INVALID_JSON=1 enables a component that operates on malformed JSON; the custom action
         # must fail, which aborts and rolls back the installation.
         $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msi`" /qn /norestart /l*v `"$log`" TEST_INVALID_JSON=1" -Wait -PassThru
         Write-Host "msiexec exit code: $($p.ExitCode)"
 
-        if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) {
-          Write-Host "✗ Install unexpectedly SUCCEEDED with invalid JSON (expected failure)"
-          # Best-effort cleanup so later steps start clean.
-          Start-Process -FilePath "msiexec.exe" -ArgumentList "/x {C9A3F6AF-7F4F-473F-BFFC-6143EB1AA0D4} /qn /norestart" -Wait | Out-Null
-          exit 1
-        }
-        Write-Host "✓ Invalid JSON correctly aborted the install (exit $($p.ExitCode))"
+        $nonZero = ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010)
+        Check $nonZero "install failed as expected (exit $($p.ExitCode))"
 
-        if (Test-Path $log) {
-          $content = Get-Content -Path $log -Raw
-          if ($content -match "invalid.json") {
-            Write-Host "✓ Install log references the invalid JSON file"
-          } else {
-            Write-Host "  (note: invalid.json not referenced in log; relying on non-zero exit code)"
-          }
+        # Prove the failure was actually the JSON operation, not an unrelated error.
+        $content = if (Test-Path $log) { Get-Content -Path $log -Raw } else { "" }
+        Check ($content -match [regex]::Escape("Failed while updating file")) "extension reported a JsonFile operation failure"
+        Check ($content -match "invalid\.json") "the failing operation targeted invalid.json"
+
+        # Best-effort cleanup in case the install unexpectedly succeeded.
+        if (-not $nonZero) {
+          Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$env:PRODUCT_CODE`" /qn /norestart" -Wait | Out-Null
         }
+
+        if ($script:failed) { Write-Host "`nInvalid-JSON sad-path assertions FAILED"; exit 1 }
+        Write-Host "`n✓ Invalid JSON correctly aborted the install for the right reason"
 
     - name: Sad path - schema validation failure aborts install
       shell: pwsh
       run: |
+        $failed = $false
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
+        }
+
+        Note ""
+        Note "## Sad path: schema validation failure aborts install"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
+
         $msi = (Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse | Select-Object -First 1).FullName
         $log = Join-Path $env:RUNNER_TEMP "schema-failure.log"
+        Remove-Item -Path $log -ErrorAction SilentlyContinue
 
         # TEST_SCHEMA_FAILURE=1 enables a component whose JSON is valid but violates the schema
         # (missing required "store"); schema validation must fail and abort the install.
         $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msi`" /qn /norestart /l*v `"$log`" TEST_SCHEMA_FAILURE=1" -Wait -PassThru
         Write-Host "msiexec exit code: $($p.ExitCode)"
 
-        if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) {
-          Write-Host "✗ Install unexpectedly SUCCEEDED despite schema violation (expected failure)"
-          Start-Process -FilePath "msiexec.exe" -ArgumentList "/x {C9A3F6AF-7F4F-473F-BFFC-6143EB1AA0D4} /qn /norestart" -Wait | Out-Null
-          exit 1
-        }
-        Write-Host "✓ Schema violation correctly aborted the install (exit $($p.ExitCode))"
+        $nonZero = ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010)
+        Check $nonZero "install failed as expected (exit $($p.ExitCode))"
 
-        if (Test-Path $log) {
-          $content = Get-Content -Path $log -Raw
-          if ($content -match "Schema validation failed" -or $content -match "Required property missing") {
-            Write-Host "✓ Install log shows the schema validation failure"
-          } else {
-            Write-Host "  (note: schema failure message not found in log; relying on non-zero exit code)"
-          }
+        # Prove the failure was specifically schema validation, not an unrelated error.
+        $content = if (Test-Path $log) { Get-Content -Path $log -Raw } else { "" }
+        Check ($content -match [regex]::Escape("Schema validation failed")) "extension reported a schema validation failure"
+
+        if (-not $nonZero) {
+          Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$env:PRODUCT_CODE`" /qn /norestart" -Wait | Out-Null
         }
+
+        if ($script:failed) { Write-Host "`nSchema-failure sad-path assertions FAILED"; exit 1 }
+        Write-Host "`n✓ Schema violation correctly aborted the install for the right reason"
 
     - name: Verify repository test JSON fixtures
       shell: pwsh
       run: |
         $failed = $false
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
         function Check([bool]$cond, [string]$msg) {
-          if ($cond) { Write-Host "  [PASS] $msg" } else { Write-Host "  [FAIL] $msg"; $script:failed = $true }
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
         }
+
+        Note ""
+        Note "## Repository JSON fixtures"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
 
         # Valid fixtures should parse.
         foreach ($f in @("TestJsonConfigInstaller\appsettings.json", "TestJsonConfigInstaller\appsettings.dotnet.json")) {
@@ -336,23 +400,11 @@ jobs:
 
         if ($script:failed) { exit 1 }
 
-    - name: Summary
+    - name: Report overall result
+      if: always()
       shell: pwsh
       run: |
-        Write-Host ""
-        Write-Host "========================================" -ForegroundColor Green
-        Write-Host "  Regression Test Summary" -ForegroundColor Green
-        Write-Host "========================================" -ForegroundColor Green
-        Write-Host "✓ Solution + test installer built" -ForegroundColor Green
-        Write-Host "✓ readValue (happy + missing -> default)" -ForegroundColor Green
-        Write-Host "✓ setValue (filter, nested, multi-select, OnlyIfExists)" -ForegroundColor Green
-        Write-Host "✓ replaceJsonValue" -ForegroundColor Green
-        Write-Host "✓ createJsonPointerValue (new path + build from {})" -ForegroundColor Green
-        Write-Host "✓ deleteValue (wildcard)" -ForegroundColor Green
-        Write-Host "✓ appendArray / insertArray / removeArrayElement" -ForegroundColor Green
-        Write-Host "✓ distinctValues" -ForegroundColor Green
-        Write-Host "✓ validateSchema (happy + sad)" -ForegroundColor Green
-        Write-Host "✓ OnlyIfExists (update existing + skip missing)" -ForegroundColor Green
-        Write-Host "✓ non-ASCII (UTF-8) value preservation" -ForegroundColor Green
-        Write-Host "✓ invalid JSON aborts install" -ForegroundColor Green
-        Write-Host "========================================" -ForegroundColor Green
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        Note ""
+        Note "## Overall result: ${{ job.status }}"
+        Write-Host "Overall job status: ${{ job.status }}"
