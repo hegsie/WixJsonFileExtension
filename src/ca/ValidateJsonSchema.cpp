@@ -1,12 +1,22 @@
 #include "stdafx.h"
 #include "JsonFile.h"
-#include "jsoncons_ext/jsonschema/jsonschema.hpp"
 
 HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
 {
-    // Validates the JSON file against the supplied JSON Schema using the jsoncons jsonschema
-    // extension, which supports JSON Schema drafts 4/7/2019-09/2020-12 (selected by the schema's
-    // $schema keyword, defaulting to the latest when absent).
+    // Basic JSON Schema validation implementation
+    // 
+    // Supported features:
+    //   - Root type validation
+    //   - Required properties checking (for objects)
+    //   - Property type validation
+    //
+    // Known limitations:
+    //   - Integer types accept any numeric value (not validated for whole numbers)
+    //   - No support for: $ref, patterns, enums, min/max, format validation, 
+    //     conditional schemas, or nested validation beyond type checking
+    //
+    // For full JSON Schema Draft 7+ compliance, use a dedicated JSON Schema library.
+    
     try
     {
         // Input validation
@@ -59,11 +69,93 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
 
         WcaLog(LOGMSG_STANDARD, "Validating JSON against schema");
 
-        auto schema = jsoncons::jsonschema::make_json_schema(schemaData);
-        if (!schema.is_valid(jsonData))
+        // Check if schema has "type" property
+        if (schemaData.contains("type"))
         {
-            WcaLog(LOGMSG_STANDARD, "WixJsonFile: JSON file '%ls' failed validation against schema '%ls'", wzFile, wzSchemaFile);
-            return E_FAIL;
+            if (!schemaData["type"].is_string())
+            {
+                WcaLog(LOGMSG_STANDARD, "Invalid schema: 'type' must be a string");
+                return E_FAIL;
+            }
+            
+            std::string expectedType = schemaData["type"].as<std::string>();
+            std::string actualType;
+
+            if (jsonData.is_object()) actualType = "object";
+            else if (jsonData.is_array()) actualType = "array";
+            else if (jsonData.is_string()) actualType = "string";
+            else if (jsonData.is_number()) actualType = "number";
+            else if (jsonData.is_bool()) actualType = "boolean";
+            else if (jsonData.is_null()) actualType = "null";
+
+            if (expectedType != actualType)
+            {
+                WcaLog(LOGMSG_STANDARD, "Type mismatch: expected %s but got %s",
+                    expectedType.c_str(), actualType.c_str());
+                return E_FAIL;
+            }
+        }
+
+        // Check required properties for objects
+        if (schemaData.contains("required") && jsonData.is_object())
+        {
+            auto required = schemaData["required"];
+            if (required.is_array())
+            {
+                for (const auto& req : required.array_range())
+                {
+                    std::string propName = req.as<std::string>();
+                    if (!jsonData.contains(propName))
+                    {
+                        WcaLog(LOGMSG_STANDARD, "Required property missing: %s", propName.c_str());
+                        return E_FAIL;
+                    }
+                }
+            }
+        }
+
+        // Check properties types
+        if (schemaData.contains("properties") && jsonData.is_object())
+        {
+            auto properties = schemaData["properties"];
+            for (const auto& prop : properties.object_range())
+            {
+                std::string propName = prop.key();
+                if (jsonData.contains(propName))
+                {
+                    auto propSchema = prop.value();
+                    if (propSchema.contains("type"))
+                    {
+                        std::string expectedType = propSchema["type"].as<std::string>();
+                        auto& actualValue = jsonData[propName];
+
+                        std::string actualType;
+                        if (actualValue.is_object()) actualType = "object";
+                        else if (actualValue.is_array()) actualType = "array";
+                        else if (actualValue.is_string()) actualType = "string";
+                        else if (actualValue.is_number()) actualType = "number";
+                        else if (actualValue.is_bool()) actualType = "boolean";
+                        else if (actualValue.is_null()) actualType = "null";
+
+                        // Check type match - allow integer schema to match number values
+                        bool typeMatches = (expectedType == actualType);
+                        if (!typeMatches && expectedType == "integer" && actualType == "number")
+                        {
+                            // Allow numeric values for integer schema types (basic validation only)
+                            // Limitation: This doesn't verify the number is a whole number.
+                            // For strict integer validation, a full JSON Schema library would be needed.
+                            typeMatches = true;
+                        }
+
+                        if (!typeMatches)
+                        {
+                            WcaLog(LOGMSG_STANDARD, "Type mismatch for property '%s': expected %s but got %s",
+                                propName.c_str(), expectedType.c_str(), actualType.c_str());
+                            return E_FAIL;
+                        }
+                    }
+                }
+            }
         }
 
         WcaLog(LOGMSG_STANDARD, "JSON schema validation successful");
