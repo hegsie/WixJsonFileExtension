@@ -10,14 +10,18 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+
+# Cancel superseded in-progress runs for the same ref.
+concurrency:
+  group: msbuild-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   # Path to the solution file relative to the root of the project.
   SOLUTION_FILE_PATH: .
 
   # Configuration type to build.
-  # You can convert this to a build matrix if you need coverage of multiple configuration types.
-  # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
   BUILD_CONFIGURATION: Release
 
 permissions:
@@ -33,22 +37,45 @@ jobs:
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v2
 
-    - name: Restore NuGet packages
-      working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: nuget restore ${{env.SOLUTION_FILE_PATH}}
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
 
+    - name: Restore NuGet packages
+      run: nuget restore ${{ env.SOLUTION_FILE_PATH }}
+
+    # Single build of the solution. The unit tests below reuse its output: the wixext embeds the
+    # wixlib produced here, and the C++ test project links the WiX native packages restored above.
     - name: Build
-      working-directory: ${{env.GITHUB_WORKSPACE}}
-      # Add additional options to the MSBuild command line here (like platform or verbosity level).
-      # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
-      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}}
+      run: msbuild /m /p:Configuration=${{ env.BUILD_CONFIGURATION }} ${{ env.SOLUTION_FILE_PATH }}
+
+    # SolutionDir is passed so the wixext PostBuild xcopy target resolves when the test project
+    # builds the wixext outside of the .sln.
+    - name: Run C# unit tests
+      run: >
+        dotnet test test/WixJsonFileExtension.Tests/WixJsonFileExtension.Tests.csproj
+        --configuration ${{ env.BUILD_CONFIGURATION }}
+        -p:SolutionDir=${{ github.workspace }}\
+
+    - name: Build C++ unit tests
+      run: msbuild /p:Configuration=${{ env.BUILD_CONFIGURATION }} /p:Platform=x64 test\jsonca.tests\jsonca.tests.vcxproj
+
+    - name: Run C++ unit tests
+      shell: pwsh
+      run: |
+        $exe = Get-ChildItem -Path "test\jsonca.tests" -Filter "jsonca.tests.exe" -Recurse | Select-Object -First 1
+        if (-not $exe) { Write-Error "jsonca.tests.exe not found"; exit 1 }
+        Write-Host "Running $($exe.FullName)"
+        & $exe.FullName
+        if ($LASTEXITCODE -ne 0) { Write-Error "C++ unit tests failed with exit code $LASTEXITCODE"; exit 1 }
 
     - name: Pack
-      working-directory: ${{env.SOLUTION_FILE_PATH}}\src\wixext\
-      run: dotnet pack --no-build --configuration ${{env.BUILD_CONFIGURATION}} /p:Version=6.0.0.${{github.run_number}}
+      working-directory: ${{ env.SOLUTION_FILE_PATH }}\src\wixext\
+      run: dotnet pack --no-build --configuration ${{ env.BUILD_CONFIGURATION }} /p:Version=6.0.0.${{ github.run_number }}
 
     - name: Upload NuGet Package
       uses: actions/upload-artifact@v4
       with:
         name: nuget-package
-        path: ${{env.SOLUTION_FILE_PATH}}\src\wixext\bin\${{env.BUILD_CONFIGURATION}}\*.nupkg
+        path: ${{ env.SOLUTION_FILE_PATH }}\src\wixext\bin\${{ env.BUILD_CONFIGURATION }}\*.nupkg
