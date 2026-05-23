@@ -281,13 +281,23 @@ jobs:
     - name: Uninstall happy-path product
       shell: pwsh
       run: |
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        Note ""
+        Note "## Uninstall (happy path)"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
+
         # Uninstall via the package path (no ProductCode coupling that could drift from Product.wxs).
         $msi = (Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse | Select-Object -First 1).FullName
         $log = Join-Path $env:RUNNER_TEMP "uninstall.log"
         Remove-Item -Path $log -ErrorAction SilentlyContinue
         $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$msi`" /qn /norestart /l*v `"$log`"" -Wait -PassThru
         Write-Host "Uninstall exit code: $($p.ExitCode)"
-        if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
+        if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) {
+          Note "| ✅ | MSI uninstall succeeded (exit $($p.ExitCode)) |"
+        } else {
+          Note "| ❌ | MSI uninstall failed (exit $($p.ExitCode)) — later steps may be affected |"
           Write-Host "✗ Uninstall failed; later install steps may be affected"
           if (Test-Path $log) { Get-Content -Path $log }
           exit 1

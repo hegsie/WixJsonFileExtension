@@ -14,13 +14,15 @@
     <Property Id="LOG_DIRECTORY" Value="C:\temp\" />
 
     <!-- readValue source path is overridable; defaults to the location the regression workflow
-         populates. The two REG_READ_* properties get sensible defaults so that if the source file
-         is absent at install time (readValue leaves the property untouched when the whole file is
-         missing, as opposed to applying DefaultValue when only the element is missing), the
-         downstream write-back still produces a deterministic value. -->
+         populates. The two REG_READ_* properties default to a distinct sentinel (NOT the readValue
+         DefaultValue) so the regression assertions can tell apart three cases: the element was read
+         ("Staging"), the element was missing and DefaultValue was applied ("READ_DEFAULT"), or the
+         readValue action never ran / the source file was absent ("PROPERTY_NOT_SET"). Using the
+         sentinel here prevents a false pass where readValue silently doing nothing would still
+         leave the expected default value in the property. -->
     <Property Id="REG_READ_SOURCE" Value="C:\JsonRegression\read-source.json" />
-    <Property Id="REG_READ_PRESENT" Value="READ_DEFAULT" />
-    <Property Id="REG_READ_MISSING" Value="READ_DEFAULT" />
+    <Property Id="REG_READ_PRESENT" Value="PROPERTY_NOT_SET" />
+    <Property Id="REG_READ_MISSING" Value="PROPERTY_NOT_SET" />
 
     <Feature Id="ProductFeature" Title="TestJsonConfigInstaller" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
