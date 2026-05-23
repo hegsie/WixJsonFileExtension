@@ -10,8 +10,6 @@ on:
 env:
   SOLUTION_FILE_PATH: .
   BUILD_CONFIGURATION: Release
-  # ProductCode of TestJsonConfigInstaller (see TestJsonConfigInstaller/Product.wxs).
-  PRODUCT_CODE: "{C9A3F6AF-7F4F-473F-BFFC-6143EB1AA0D4}"
 
 permissions:
   contents: read
@@ -283,10 +281,17 @@ jobs:
     - name: Uninstall happy-path product
       shell: pwsh
       run: |
+        # Uninstall via the package path (no ProductCode coupling that could drift from Product.wxs).
+        $msi = (Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse | Select-Object -First 1).FullName
         $log = Join-Path $env:RUNNER_TEMP "uninstall.log"
         Remove-Item -Path $log -ErrorAction SilentlyContinue
-        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$env:PRODUCT_CODE`" /qn /norestart /l*v `"$log`"" -Wait -PassThru
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$msi`" /qn /norestart /l*v `"$log`"" -Wait -PassThru
         Write-Host "Uninstall exit code: $($p.ExitCode)"
+        if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
+          Write-Host "✗ Uninstall failed; later install steps may be affected"
+          if (Test-Path $log) { Get-Content -Path $log }
+          exit 1
+        }
 
     - name: Sad path - invalid JSON aborts install
       shell: pwsh
@@ -323,7 +328,7 @@ jobs:
 
         # Best-effort cleanup in case the install unexpectedly succeeded.
         if (-not $nonZero) {
-          Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$env:PRODUCT_CODE`" /qn /norestart" -Wait | Out-Null
+          Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$msi`" /qn /norestart" -Wait | Out-Null
         }
 
         if ($script:failed) { Write-Host "`nInvalid-JSON sad-path assertions FAILED"; exit 1 }
@@ -362,7 +367,7 @@ jobs:
         Check ($content -match [regex]::Escape("Schema validation failed")) "extension reported a schema validation failure"
 
         if (-not $nonZero) {
-          Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$env:PRODUCT_CODE`" /qn /norestart" -Wait | Out-Null
+          Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$msi`" /qn /norestart" -Wait | Out-Null
         }
 
         if ($script:failed) { Write-Host "`nSchema-failure sad-path assertions FAILED"; exit 1 }

@@ -13,6 +13,15 @@
     <Property Id="MY_BOOKS" Value="[{&quot;author&quot;:&quot;NigelRees&quot;,&quot;category&quot;:&quot;reference&quot;,&quot;price&quot;:28.95,&quot;OldPrice&quot;:128.95,&quot;title&quot;:&quot;SayingsoftheCentury&quot;},{&quot;author&quot;:&quot;EvelynWaugh&quot;,&quot;category&quot;:&quot;fiction&quot;,&quot;price&quot;:22.99,&quot;OldPrice&quot;:168.95,&quot;title&quot;:&quot;SwordofHonour&quot;},{&quot;author&quot;:&quot;HermanMelville&quot;,&quot;category&quot;:&quot;fiction&quot;,&quot;isbn&quot;:&quot;0-553-21311-3&quot;,&quot;price&quot;:28.99,&quot;OldPrice&quot;:178.95,&quot;title&quot;:&quot;MobyDick&quot;}]" />
     <Property Id="LOG_DIRECTORY" Value="C:\temp\" />
 
+    <!-- readValue source path is overridable; defaults to the location the regression workflow
+         populates. The two REG_READ_* properties get sensible defaults so that if the source file
+         is absent at install time (readValue leaves the property untouched when the whole file is
+         missing, as opposed to applying DefaultValue when only the element is missing), the
+         downstream write-back still produces a deterministic value. -->
+    <Property Id="REG_READ_SOURCE" Value="C:\JsonRegression\read-source.json" />
+    <Property Id="REG_READ_PRESENT" Value="READ_DEFAULT" />
+    <Property Id="REG_READ_MISSING" Value="READ_DEFAULT" />
+
     <Feature Id="ProductFeature" Title="TestJsonConfigInstaller" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
     </Feature>
@@ -45,8 +54,8 @@
              machine rather than one being installed in this same transaction.
              REG_READ_PRESENT exercises the happy path; REG_READ_MISSING exercises the sad path where
              the element is absent and the DefaultValue is applied instead. -->
-        <Json:JsonFile Id="regReadPresent" File="C:\JsonRegression\read-source.json" ElementPath="$.config.environment" DefaultValue="READ_DEFAULT" Action="readValue" Property="REG_READ_PRESENT" />
-        <Json:JsonFile Id="regReadMissing" File="C:\JsonRegression\read-source.json" ElementPath="$.config.missingKey" DefaultValue="READ_DEFAULT" Action="readValue" Property="REG_READ_MISSING" />
+        <Json:JsonFile Id="regReadPresent" File="[REG_READ_SOURCE]" ElementPath="$.config.environment" DefaultValue="READ_DEFAULT" Action="readValue" Property="REG_READ_PRESENT" />
+        <Json:JsonFile Id="regReadMissing" File="[REG_READ_SOURCE]" ElementPath="$.config.missingKey" DefaultValue="READ_DEFAULT" Action="readValue" Property="REG_READ_MISSING" />
         
         <!-- Replace entire JSON object -->
         <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" Sequence="1" />
@@ -96,7 +105,10 @@
                Sequence="9"/>
 
         <!-- Update all prices (multi-select). SchemaFile validates the file against
-             appsettings-schema.json after this operation succeeds (validateSchema happy path). -->
+             appsettings-schema.json after this operation succeeds (validateSchema happy path).
+             Intentionally placed on a plain setValue (not an OnlyIfExists op): when OnlyIfExists
+             skips a missing path the operation short-circuits before schema validation runs, so
+             attaching SchemaFile here guarantees the validation actually executes. -->
         <Json:JsonFile Id="updateAllPrices"
                File="[#JsonConfig]"
                ElementPath="$..price"
