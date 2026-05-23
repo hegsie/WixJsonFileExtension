@@ -24,6 +24,12 @@
     <Property Id="REG_READ_PRESENT" Value="PROPERTY_NOT_SET" />
     <Property Id="REG_READ_MISSING" Value="PROPERTY_NOT_SET" />
 
+    <!-- Switches for the property-gated sad-path components. Declared (default 0) so component
+         conditions reference known properties (silences ICE28); set to 1 on the msiexec command
+         line to enable the corresponding failure scenario. -->
+    <Property Id="TEST_INVALID_JSON" Value="0" />
+    <Property Id="TEST_SCHEMA_FAILURE" Value="0" />
+
     <Feature Id="ProductFeature" Title="TestJsonConfigInstaller" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
     </Feature>
@@ -264,7 +270,9 @@
 
       <!-- Installs the JSON schema used for validateSchema coverage. Kept in its own component so
            it can be referenced (via [#AppSettingsSchema]) by both the happy-path validation in
-           ProductComponent and the schema-failure regression component below. -->
+           ProductComponent and the schema-failure regression component below. Must remain
+           unconditional: if it were ever gated, those [#AppSettingsSchema] references would resolve
+           to an empty path at runtime. -->
       <Component Id="SchemaFileComponent" Guid="{58862E01-A058-4CB1-9FA3-66D81F5F6639}">
         <File Id="AppSettingsSchema" Name="appsettings-schema.json" Source="appsettings-schema.json" KeyPath="yes" />
       </Component>

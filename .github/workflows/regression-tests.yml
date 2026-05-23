@@ -120,8 +120,18 @@ jobs:
           }
         }
         "@
-        $source | Out-File -FilePath (Join-Path $dir "read-source.json") -Encoding UTF8
-        Write-Host "✓ Created C:\JsonRegression\read-source.json"
+        $readSrc = Join-Path $dir "read-source.json"
+        $source | Out-File -FilePath $readSrc -Encoding UTF8
+
+        # Validate the fixture up front so a setup failure here is never mistaken for a readValue
+        # custom-action bug later (readValue silently leaves the property unset if the file is absent).
+        if (-not (Test-Path $readSrc)) { Write-Host "✗ Failed to create $readSrc"; exit 1 }
+        $probe = Get-Content -Path $readSrc -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($probe.config.environment -ne 'Staging') {
+          Write-Host "✗ read-source.json does not contain the expected \$.config.environment = 'Staging'"
+          exit 1
+        }
+        Write-Host "✓ Created and verified $readSrc"
 
     - name: Install test MSI (happy path)
       shell: pwsh
