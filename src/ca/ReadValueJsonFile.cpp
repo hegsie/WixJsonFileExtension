@@ -84,7 +84,7 @@ extern "C" UINT WINAPI ReadValueJsonFile(
                                 WcaSetProperty(pxfc->pwzProperty, pxfc->pwzDefaultValue);
                             }
                             else {
-                                WcaLog(LOGMSG_STANDARD, "Found %d results for %s", result.size(), elementPath.c_str());
+                                WcaLog(LOGMSG_STANDARD, "Found %d results for %s", static_cast<int>(result.size()), elementPath.c_str());
 
                                 // json_query returns an array of matches; use the first match.
                                 jsoncons::json match = (result.is_array() && !result.empty()) ? result.at(0) : result;
