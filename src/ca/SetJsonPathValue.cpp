@@ -54,7 +54,9 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
 
             if (createValue) {
                 std::error_code ec;
-                jsonpointer::add_if_absent(j, sElementPath, json(valueUtf8), ec);
+                // create_if_missing=true so intermediate objects are created, allowing a nested
+                // pointer (e.g. /Application/Name) to be built from an empty/partial document.
+                jsonpointer::add_if_absent(j, sElementPath, json(valueUtf8), true, ec);
 
                 if (ec) {
                     WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - JSONPointer add_if_absent failed for path '%s' in file '%ls': %s", 
