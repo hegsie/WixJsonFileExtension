@@ -159,50 +159,49 @@ jobs:
     - name: Test Non-ASCII JSON Values
       shell: pwsh
       run: |
-        Write-Host "Testing non-ASCII JSON value handling..."
+        Write-Host "Testing non-ASCII JSON value handling through MSI installation..."
 
-        $unicodeJson = @"
-        {
-        "ApplicationSettings": {
-          "ClientFolder": "C:\\Клиент\\Данные",
-          "DisplayName": "Тестовое приложение",
-          "WelcomeMessage": "Добро пожаловать"
+        $expectedCategory = "КатегорияПривет"
+
+        # Find the built test MSI
+        $msiFiles = Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse
+        if ($msiFiles.Count -eq 0) {
+          Write-Error "✗ Test installer MSI not found"
+          exit 1
         }
+        $msiPath = $msiFiles[0].FullName
+        Write-Host "Using MSI: $msiPath"
+
+        # Install the MSI with a Cyrillic installer property that is written by JsonFile custom action
+        $install = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msiPath`" /qn /norestart MY_VALUE=$expectedCategory" -Wait -PassThru
+        if ($install.ExitCode -ne 0) {
+          Write-Error "✗ MSI installation failed with exit code $($install.ExitCode)"
+          exit 1
         }
-        "@
 
-        $unicodeFile = "test-unicode.json"
-        $unicodeJson | Out-File -FilePath $unicodeFile -Encoding UTF8
+        # Verify the installed JSON file remains valid and contains the expected Cyrillic value
+        $installedJsonPath = Join-Path $env:ProgramFiles "TestJsonConfigInstaller\appsettings.json"
+        if (-not (Test-Path $installedJsonPath)) {
+          Write-Error "✗ Installed JSON file not found at $installedJsonPath"
+          exit 1
+        }
 
-        # Verify file can be read and parsed after write
         try {
-        $parsed = Get-Content -Path $unicodeFile -Raw -Encoding UTF8 | ConvertFrom-Json
+          $installedJson = Get-Content -Path $installedJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
         } catch {
-        Write-Error "✗ Failed to parse Unicode JSON file: $_"
-        exit 1
+          Write-Error "✗ Installed JSON file is not valid UTF-8 JSON: $_"
+          exit 1
         }
 
-        # Simulate updating multiple values (regression scenario)
-        $parsed.ApplicationSettings.ClientFolder = "C:\\Клиент\\Данные\\НовыйКаталог"
-        $parsed.ApplicationSettings.WelcomeMessage = "Привет, мир"
-        $parsed | ConvertTo-Json -Depth 10 | Out-File -FilePath $unicodeFile -Encoding UTF8
-
-        # Verify file remains parseable and values are preserved
-        try {
-        $roundTrip = Get-Content -Path $unicodeFile -Raw -Encoding UTF8 | ConvertFrom-Json
-        } catch {
-        Write-Error "✗ Unicode JSON file became invalid after update: $_"
-        exit 1
+        $updatedBook = $installedJson.store.book | Where-Object { $_.isbn -eq "0-553-21311-3" } | Select-Object -First 1
+        if ($null -eq $updatedBook) {
+          Write-Error "✗ Could not find target book entry in installed JSON"
+          exit 1
         }
 
-        if ($roundTrip.ApplicationSettings.ClientFolder -ne "C:\\Клиент\\Данные\\НовыйКаталог") {
-        Write-Error "✗ ClientFolder value was not preserved correctly"
-        exit 1
-        }
-
-        if ($roundTrip.ApplicationSettings.WelcomeMessage -ne "Привет, мир") {
-        Write-Error "✗ WelcomeMessage value was not preserved correctly"
-        exit 1
+        if ($updatedBook.category -ne $expectedCategory) {
+          Write-Error "✗ Cyrillic value was not preserved correctly. Expected '$expectedCategory', got '$($updatedBook.category)'"
+          exit 1
         }
 
         Write-Host "✓ Non-ASCII JSON value tests passed"
