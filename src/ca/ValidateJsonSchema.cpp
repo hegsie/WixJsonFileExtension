@@ -32,43 +32,35 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile)
             return E_INVALIDARG;
         }
 
-        _bstr_t bFile(wzFile);
-        char* cFile = bFile;
-
-        _bstr_t bSchemaFile(wzSchemaFile);
-        char* cSchemaFile = bSchemaFile;
-
-        HRESULT hr = S_OK;
-
         // Check if both files exist
         if (!fs::exists(fs::path(wzFile)))
         {
-            WcaLog(LOGMSG_STANDARD, "JSON file not found: %s", cFile);
+            WcaLog(LOGMSG_STANDARD, "JSON file not found: %ls", wzFile);
             return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
 
         if (!fs::exists(fs::path(wzSchemaFile)))
         {
-            WcaLog(LOGMSG_STANDARD, "Schema file not found: %s", cSchemaFile);
+            WcaLog(LOGMSG_STANDARD, "Schema file not found: %ls", wzSchemaFile);
             return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
 
-        WcaLog(LOGMSG_STANDARD, "Loading JSON file: %s", cFile);
-        std::ifstream jsonIs(cFile);
+        WcaLog(LOGMSG_STANDARD, "Loading JSON file: %ls", wzFile);
+        std::ifstream jsonIs{ fs::path(wzFile) };
         if (!jsonIs.is_open())
         {
-            WcaLog(LOGMSG_STANDARD, "Failed to open JSON file: %s", cFile);
+            WcaLog(LOGMSG_STANDARD, "Failed to open JSON file: %ls", wzFile);
             return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
         }
 
         json jsonData = json::parse(jsonIs);
         jsonIs.close();
 
-        WcaLog(LOGMSG_STANDARD, "Loading schema file: %s", cSchemaFile);
-        std::ifstream schemaIs(cSchemaFile);
+        WcaLog(LOGMSG_STANDARD, "Loading schema file: %ls", wzSchemaFile);
+        std::ifstream schemaIs{ fs::path(wzSchemaFile) };
         if (!schemaIs.is_open())
         {
-            WcaLog(LOGMSG_STANDARD, "Failed to open schema file: %s", cSchemaFile);
+            WcaLog(LOGMSG_STANDARD, "Failed to open schema file: %ls", wzSchemaFile);
             return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
         }
 

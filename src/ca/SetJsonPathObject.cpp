@@ -25,17 +25,20 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
             return E_INVALIDARG;
         }
 
-        _bstr_t bFile(wzFile);
-        char* cFile = bFile;
-
-        _bstr_t bValue(wzValue);
-        char* cValue = bValue;
         HRESULT hr = S_OK;
+
+        std::string valueUtf8;
+        hr = WideToUtf8(wzValue, valueUtf8);
+        if (FAILED(hr))
+        {
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to convert value to UTF-8 for path '%s' in file '%ls' (hr=0x%08X)", sElementPath.c_str(), wzFile, static_cast<unsigned int>(hr));
+            return hr;
+        }
 
         if (fs::exists(fs::path(wzFile))) {
             json j;
             SetLastError(0);
-            std::ifstream is(cFile);
+            std::ifstream is{ fs::path(wzFile) };
 
             if (!is.is_open())
             {
@@ -47,10 +50,9 @@ HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath
             is >> j;
             is.close();
 
-            std::string s = cValue;
             json obj;
             try {
-                obj = json::parse(s);
+                obj = json::parse(valueUtf8);
                 WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Parsed replacement JSON value for path '%s'", sElementPath.c_str());
             }
             catch (const std::exception& e) {

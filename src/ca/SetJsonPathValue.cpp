@@ -21,11 +21,16 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
         HRESULT hr = S_OK;
         std::string valueUtf8;
 
-        hr = WideToUtf8(wzValue, valueUtf8);
-        if (FAILED(hr))
+        // A NULL value is treated as an empty string (preserves prior behavior); a non-NULL
+        // value is converted from UTF-16 to UTF-8 so non-ASCII characters survive the JSON write.
+        if (NULL != wzValue)
         {
-            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to convert value to UTF-8 for path '%s' in file '%ls' (hr=0x%08X)", sElementPath.c_str(), wzFile, static_cast<unsigned int>(hr));
-            return hr;
+            hr = WideToUtf8(wzValue, valueUtf8);
+            if (FAILED(hr))
+            {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to convert value to UTF-8 for path '%s' in file '%ls' (hr=0x%08X)", sElementPath.c_str(), wzFile, static_cast<unsigned int>(hr));
+                return hr;
+            }
         }
 
         WcaLog(LOGMSG_STANDARD, "WixJsonFile: Checking if file '%ls' exists", wzFile);

@@ -57,30 +57,61 @@ extern "C" UINT WINAPI ReadValueJsonFile(
 
                 if (fs::exists(fs::path(pxfc->wzFile)))
                 {
-                    std::ifstream is(pxfc->wzFile);
-                    auto fileJson = jsoncons::json::parse(is);
-                    is.close();
+                    try
+                    {
+                        std::ifstream is{ fs::path(pxfc->wzFile) };
+                        auto fileJson = jsoncons::json::parse(is);
+                        is.close();
 
-                    WcaLog(LOGMSG_STANDARD, "Parsed File");
+                        WcaLog(LOGMSG_STANDARD, "Parsed File");
 
-                    _bstr_t bElementPath(pxfc->pwzElementPath);
-                    char* cElementPath = bElementPath;
+                        std::string elementPath;
+                        HRESULT hrPath = WideToUtf8(pxfc->pwzElementPath, elementPath);
+                        if (FAILED(hrPath))
+                        {
+                            WcaLog(LOGMSG_STANDARD, "Failed to convert element path to UTF-8 for property %ls (hr=0x%08X), setting default",
+                                pxfc->pwzProperty, static_cast<unsigned int>(hrPath));
+                            WcaSetProperty(pxfc->pwzProperty, pxfc->pwzDefaultValue);
+                        }
+                        else
+                        {
+                            jsoncons::json result = jsonpath::json_query(fileJson, elementPath);
 
-                    std::string elementPath(cElementPath);
+                            WcaLog(LOGMSG_STANDARD, "Completed query of json file");
 
-                    WcaLog(LOGMSG_STANDARD, "Converted element path to std string");
+                            if (result.empty()) {
+                                WcaLog(LOGMSG_STANDARD, "No results found for %s, setting default", elementPath.c_str());
+                                WcaSetProperty(pxfc->pwzProperty, pxfc->pwzDefaultValue);
+                            }
+                            else {
+                                WcaLog(LOGMSG_STANDARD, "Found %d results for %s", result.size(), elementPath.c_str());
 
-                    jsoncons::json result = jsonpath::json_query(fileJson, elementPath);
+                                // json_query returns an array of matches; use the first match.
+                                jsoncons::json match = (result.is_array() && !result.empty()) ? result.at(0) : result;
+                                std::string valueUtf8 = match.as<std::string>();
 
-                    WcaLog(LOGMSG_STANDARD, "Completed query of json file");
-
-                    if (result.empty()) {
-                        WcaLog(LOGMSG_STANDARD, "No results found for %s, setting default", elementPath.c_str());
-                        WcaSetProperty(pxfc->pwzProperty, pxfc->pwzDefaultValue);
+                                // jsoncons stores strings as UTF-8; convert back to UTF-16 so the MSI
+                                // property preserves non-ASCII characters (CA2W would assume ANSI).
+                                std::wstring wideValue;
+                                HRESULT hrValue = Utf8ToWide(valueUtf8.c_str(), wideValue);
+                                if (SUCCEEDED(hrValue))
+                                {
+                                    WcaSetProperty(pxfc->pwzProperty, wideValue.c_str());
+                                }
+                                else
+                                {
+                                    WcaLog(LOGMSG_STANDARD, "Failed to convert value to UTF-16 for property %ls (hr=0x%08X), setting default",
+                                        pxfc->pwzProperty, static_cast<unsigned int>(hrValue));
+                                    WcaSetProperty(pxfc->pwzProperty, pxfc->pwzDefaultValue);
+                                }
+                            }
+                        }
                     }
-                    else {
-                        WcaLog(LOGMSG_STANDARD, "Found %d results for %s", result.size(), elementPath.c_str());
-                        WcaSetProperty(pxfc->pwzProperty, CA2W(result.as_cstring()));
+                    catch (const std::exception& e)
+                    {
+                        WcaLog(LOGMSG_STANDARD, "Failed to read value for property %ls: %s. Setting default.",
+                            pxfc->pwzProperty, e.what());
+                        WcaSetProperty(pxfc->pwzProperty, pxfc->pwzDefaultValue);
                     }
                 }
                 else

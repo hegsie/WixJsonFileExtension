@@ -105,7 +105,7 @@ HRESULT UpdateJsonFile(
     hr = WideToUtf8(wzElementPath, elementPath);
     if (FAILED(hr))
     {
-        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to convert element path '%ls' to UTF-8 for file '%ls' (hr=0x%08X)", wzElementPath, wzFile, static_cast<DWORD>(hr));
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to convert element path '%ls' to UTF-8 for file '%ls' (hr=0x%08X)", wzElementPath, wzFile, static_cast<unsigned int>(hr));
         return hr;
     }
 

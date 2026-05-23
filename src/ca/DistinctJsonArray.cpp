@@ -20,16 +20,13 @@ HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath
             return E_INVALIDARG;
         }
 
-        _bstr_t bFile(wzFile);
-        char* cFile = bFile;
-
         if (fs::exists(fs::path(wzFile))) {
             json j;
-            std::ifstream is(cFile);
+            std::ifstream is{ fs::path(wzFile) };
 
             if (!is.is_open())
             {
-                WcaLog(LOGMSG_STANDARD, "Failed to open file for reading: %s", cFile);
+                WcaLog(LOGMSG_STANDARD, "Failed to open file for reading: %ls", wzFile);
                 return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
             }
 
@@ -39,7 +36,7 @@ HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath
             }
             catch (const std::exception& e) {
                 is.close();
-                WcaLog(LOGMSG_STANDARD, "Failed to parse JSON file: %s. Error: %s", cFile, e.what());
+                WcaLog(LOGMSG_STANDARD, "Failed to parse JSON file: %ls. Error: %s", wzFile, e.what());
                 return E_FAIL;
             }
             is.close();
@@ -121,7 +118,7 @@ HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath
             os.close();
         }
         else {
-            WcaLog(LOGMSG_STANDARD, "Unable to locate file: %s", cFile);
+            WcaLog(LOGMSG_STANDARD, "Unable to locate file: %ls", wzFile);
             return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
         return S_OK;

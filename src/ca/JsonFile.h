@@ -156,3 +156,36 @@ inline HRESULT WideToUtf8(__in_z LPCWSTR wzInput, std::string& value)
 
     return S_OK;
 }
+
+inline HRESULT Utf8ToWide(__in_z LPCSTR szInput, std::wstring& value)
+{
+    value.clear();
+
+    if (NULL == szInput)
+    {
+        return E_INVALIDARG;
+    }
+
+    DWORD dwFlags = 0;
+#ifdef MB_ERR_INVALID_CHARS
+    dwFlags = MB_ERR_INVALID_CHARS;
+#endif
+
+    int cchRequired = ::MultiByteToWideChar(CP_UTF8, dwFlags, szInput, -1, NULL, 0);
+    if (cchRequired <= 0)
+    {
+        return HRESULT_FROM_WIN32(::GetLastError());
+    }
+
+    std::vector<wchar_t> wideBuffer(cchRequired);
+
+    int cchWritten = ::MultiByteToWideChar(CP_UTF8, dwFlags, szInput, -1, wideBuffer.data(), cchRequired);
+    if (cchWritten <= 0)
+    {
+        return HRESULT_FROM_WIN32(::GetLastError());
+    }
+
+    value.assign(wideBuffer.data(), static_cast<size_t>(cchWritten - 1)); // exclude null terminator
+
+    return S_OK;
+}
