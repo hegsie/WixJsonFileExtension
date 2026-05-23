@@ -232,12 +232,15 @@ ElementPath="$.Database.Connection"
 
 ### Add Conditions
 
-Make updates conditional based on properties:
+`JsonFile` has no per-element condition. Make an update conditional by gating the **component**
+that carries it with the `Condition` attribute on `<Component>` (the MSI-idiomatic approach).
+A component that only carries JSON operations needs its own key path:
 
 ```xml
-<Json:JsonFile ... >
-  <Condition><![CDATA[MY_PROPERTY = "1"]]></Condition>
-</Json:JsonFile>
+<Component Id="ConditionalUpdate" Guid="*" Condition='MY_PROPERTY = "1"'>
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Json" Name="ConditionalUpdate" Type="integer" Value="1" KeyPath="yes" />
+  <Json:JsonFile Id="ConditionalUpdate" File="[#AppSettingsJson]" ElementPath="$.Some.Value" Value="enabled" Action="setValue" />
+</Component>
 ```
 
 ### Adjust Sequence

@@ -198,6 +198,14 @@ This cookbook provides practical examples and patterns for common JSON configura
 
 ## Feature Flags
 
+> **Conditioning JSON changes**: `JsonFile` has no per-element condition. The MSI-idiomatic
+> way to make a change conditional is to gate the **component** that carries it, using the
+> `Condition` attribute on `<Component>`. When the condition is false the component is not
+> installed, so its JSON operations do not run. A component that only carries JSON operations
+> (no installed file) still needs a key path, so the examples below add a small `RegistryValue`
+> for that purpose. The file itself is installed once by an unconditional component and
+> referenced from the others via `[#FileId]`.
+
 ### Pattern: Toggle Feature Flags
 
 **Use Case**: Enable or disable features based on installation options.
@@ -215,28 +223,31 @@ This cookbook provides practical examples and patterns for common JSON configura
 
 **WiX Fragment**:
 ```xml
+<!-- The file is installed once, unconditionally -->
 <Component Id="ConfigComponent" Guid="*">
   <File Id="AppSettingsJson" Name="appsettings.json" Source="appsettings.json" />
-  
-  <!-- Enable new UI feature if selected -->
+</Component>
+
+<!-- Enable new UI feature if selected -->
+<Component Id="EnableNewUIComponent" Guid="*" Condition='FEATURE_NEW_UI = "1"'>
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Json" Name="EnableNewUI" Type="integer" Value="1" KeyPath="yes" />
   <Json:JsonFile 
     Id="EnableNewUIFeature" 
     File="[#AppSettingsJson]" 
     ElementPath="$.Features.EnableNewUI" 
     Value="true" 
-    Action="setValue">
-    <Condition><![CDATA[FEATURE_NEW_UI = "1"]]></Condition>
-  </Json:JsonFile>
-  
-  <!-- Enable advanced reporting if premium edition -->
+    Action="setValue" />
+</Component>
+
+<!-- Enable advanced reporting if premium edition -->
+<Component Id="EnableAdvancedReportingComponent" Guid="*" Condition='EDITION = "Premium"'>
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Json" Name="EnableAdvancedReporting" Type="integer" Value="1" KeyPath="yes" />
   <Json:JsonFile 
     Id="EnableAdvancedReporting" 
     File="[#AppSettingsJson]" 
     ElementPath="$.Features.EnableAdvancedReporting" 
     Value="true" 
-    Action="setValue">
-    <Condition><![CDATA[EDITION = "Premium"]]></Condition>
-  </Json:JsonFile>
+    Action="setValue" />
 </Component>
 
 <!-- Feature selection properties -->
@@ -248,28 +259,31 @@ This cookbook provides practical examples and patterns for common JSON configura
 
 **WiX Fragment**:
 ```xml
+<!-- The file is installed once, unconditionally -->
 <Component Id="ConfigComponent" Guid="*">
   <File Id="AppSettingsJson" Name="appsettings.json" Source="appsettings.json" />
-  
-  <!-- Enable beta features only in development -->
+</Component>
+
+<!-- Enable beta features only in development -->
+<Component Id="EnableBetaComponent" Guid="*" Condition='ENVIRONMENT = "Development"'>
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Json" Name="EnableBeta" Type="integer" Value="1" KeyPath="yes" />
   <Json:JsonFile 
     Id="EnableBetaFeatures" 
     File="[#AppSettingsJson]" 
     ElementPath="$.Features.EnableBetaFeatures" 
     Value="true" 
-    Action="setValue">
-    <Condition><![CDATA[ENVIRONMENT = "Development"]]></Condition>
-  </Json:JsonFile>
-  
-  <!-- Disable in production (ensure it's false) -->
+    Action="setValue" />
+</Component>
+
+<!-- Disable in production (ensure it's false) -->
+<Component Id="DisableBetaComponent" Guid="*" Condition='ENVIRONMENT = "Production"'>
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Json" Name="DisableBeta" Type="integer" Value="1" KeyPath="yes" />
   <Json:JsonFile 
     Id="DisableBetaFeatures" 
     File="[#AppSettingsJson]" 
     ElementPath="$.Features.EnableBetaFeatures" 
     Value="false" 
-    Action="setValue">
-    <Condition><![CDATA[ENVIRONMENT = "Production"]]></Condition>
-  </Json:JsonFile>
+    Action="setValue" />
 </Component>
 ```
 
@@ -359,10 +373,11 @@ This cookbook provides practical examples and patterns for common JSON configura
 
 **WiX Fragment**:
 ```xml
+<!-- The file and the unconditional edit are installed together -->
 <Component Id="ConfigComponent" Guid="*">
   <File Id="AppSettingsJson" Name="appsettings.json" Source="appsettings.json" />
   
-  <!-- Set environment name -->
+  <!-- Set environment name (applies in every environment) -->
   <Json:JsonFile 
     Id="SetEnvironment" 
     File="[#AppSettingsJson]" 
@@ -370,48 +385,44 @@ This cookbook provides practical examples and patterns for common JSON configura
     Value="[ENVIRONMENT]" 
     Action="setValue" 
     Sequence="1" />
-  
-  <!-- Development environment settings -->
+</Component>
+
+<!-- Development environment settings -->
+<Component Id="DevSettingsComponent" Guid="*" Condition='ENVIRONMENT = "Development"'>
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Json" Name="DevSettings" Type="integer" Value="1" KeyPath="yes" />
   <Json:JsonFile 
     Id="DevConnectionString" 
     File="[#AppSettingsJson]" 
     ElementPath="$.ConnectionStrings.Default" 
     Value="Server=dev-db;Database=MyApp;" 
     Action="setValue" 
-    Sequence="2">
-    <Condition><![CDATA[ENVIRONMENT = "Development"]]></Condition>
-  </Json:JsonFile>
-  
+    Sequence="2" />
   <Json:JsonFile 
     Id="DevLogLevel" 
     File="[#AppSettingsJson]" 
     ElementPath="$.Logging.LogLevel.Default" 
     Value="Debug" 
     Action="setValue" 
-    Sequence="3">
-    <Condition><![CDATA[ENVIRONMENT = "Development"]]></Condition>
-  </Json:JsonFile>
-  
-  <!-- Production environment settings -->
+    Sequence="3" />
+</Component>
+
+<!-- Production environment settings -->
+<Component Id="ProdSettingsComponent" Guid="*" Condition='ENVIRONMENT = "Production"'>
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Json" Name="ProdSettings" Type="integer" Value="1" KeyPath="yes" />
   <Json:JsonFile 
     Id="ProdConnectionString" 
     File="[#AppSettingsJson]" 
     ElementPath="$.ConnectionStrings.Default" 
     Value="[PROD_CONNECTION_STRING]" 
     Action="setValue" 
-    Sequence="2">
-    <Condition><![CDATA[ENVIRONMENT = "Production"]]></Condition>
-  </Json:JsonFile>
-  
+    Sequence="2" />
   <Json:JsonFile 
     Id="ProdLogLevel" 
     File="[#AppSettingsJson]" 
     ElementPath="$.Logging.LogLevel.Default" 
     Value="Warning" 
     Action="setValue" 
-    Sequence="3">
-    <Condition><![CDATA[ENVIRONMENT = "Production"]]></Condition>
-  </Json:JsonFile>
+    Sequence="3" />
 </Component>
 
 <!-- Environment property -->
@@ -563,38 +574,37 @@ This cookbook provides practical examples and patterns for common JSON configura
 
 **WiX Fragment**:
 ```xml
+<!-- The file is installed once, unconditionally -->
 <Component Id="ConfigComponent" Guid="*">
   <File Id="AppSettingsJson" Name="appsettings.json" Source="appsettings.json" />
-  
-  <!-- Only update if user selected custom database -->
+</Component>
+
+<!-- Only update if user selected custom database -->
+<Component Id="CustomDbComponent" Guid="*" Condition='USE_CUSTOM_DATABASE = "1" AND CUSTOM_DB_CONNECTION'>
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Json" Name="CustomDb" Type="integer" Value="1" KeyPath="yes" />
   <Json:JsonFile 
     Id="CustomDatabaseConnection" 
     File="[#AppSettingsJson]" 
     ElementPath="$.ConnectionStrings.Default" 
     Value="[CUSTOM_DB_CONNECTION]" 
-    Action="setValue">
-    <Condition><![CDATA[USE_CUSTOM_DATABASE = "1" AND CUSTOM_DB_CONNECTION]]></Condition>
-  </Json:JsonFile>
-  
-  <!-- Enable HTTPS only if certificate is configured -->
+    Action="setValue" />
+</Component>
+
+<!-- Configure HTTPS only if a certificate is provided -->
+<Component Id="HttpsComponent" Guid="*" Condition='SSL_CERTIFICATE_PATH &lt;&gt; ""'>
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Json" Name="Https" Type="integer" Value="1" KeyPath="yes" />
   <Json:JsonFile 
     Id="EnableHttps" 
     File="[#AppSettingsJson]" 
     ElementPath="$.Kestrel.Endpoints.Https.Enabled" 
     Value="true" 
-    Action="setValue">
-    <Condition><![CDATA[SSL_CERTIFICATE_PATH <> ""]]></Condition>
-  </Json:JsonFile>
-  
-  <!-- Set certificate path if provided -->
+    Action="setValue" />
   <Json:JsonFile 
     Id="SetCertPath" 
     File="[#AppSettingsJson]" 
     ElementPath="$.Kestrel.Endpoints.Https.Certificate.Path" 
     Value="[SSL_CERTIFICATE_PATH]" 
-    Action="setValue">
-    <Condition><![CDATA[SSL_CERTIFICATE_PATH <> ""]]></Condition>
-  </Json:JsonFile>
+    Action="setValue" />
 </Component>
 ```
 
@@ -634,11 +644,13 @@ Property names must be uppercase and set before use:
 ```
 
 ### 5. **Use Conditions for Optional Updates**
-Wrap optional updates in conditions:
+`JsonFile` has no per-element condition. Gate the **component** that carries the change with the
+`Condition` attribute on `<Component>` (a condition-only component needs its own key path):
 ```xml
-<Json:JsonFile ...>
-  <Condition><![CDATA[PROPERTY_NAME <> ""]]></Condition>
-</Json:JsonFile>
+<Component Id="OptionalUpdate" Guid="*" Condition='PROPERTY_NAME &lt;&gt; ""'>
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Json" Name="OptionalUpdate" Type="integer" Value="1" KeyPath="yes" />
+  <Json:JsonFile Id="OptionalUpdate" File="[#AppSettingsJson]" ElementPath="$.Some.Value" Value="[PROPERTY_NAME]" Action="setValue" />
+</Component>
 ```
 
 ### 6. **Create Before Update**

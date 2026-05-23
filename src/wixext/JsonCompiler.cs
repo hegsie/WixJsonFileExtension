@@ -93,7 +93,6 @@ namespace Hegsie.Wix.JsonExtension
 			string defaultValue = null;
 			string property = null;
 			string schemaFile = null;
-			int on = CompilerConstants.IntegerNotSet;
 			int flags = 0;
 			int action = CompilerConstants.IntegerNotSet;
 			int? sequence = 1;
@@ -116,10 +115,11 @@ namespace Hegsie.Wix.JsonExtension
 								file = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
 								break;
 							case "ElementPath":
-								// The path to the parent element of the element to be modified. The semantic can be either JSON Path or JSON Pointer language, as specified in the
-								// SelectionLanguage attribute. Note that this is a formatted field and therefore, square brackets in the path must be escaped. In addition, JSON Path
-								// and Pointer allow backslashes to be used to escape characters, so if you intend to include literal backslashes, you must escape them as well by doubling
-								// them in this attribute. The string is formatted by MSI first, and the result is consumed as the JSON Path or Pointer.
+								// The path to the element to be modified. The syntax (JSON Path or JSON Pointer) is implied by the Action:
+								// createJsonPointerValue consumes a JSON Pointer, every other action consumes a JSON Path. Note that this is a
+								// formatted field and therefore square brackets in the path must be escaped. In addition, JSON Path and Pointer
+								// allow backslashes to escape characters, so literal backslashes must be doubled. The string is formatted by MSI
+								// first, and the result is consumed as the JSON Path or Pointer.
 								elementPath = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
 								break;
 							case "Value":
@@ -136,15 +136,8 @@ namespace Hegsie.Wix.JsonExtension
 								// The type of modification to be made to the JSON file when the component is installed or un-installed.
 								action = ValidateAction(node, sourceLineNumbers, attribute, ref flags);
 								break;
-							case "On":
-								// Defines when the specified changes to the JSON file are to be done.
-								on = ValidateOn(node, sourceLineNumbers, attribute, ref flags);
-								break;
 							case "Property":
-								// The path to the parent element of the element to be modified. The semantic can be either JSON Path or JSON Pointer language, as specified in the
-								// SelectionLanguage attribute. Note that this is a formatted field and therefore, square brackets in the path must be escaped. In addition, JSON Path
-								// and Pointer allow backslashes to be used to escape characters, so if you intend to include literal backslashes, you must escape them as well by doubling
-								// them in this attribute. The string is formatted by MSI first, and the result is consumed as the JSON Path or Pointer.
+								// The Windows Installer property that receives the value read from the JSON file. Used with the readValue action.
 								property = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
 								break;
 							case "Sequence":
@@ -244,71 +237,6 @@ namespace Hegsie.Wix.JsonExtension
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section,
 				action == (int)JsonAction.ReadValue ? "WixPropertyJsonFile" : "WixSchedJsonFile", Context.Platform,
 				CustomActionPlatforms.X64);
-		}
-
-		private int ValidateSelectionLanguage(XElement node, SourceLineNumber sourceLineNumbers,
-			XAttribute attribute, ref int flags)
-		{
-			int selectionLanguage;
-			string selectionLanguageValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
-			if (selectionLanguageValue.Length == 0)
-			{
-				selectionLanguage = CompilerConstants.IllegalInteger;
-			}
-			else
-			{
-				switch (selectionLanguageValue)
-				{
-					case "JSONPath":
-						selectionLanguage = 1;
-						break;
-					case "JSONPointer":
-						flags |= 32;
-						selectionLanguage = 2;
-						break;
-					default:
-						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
-							"SelectionLanguage", selectionLanguageValue, "JSONPath", "JSONPointer"));
-						selectionLanguage = CompilerConstants.IllegalInteger;
-						break;
-				}
-			}
-
-			return selectionLanguage;
-		}
-
-		private int ValidateOn(XElement node, SourceLineNumber sourceLineNumbers, XAttribute attribute,
-			ref int flags)
-		{
-			int on;
-			string onValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
-			if (onValue.Length == 0)
-			{
-				on = CompilerConstants.IllegalInteger;
-			}
-			else
-			{
-				switch (onValue)
-				{
-					case "install":
-						on = 1;
-						break;
-					case "uninstall":
-						flags |= 8;
-						on = 2;
-						break;
-					case "both":
-						on = 3;
-						break;
-					default:
-						Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
-							"On", onValue, "install", "uninstall", "both"));
-						on = CompilerConstants.IllegalInteger;
-						break;
-				}
-			}
-
-			return on;
 		}
 
 		private int ValidateAction(XElement node, SourceLineNumber sourceLineNumbers, XAttribute attribute,
