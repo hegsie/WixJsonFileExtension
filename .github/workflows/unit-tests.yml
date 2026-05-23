@@ -2,8 +2,16 @@ name: Unit Tests
 
 on:
   push:
+    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
   workflow_dispatch:
+
+# Avoid duplicate runs: a push to a PR branch is already covered by the pull_request event, and
+# cancel superseded in-progress runs for the same ref.
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   SOLUTION_FILE_PATH: .
