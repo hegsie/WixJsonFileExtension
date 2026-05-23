@@ -2,6 +2,7 @@
 #include "stdafx.h"
 
 #include <atlbase.h>
+#include <vector>
 
 using namespace jsoncons;
 namespace fs = std::filesystem;
@@ -138,15 +139,15 @@ inline HRESULT WideToUtf8(__in_z LPCWSTR wzInput, std::string& value)
         return HRESULT_FROM_WIN32(::GetLastError());
     }
 
-    value.resize(cchRequired);
+    std::vector<char> utf8Buffer(cchRequired);
 
-    int cchWritten = ::WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wzInput, -1, &value[0], cchRequired, NULL, NULL);
+    int cchWritten = ::WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wzInput, -1, utf8Buffer.data(), cchRequired, NULL, NULL);
     if (cchWritten <= 0)
     {
         return HRESULT_FROM_WIN32(::GetLastError());
     }
 
-    value.pop_back(); // remove null terminator
+    value.assign(utf8Buffer.data(), static_cast<size_t>(cchWritten - 1)); // exclude null terminator
 
     return S_OK;
 }
