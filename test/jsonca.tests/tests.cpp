@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <string>
 #include <atomic>
+#include <chrono>
 
 static int g_pass = 0;
 static int g_fail = 0;
@@ -33,7 +34,8 @@ static std::atomic<int> g_counter{ 0 };
 
 static std::wstring WriteTempJson(const std::string& content)
 {
-    std::wstring name = L"jsonca_test_" + std::to_wstring(::GetTickCount64()) +
+    long long ticks = static_cast<long long>(std::chrono::steady_clock::now().time_since_epoch().count());
+    std::wstring name = L"jsonca_test_" + std::to_wstring(ticks) +
                         L"_" + std::to_wstring(g_counter.fetch_add(1)) + L".json";
     fs::path p = fs::temp_directory_path() / name;
     std::ofstream os(p, std::ios::binary | std::ios::trunc);
@@ -44,7 +46,7 @@ static std::wstring WriteTempJson(const std::string& content)
 
 static json ReadJson(const std::wstring& path)
 {
-    std::ifstream is(fs::path(path));
+    std::ifstream is{ fs::path(path) };
     return json::parse(is);
 }
 
