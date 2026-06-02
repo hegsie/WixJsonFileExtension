@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Reuse the same WiX native NuGet packages as jsonca.vcxproj for wcautil.h/dutil.h includes and
+       the wcautil/dutil import libs. They are restored to ..\..\packages by `nuget restore` on the
+       solution (jsonca's packages.config pulls them). -->
+  <Import Project="..\..\packages\WixToolset.WcaUtil.6.0.1\build\WixToolset.WcaUtil.props" Condition="Exists('..\..\packages\WixToolset.WcaUtil.6.0.1\build\WixToolset.WcaUtil.props')" />
+  <Import Project="..\..\packages\WixToolset.DUtil.6.0.1\build\WixToolset.DUtil.props" Condition="Exists('..\..\packages\WixToolset.DUtil.6.0.1\build\WixToolset.DUtil.props')" />
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{3F2A6B1C-9D4E-4A7B-8C12-9A0B1C2D3E4F}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>jsoncatests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>JSONCONS_NO_DEPRECATED;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\src\ca;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>msi.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <PreprocessorDefinitions>JSONCONS_NO_DEPRECATED;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\src\ca;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>msi.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <!-- Compile the production transform sources directly (no production refactor). UpdateJsonFile
+       calls every transform, so all of them must be present to satisfy the linker. The only WiX
+       symbol they reference is WcaLog, which resolves from the linked wcautil import lib. -->
+  <ItemGroup>
+    <ClCompile Include="..\..\src\ca\AppendJsonArray.cpp" />
+    <ClCompile Include="..\..\src\ca\DeleteJsonPath.cpp" />
+    <ClCompile Include="..\..\src\ca\DistinctJsonArray.cpp" />
+    <ClCompile Include="..\..\src\ca\Errors.cpp" />
+    <ClCompile Include="..\..\src\ca\InsertJsonArray.cpp" />
+    <ClCompile Include="..\..\src\ca\RemoveJsonArrayElement.cpp" />
+    <ClCompile Include="..\..\src\ca\SetJsonPathObject.cpp" />
+    <ClCompile Include="..\..\src\ca\SetJsonPathValue.cpp" />
+    <ClCompile Include="..\..\src\ca\UpdateJsonFile.cpp" />
+    <ClCompile Include="..\..\src\ca\ValidateJsonSchema.cpp" />
+    <ClCompile Include="tests.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore on the solution to download them. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\..\packages\WixToolset.DUtil.6.0.1\build\WixToolset.DUtil.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\WixToolset.DUtil.6.0.1\build\WixToolset.DUtil.props'))" />
+    <Error Condition="!Exists('..\..\packages\WixToolset.WcaUtil.6.0.1\build\WixToolset.WcaUtil.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\WixToolset.WcaUtil.6.0.1\build\WixToolset.WcaUtil.props'))" />
+  </Target>
+</Project>

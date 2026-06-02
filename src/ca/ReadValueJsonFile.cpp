@@ -118,8 +118,9 @@ extern "C" UINT WINAPI ReadValueJsonFile(
                 {
                     WcaLog(LOGMSG_STANDARD, "File %ls not found", pxfc->wzFile);
                 }
+
+                ++cFiles;
             }
-            ++cFiles;
         }
     }
 

@@ -17,7 +17,8 @@
 #include <strutil.h>
 #include <iostream>
 #include <fstream>
-#include <comdef.h> 
+#include <sstream>
+#include <comdef.h>
 #include <regex>
 #include <cstdint>
 #include <filesystem>

@@ -43,9 +43,13 @@ extern "C" UINT WINAPI ExecJsonFileRollback(
 
         WcaLog(LOGMSG_VERBOSE, "Rolling back JSON file: %ls", pwzFileName);
 
-        // Preserve the modified date on rollback
-        hr = FileGetTime(pwzFileName, NULL, NULL, &ft);
-        ExitOnFailure(hr, "Failed to get modified date of file %ls", pwzFileName);
+        // Preserve the modified date on rollback. A failure here is non-fatal: still restore
+        // the file contents, just without preserving the timestamp.
+        BOOL fPreserveTime = SUCCEEDED(FileGetTime(pwzFileName, NULL, NULL, &ft));
+        if (!fPreserveTime)
+        {
+            WcaLog(LOGMSG_STANDARD, "Warning: failed to get modified date of file %ls; rollback will not preserve its timestamp", pwzFileName);
+        }
 
         // Open the file
         hFile = ::CreateFileW(pwzFileName, GENERIC_WRITE, FILE_SHARE_READ, NULL, TRUNCATE_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -58,9 +62,12 @@ extern "C" UINT WINAPI ExecJsonFileRollback(
         ReleaseFile(hFile);
         hFile = INVALID_HANDLE_VALUE;
 
-        // Preserve the modified date on rollback
-        hr = FileSetTime(pwzFileName, NULL, NULL, &ft);
-        ExitOnFailure(hr, "Failed to set modified date of file %ls", pwzFileName);
+        // Restore the modified date if we managed to capture it.
+        if (fPreserveTime)
+        {
+            hr = FileSetTime(pwzFileName, NULL, NULL, &ft);
+            ExitOnFailure(hr, "Failed to set modified date of file %ls", pwzFileName);
+        }
 
         // Clean up for next iteration
         ReleaseStr(pwzFileName);

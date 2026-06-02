@@ -2,7 +2,7 @@
 #include "JsonFile.h"
 
 LPCWSTR vcsJsonFileQuery = L"SELECT `WixJsonFile`.`JsonConfig`, `WixJsonFile`.`File`, `WixJsonFile`.`ElementPath`, "
-                           L"`WixJsonFile`.`Value`, `WixJsonFile`.`DefaultValue`, `WixJsonFile`.`Flags`, `WixJsonFile`.`Component_`, `WixJsonFile`.`Property`, `Component`.`Attributes`, `WixJsonFile`.`Index`, `WixJsonFile`.`SchemaFile` FROM `WixJsonFile`,`Component`"
+                           L"`WixJsonFile`.`Value`, `WixJsonFile`.`DefaultValue`, `WixJsonFile`.`Flags`, `WixJsonFile`.`Component_`, `WixJsonFile`.`Property`, `Component`.`Attributes`, `WixJsonFile`.`Index`, `WixJsonFile`.`SchemaFile` FROM `WixJsonFile`,`Component` "
                            L"WHERE `WixJsonFile`.`Component_`=`Component`.`Component` ORDER BY `File`, `Sequence`";
 
 static HRESULT AddJsonFileChangeToList(
