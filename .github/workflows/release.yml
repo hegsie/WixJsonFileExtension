@@ -60,9 +60,10 @@ jobs:
       with:
         tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
         name: Release ${{ steps.version.outputs.version }}
+        # Auto-generate a "What's Changed" changelog from merged PRs since the
+        # previous tag. The install snippet below is prepended to those notes.
+        generate_release_notes: true
         body: |
-          Release version ${{ steps.version.outputs.version }}
-          
           ## Installation
           ```
           dotnet add package WixJsonFileExtension --version ${{ steps.version.outputs.version }}
