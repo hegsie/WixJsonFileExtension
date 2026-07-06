@@ -12,6 +12,15 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
     <LibAdditionalOptions>-b $(SolutionDir)src\ca\bin\$(Configuration)</LibAdditionalOptions>
   </PropertyGroup>
+  <!-- Compile the x86/ARM64 custom action fragments only when those DLLs have been built, so a
+       plain x64 development build still works. CI builds jsonca for Win32 and ARM64 before the
+       solution, which makes official wixlibs carry all three platforms. -->
+  <PropertyGroup Condition="Exists('$(SolutionDir)Win32\$(Configuration)\jsonca.dll')">
+    <DefineConstants>$(DefineConstants);IncludeX86</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="Exists('$(SolutionDir)ARM64\$(Configuration)\jsonca.dll')">
+    <DefineConstants>$(DefineConstants);IncludeArm64</DefineConstants>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\ca\jsonca.vcxproj" Platforms="x64" />
   </ItemGroup>

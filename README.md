@@ -106,6 +106,18 @@ This extension works with all .NET application types that use JSON configuration
 
 **Hybrid scenarios**: Applications using both classic `.config` (XML) and modern JSON files can leverage both WiX's built-in XML handling and this extension for JSON files.
 
+### Installer Platform Support
+
+The custom action DLL ships for all Windows Installer platforms, and the extension automatically references the variant matching your package's platform:
+
+| MSI Platform | Support Status |
+|--------------|----------------|
+| **x64** | ✅ Supported |
+| **x86** | ✅ Supported |
+| **ARM64** | ✅ Supported |
+
+Note: when building the extension from source, a plain x64 solution build produces an x64-only wixlib; build `src/ca/jsonca.vcxproj` for `Win32` and `ARM64` first (as CI does) to produce the multi-platform wixlib.
+
 ## Prerequisites
 
 - **WiX Toolset**: Version 4.x or later (for WiX v5/v6 support)

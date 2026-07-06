@@ -254,7 +254,7 @@ namespace Hegsie.Wix.JsonExtension
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section,
 				action == (int)JsonAction.ReadValue ? "WixPropertyJsonFile" : "WixSchedJsonFile", Context.Platform,
-				CustomActionPlatforms.X64);
+				CustomActionPlatforms.X86 | CustomActionPlatforms.X64 | CustomActionPlatforms.ARM64);
 		}
 
 		private int ValidateAction(XElement node, SourceLineNumber sourceLineNumbers, XAttribute attribute,
@@ -775,7 +775,7 @@ namespace Hegsie.Wix.JsonExtension
 			});
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,
-				CustomActionPlatforms.X64);
+				CustomActionPlatforms.X86 | CustomActionPlatforms.X64 | CustomActionPlatforms.ARM64);
 		}
 
 		/// <summary>
@@ -868,7 +868,7 @@ namespace Hegsie.Wix.JsonExtension
 			});
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,
-				CustomActionPlatforms.X64);
+				CustomActionPlatforms.X86 | CustomActionPlatforms.X64 | CustomActionPlatforms.ARM64);
 		}
 
 		/// <summary>
@@ -961,7 +961,7 @@ namespace Hegsie.Wix.JsonExtension
 			});
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,
-				CustomActionPlatforms.X64);
+				CustomActionPlatforms.X86 | CustomActionPlatforms.X64 | CustomActionPlatforms.ARM64);
 		}
 	}
 
