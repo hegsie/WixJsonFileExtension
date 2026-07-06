@@ -1,6 +1,12 @@
 #include "stdafx.h"
 #include "JsonFile.h"
 
+// Not defined when _WIN32_WINNT targets pre-Vista (see targetver.h); the flag is simply
+// ignored by ReplaceFileW on systems that do not support it.
+#ifndef REPLACEFILE_IGNORE_ACL_ERRORS
+#define REPLACEFILE_IGNORE_ACL_ERRORS 0x00000004
+#endif
+
 // Serializes the document and atomically replaces the target file: the JSON is written to a
 // temporary file in the same directory, flushed, then swapped in with ReplaceFileW (which
 // preserves the original file's attributes and ACLs). The original file is never truncated
