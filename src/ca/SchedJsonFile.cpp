@@ -114,7 +114,6 @@ extern "C" UINT __stdcall SchedJsonFile(
             }
 
             hr = WcaWriteStringToCaData(pxfc->wzFile, &pwzCustomActionData);
-            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Scheduling operation for file: %ls", pxfc->wzFile);
             ExitOnFailure(hr, "failed to write file to custom action data: %ls", pxfc->wzFile)
 
             hr = WcaWriteStringToCaData(pxfc->pwzElementPath, &pwzCustomActionData);
@@ -138,11 +137,6 @@ extern "C" UINT __stdcall SchedJsonFile(
     }
 
     WcaLog(LOGMSG_VERBOSE, "Scheduled %d file operations", cFiles);
-
-    // If we looped through all records all is well
-    if (E_NOMOREITEMS == hr)
-        hr = S_OK;
-    ExitOnFailure(hr, "failed while looping through all objects to secure")
 
     // Schedule the rollback custom action first
     if (fScheduledRollback && pwzRollbackCustomActionData && *pwzRollbackCustomActionData)

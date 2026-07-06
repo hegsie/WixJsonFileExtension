@@ -18,6 +18,11 @@
       <Custom Action="WixPropertyJsonFile_X64" After="CostFinalize" />
       <Custom Action="WixSchedJsonFile_X64" After="InstallFiles" />
     </InstallExecuteSequence>
+
+    <!-- Message shown when the custom actions raise error 25530 (see msierrJsonFileFailedRead). -->
+    <UI>
+      <Error Id="25530" Message="Failed to read the WixJsonFile table. Check the installation log for details." />
+    </UI>
   </Fragment>
 
   <Fragment Id="JsonFileCustomActions">

@@ -126,11 +126,12 @@ HRESULT ReadJsonFileTable(
         hr = StrAllocString(&(*ppxfcTail)->pwzProperty, pwzData, 0);
         ExitOnFailure(hr, "failed to allocate buffer for property")
 
-        // Get the index
+        // Get the index. WcaGetRecordInteger returns S_FALSE (not a failure) and leaves
+        // MSI_NULL_INTEGER in the output when the column is null, so check both.
         hr = WcaGetRecordInteger(hRec, jfqIndex, &(*ppxfcTail)->iIndex);
-        if (FAILED(hr))
+        if (FAILED(hr) || S_FALSE == hr || MSI_NULL_INTEGER == (*ppxfcTail)->iIndex)
         {
-            // Index is optional, default to -1
+            // Index is optional, default to -1 (append to end)
             (*ppxfcTail)->iIndex = -1;
             hr = S_OK;
         }

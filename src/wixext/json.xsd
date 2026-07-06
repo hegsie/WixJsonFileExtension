@@ -59,7 +59,8 @@
       <xs:enumeration value="createJsonPointerValue">
         <xs:annotation>
           <xs:documentation>
-            Creates a new value using JSONPointer syntax (useful for creating nested paths that don't exist).
+            Sets a value using JSONPointer syntax, creating the path (including intermediate objects)
+            if it doesn't exist. Existing values at the path are overwritten.
             ElementPath should use JSONPointer format (e.g., /path/to/element).
           </xs:documentation>
         </xs:annotation>
@@ -191,10 +192,12 @@
           </xs:documentation>
         </xs:annotation>
       </xs:attribute>
-      <xs:attribute name="Sequence" type="wxs:Integer" default="1">
+      <xs:attribute name="Sequence" type="wxs:Integer">
         <xs:annotation>
           <xs:documentation>
-            Order in which modifications are applied (default: 1). Lower numbers execute first.
+            Order in which modifications are applied. Lower numbers execute first.
+            When omitted, elements are assigned increasing sequence numbers in authoring order,
+            so operations on the same file execute deterministically in the order they appear.
             Use this to ensure JSON changes happen in the correct order or before services start.
             All JSON modifications run after InstallFiles and before StartServices in the standard InstallExecuteSequence.
           </xs:documentation>
@@ -221,8 +224,9 @@
         <xs:annotation>
           <xs:documentation>
             When set to 'yes', the action is only performed if the ElementPath already exists in the JSON file.
+            If the path (or the JSON file itself) does not exist, the operation is skipped without failing the install.
             This is useful for conditional updates that should only modify existing values without creating new ones.
-            Applies to setValue, createJsonPointerValue, and replaceJsonValue actions. Default is 'no'.
+            Applies to all write actions. Default is 'no'.
           </xs:documentation>
         </xs:annotation>
       </xs:attribute>
@@ -359,8 +363,10 @@
       <xs:attribute name="CreateIfMissing" type="wxs:YesNoTypeUnion" default="yes">
         <xs:annotation>
           <xs:documentation>
-            When set to 'yes' (default), creates the nested path if it doesn't exist.
-            When set to 'no', only updates if the path already exists (equivalent to OnlyIfExists="yes").
+            When set to 'yes' (default), the setting is written with the createJsonPointerValue action,
+            creating the key (including intermediate objects) when it doesn't exist and overwriting it when it does.
+            When set to 'no', only updates if the path already exists (equivalent to OnlyIfExists="yes");
+            missing keys are skipped without failing the install.
           </xs:documentation>
         </xs:annotation>
       </xs:attribute>

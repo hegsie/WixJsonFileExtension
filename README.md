@@ -243,7 +243,7 @@ Simplified syntax for .NET application settings:
 **Attributes:**
 - `Key` - Dot-notation path (automatically converted to JSONPath)
 - `Value` - The value to set
-- `CreateIfMissing` - (Optional) Create nested path if it doesn't exist (default: yes)
+- `CreateIfMissing` - (Optional) Create nested path if it doesn't exist (default: yes). When `yes`, the setting is written with the `createJsonPointerValue` action so missing keys (including intermediate objects) are created. When `no`, the setting is only updated if the key already exists; missing keys are skipped without failing the install
 
 #### Json:ConnectionString
 
@@ -415,7 +415,7 @@ The `JsonFile` element supports the following actions:
 | `setValue` | Sets or updates a value at the specified path (default action if not specified) | JSONPath | Updating existing JSON properties |
 | `deleteValue` | Deletes the value(s) at the specified path | JSONPath | Removing configuration entries |
 | `replaceJsonValue` | Replaces an entire JSON object or array with new JSON content | JSONPath | Replacing complex nested structures |
-| `createJsonPointerValue` | Creates a new value using JSONPointer syntax (useful for creating nested paths that don't exist) | JSONPointer | Creating new configuration sections |
+| `createJsonPointerValue` | Sets a value using JSONPointer syntax, creating the path (including intermediate objects) if it doesn't exist. Existing values at the path are overwritten | JSONPointer | Creating new configuration sections |
 | `appendArray` | Appends a value to an array | JSONPath | Adding new items to configuration arrays |
 | `insertArray` | Inserts a value at a specific index in an array | JSONPath | Adding items at specific positions in arrays |
 | `removeArrayElement` | Removes element(s) from an array by value or path | JSONPath | Removing specific items from configuration arrays |
@@ -429,13 +429,26 @@ The `JsonFile` element supports the following actions:
 | `File` | Yes | Path to the JSON file to modify. Can use file references like `[#FileId]` or formatted paths like `[INSTALLFOLDER]config.json` |
 | `ElementPath` | Yes | JSONPath or JSONPointer expression to locate the element(s) to modify |
 | `Action` | No | The action to perform (see Available Actions table). Defaults to `setValue` |
-| `Value` | Conditional | The value to set. Required for `setValue`, `replaceJsonValue`, `createJsonPointerValue`, `appendArray`, and `insertArray` actions. For `removeArrayElement`, `Value` is optional: if omitted, elements matched by the JSONPath expression are removed; if provided, all array elements matching that value are removed. Can be a simple value, property reference like `[PROPERTY_NAME]`, or JSON-formatted string |
-| `DefaultValue` | No | Default value to use if the path doesn't exist (used with `readValue`) |
+| `Value` | Conditional | The value to set. Required for `setValue`, `replaceJsonValue`, `createJsonPointerValue`, `appendArray`, and `insertArray` actions. For `removeArrayElement`, `Value` is optional: if omitted, elements matched by the JSONPath expression are removed; if provided, all array elements matching that value are removed. Can be a simple value, property reference like `[PROPERTY_NAME]`, or JSON-formatted string. See "Value typing" below for how values are converted to JSON types |
+| `DefaultValue` | No | Default value to use if the value cannot be read - the path doesn't exist, the file doesn't exist, or the file cannot be parsed (used with `readValue`) |
 | `Property` | Conditional | Windows Installer property to store the read value. Required for `readValue` action |
-| `Sequence` | No | Order in which modifications are applied (default: 1). Lower numbers execute first. Use this to ensure JSON changes happen before services start or in a specific order. All JSON modifications run after `InstallFiles` and before `StartServices` in the standard InstallExecuteSequence |
+| `Sequence` | No | Order in which modifications are applied. Lower numbers execute first. When omitted, elements are automatically assigned increasing sequence numbers in authoring order, so operations on the same file execute deterministically in the order they appear in your source. Use this to ensure JSON changes happen before services start or in a specific order. All JSON modifications run after `InstallFiles` and before `StartServices` in the standard InstallExecuteSequence |
 | `Index` | No | For `insertArray` action: specifies the index at which to insert. Use -1 or omit to append to end |
 | `SchemaFile` | No | Path to a JSON schema file for validation. The JSON file will be validated against this schema after modifications |
-| `OnlyIfExists` | No | When set to `yes`, the action is only performed if the ElementPath already exists in the JSON file. This is useful for conditional updates that should only modify existing values without creating new ones. Applies to `setValue`, `createJsonPointerValue`, and `replaceJsonValue` actions. Default is `no` |
+| `OnlyIfExists` | No | When set to `yes`, the action is only performed if the ElementPath already exists in the JSON file. If the path (or the file itself) does not exist, the operation is skipped and the install continues. This is useful for conditional updates that should only modify existing values without creating new ones. Applies to all write actions. Default is `no` |
+
+### Value Typing
+
+How the `Value` attribute is converted into a JSON value:
+
+- **Replacing an existing string value** (`setValue`, `createJsonPointerValue`): the new value is always written as a string, so values like `"1.0"` or `"true"` don't silently change type.
+- **Replacing a non-string value or creating a new value**: the value is parsed as JSON first, so `9090` becomes a number, `true`/`false` become booleans, and `["a","b"]` becomes an array. If the value is not valid JSON it is written as a string.
+- **`appendArray` / `insertArray` / `removeArrayElement`**: the value is parsed as JSON with a fallback to string (unchanged behavior).
+- **`replaceJsonValue`**: the value must be valid JSON and is written exactly as parsed (unchanged behavior).
+
+### File Writes
+
+All modifications are written atomically: the updated JSON is written to a temporary file next to the target and then swapped in, so a failure mid-write can never leave a truncated or corrupted configuration file. Note that files are re-serialized (pretty-printed) on every write, so original formatting and any non-standard content such as comments are not preserved (files containing comments fail to parse).
 
 ### JSONPath vs JSONPointer
 
@@ -932,6 +945,7 @@ The `OnlyIfExists` attribute allows you to conditionally update JSON values only
 **Behavior:**
 - If `OnlyIfExists="yes"` and the path exists: the operation proceeds normally
 - If `OnlyIfExists="yes"` and the path does NOT exist: the operation is skipped (returns success, no error)
+- If `OnlyIfExists="yes"` and the JSON file itself does NOT exist: the operation is skipped (returns success, no error)
 - If `OnlyIfExists="no"` (or omitted): the operation always proceeds (default behavior)
 
 ### JSON Schema Validation

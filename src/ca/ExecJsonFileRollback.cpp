@@ -51,8 +51,9 @@ extern "C" UINT WINAPI ExecJsonFileRollback(
             WcaLog(LOGMSG_STANDARD, "Warning: failed to get modified date of file %ls; rollback will not preserve its timestamp", pwzFileName);
         }
 
-        // Open the file
-        hFile = ::CreateFileW(pwzFileName, GENERIC_WRITE, FILE_SHARE_READ, NULL, TRUNCATE_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        // Open the file. CREATE_ALWAYS (rather than TRUNCATE_EXISTING) so the captured contents
+        // are restored even if the file was deleted between scheduling and rollback.
+        hFile = ::CreateFileW(pwzFileName, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         ExitOnInvalidHandleWithLastError(hFile, hr, "failed to open file for rollback: %ls", pwzFileName);
 
         // Write out the old data

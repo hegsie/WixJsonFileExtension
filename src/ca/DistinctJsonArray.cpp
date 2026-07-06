@@ -106,16 +106,11 @@ HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath
 
             WcaLog(LOGMSG_STANDARD, "Successfully removed duplicates from array");
 
-            std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
-
-            if (!os.is_open())
+            HRESULT hr = WriteJsonOutput(wzFile, j);
+            if (FAILED(hr))
             {
-                WcaLog(LOGMSG_STANDARD, "Failed to open output file stream: %ls", wzFile);
-                return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
+                return hr;
             }
-
-            pretty_print(j).dump(os);
-            os.close();
         }
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %ls", wzFile);

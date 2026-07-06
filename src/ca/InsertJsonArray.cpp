@@ -97,23 +97,10 @@ HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, 
 
             WcaLog(LOGMSG_STANDARD, "Successfully inserted value into array");
 
-            // Serialize before truncating so a serialization failure cannot leave the file empty.
-            std::ostringstream serialized;
-            serialized << pretty_print(j);
-
-            std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
-            if (!os.is_open())
+            hr = WriteJsonOutput(wzFile, j);
+            if (FAILED(hr))
             {
-                WcaLog(LOGMSG_STANDARD, "Failed to open output file stream for writing: %ls", wzFile);
-                return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
-            }
-
-            os << serialized.str();
-            os.close();
-            if (os.fail())
-            {
-                WcaLog(LOGMSG_STANDARD, "Failed to write output file: %ls", wzFile);
-                return HRESULT_FROM_WIN32(ERROR_WRITE_FAULT);
+                return hr;
             }
         }
         else {
