@@ -16,6 +16,12 @@ std::string GetLastErrorAsString()
     size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
         NULL, errorMessageID, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
 
+    // FormatMessage can fail (returning 0 with no buffer); fall back to the numeric code.
+    if (0 == size || nullptr == messageBuffer)
+    {
+        return "error code " + std::to_string(errorMessageID);
+    }
+
     //Copy the error message into a std::string.
     std::string message(messageBuffer, size);
 

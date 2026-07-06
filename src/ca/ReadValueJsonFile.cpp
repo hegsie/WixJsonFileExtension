@@ -116,7 +116,11 @@ extern "C" UINT WINAPI ReadValueJsonFile(
                 }
                 else
                 {
-                    WcaLog(LOGMSG_STANDARD, "File %ls not found", pxfc->wzFile);
+                    // A missing file means the value cannot be located, so the property gets
+                    // the default - consistent with parse failures and missing paths.
+                    WcaLog(LOGMSG_STANDARD, "File %ls not found, setting property %ls to default value",
+                        pxfc->wzFile, pxfc->pwzProperty);
+                    WcaSetProperty(pxfc->pwzProperty, pxfc->pwzDefaultValue);
                 }
 
                 ++cFiles;
@@ -124,12 +128,7 @@ extern "C" UINT WINAPI ReadValueJsonFile(
         }
     }
 
-    WcaLog(LOGMSG_STANDARD, "Built File list!");
-
-    // If we looped through all records all is well
-    if (E_NOMOREITEMS == hr)
-        hr = S_OK;
-    ExitOnFailure(hr, "failed while looping through all objects to secure")
+    WcaLog(LOGMSG_VERBOSE, "Processed %d readValue entries", cFiles);
 
 LExit:
     // Free the linked list to prevent memory leak

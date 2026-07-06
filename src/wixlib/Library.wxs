@@ -1,26 +1,85 @@
-﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!--
+    One fragment per platform: the compiler extension references WixSchedJsonFile_<platform>
+    (or WixPropertyJsonFile_<platform> for readValue), which pulls in exactly one of these
+    fragments and, through the BinaryRef, the matching custom action DLL.
+
+    WixSchedJsonFile is sequenced in the InstallExecuteSequence and therefore runs on install,
+    uninstall, and repair. The custom action self-gates on component install state
+    (WcaIsInstalling), so it is a no-op on uninstall. Consequently JSON modifications are applied
+    on install/repair and are NOT reverted on uninstall; the rollback action only restores files
+    that were captured before a failed install. Install/uninstall timing control is tracked as a
+    future enhancement (see issue #39).
+  -->
   <Fragment Id="JsonFile">
     <CustomAction Id="WixPropertyJsonFile_X64" DllEntry="ReadValueJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca.dll" Impersonate="no" />
-    
+
     <CustomAction Id="WixSchedJsonFile_X64" DllEntry="SchedJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca.dll" Impersonate="no" />
     <CustomAction Id="WixExecJsonFile_X64" DllEntry="ExecJsonFile" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca.dll" />
     <CustomAction Id="WixExecJsonFileRollback_X64" DllEntry="ExecJsonFileRollback" Execute="rollback" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca.dll" />
-    
-    <!--
-      WixSchedJsonFile is sequenced in the InstallExecuteSequence and therefore runs on install,
-      uninstall, and repair. The custom action self-gates on component install state
-      (WcaIsInstalling), so it is a no-op on uninstall. Consequently JSON modifications are applied
-      on install/repair and are NOT reverted on uninstall; the rollback action only restores files
-      that were captured before a failed install. Install/uninstall timing control is tracked as a
-      future enhancement (see issue #39).
-    -->
+
     <InstallExecuteSequence>
       <Custom Action="WixPropertyJsonFile_X64" After="CostFinalize" />
       <Custom Action="WixSchedJsonFile_X64" After="InstallFiles" />
     </InstallExecuteSequence>
+
+    <UIRef Id="JsonFileErrorsUI" />
   </Fragment>
 
   <Fragment Id="JsonFileCustomActions">
     <Binary Id="jsonca.dll" SourceFile="$(SolutionDir)x64\$(Configuration)\jsonca.dll" />
   </Fragment>
+
+  <!-- Message shown when the custom actions raise error 25530 (see msierrJsonFileFailedRead).
+       Shared by every platform fragment via UIRef so the symbol exists exactly once. -->
+  <Fragment Id="JsonFileErrors">
+    <UI Id="JsonFileErrorsUI">
+      <Error Id="25530" Message="Failed to read the WixJsonFile table. Check the installation log for details." />
+    </UI>
+  </Fragment>
+
+  <!-- The x86 and ARM64 fragments are only compiled in when the corresponding DLL has been
+       built (the wixproj defines IncludeX86/IncludeArm64 based on the build output), so a
+       plain x64 development build still links. CI builds all three platforms. -->
+  <?ifdef IncludeX86 ?>
+  <Fragment Id="JsonFileX86">
+    <CustomAction Id="WixPropertyJsonFile_X86" DllEntry="ReadValueJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca_x86.dll" Impersonate="no" />
+
+    <CustomAction Id="WixSchedJsonFile_X86" DllEntry="SchedJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca_x86.dll" Impersonate="no" />
+    <CustomAction Id="WixExecJsonFile_X86" DllEntry="ExecJsonFile" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca_x86.dll" />
+    <CustomAction Id="WixExecJsonFileRollback_X86" DllEntry="ExecJsonFileRollback" Execute="rollback" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca_x86.dll" />
+
+    <InstallExecuteSequence>
+      <Custom Action="WixPropertyJsonFile_X86" After="CostFinalize" />
+      <Custom Action="WixSchedJsonFile_X86" After="InstallFiles" />
+    </InstallExecuteSequence>
+
+    <UIRef Id="JsonFileErrorsUI" />
+  </Fragment>
+
+  <Fragment Id="JsonFileCustomActionsX86">
+    <Binary Id="jsonca_x86.dll" SourceFile="$(SolutionDir)Win32\$(Configuration)\jsonca.dll" />
+  </Fragment>
+  <?endif?>
+
+  <?ifdef IncludeArm64 ?>
+  <Fragment Id="JsonFileArm64">
+    <CustomAction Id="WixPropertyJsonFile_A64" DllEntry="ReadValueJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca_a64.dll" Impersonate="no" />
+
+    <CustomAction Id="WixSchedJsonFile_A64" DllEntry="SchedJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca_a64.dll" Impersonate="no" />
+    <CustomAction Id="WixExecJsonFile_A64" DllEntry="ExecJsonFile" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca_a64.dll" />
+    <CustomAction Id="WixExecJsonFileRollback_A64" DllEntry="ExecJsonFileRollback" Execute="rollback" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca_a64.dll" />
+
+    <InstallExecuteSequence>
+      <Custom Action="WixPropertyJsonFile_A64" After="CostFinalize" />
+      <Custom Action="WixSchedJsonFile_A64" After="InstallFiles" />
+    </InstallExecuteSequence>
+
+    <UIRef Id="JsonFileErrorsUI" />
+  </Fragment>
+
+  <Fragment Id="JsonFileCustomActionsArm64">
+    <Binary Id="jsonca_a64.dll" SourceFile="$(SolutionDir)ARM64\$(Configuration)\jsonca.dll" />
+  </Fragment>
+  <?endif?>
 </Wix>

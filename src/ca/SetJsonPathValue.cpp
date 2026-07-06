@@ -54,50 +54,48 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
 
             if (createValue) {
                 std::error_code ec;
-                // create_if_missing=true so intermediate objects are created, allowing a nested
+
+                // Preserve the string type when overwriting an existing string value; otherwise
+                // parse the authored value so numbers/booleans/objects become typed JSON.
+                const json* pExisting = NULL;
+                std::error_code ecGet;
+                const json& existing = jsonpointer::get(j, sElementPath, ecGet);
+                if (!ecGet)
+                {
+                    pExisting = &existing;
+                }
+
+                // jsonpointer::add sets the value whether or not the path exists (insert_or_assign),
+                // with create_if_missing=true so intermediate objects are created, allowing a nested
                 // pointer (e.g. /Application/Name) to be built from an empty/partial document.
-                jsonpointer::add_if_absent(j, sElementPath, json(valueUtf8), true, ec);
+                jsonpointer::add(j, sElementPath, MakeJsonValue(valueUtf8, pExisting), true, ec);
 
                 if (ec) {
-                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - JSONPointer add_if_absent failed for path '%s' in file '%ls': %s", 
+                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - JSONPointer add failed for path '%s' in file '%ls': %s",
                            sElementPath.c_str(), wzFile, ec.message().c_str());
                     return E_FAIL;
                 }
-                else {
-                    // Serialize before truncating so a serialization failure cannot leave the file empty.
-                    std::ostringstream serialized;
-                    serialized << pretty_print(j);
 
-                    SetLastError(0);
-                    std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
-                    if (!os.is_open())
-                    {
-                        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to create output stream for file '%ls'", wzFile);
-                        hr = ReturnLastError("creating the output stream");
-                        return FAILED(hr) ? hr : HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
-                    }
-
-                    os << serialized.str();
-                    os.close();
-                    if (os.fail())
-                    {
-                        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to write file '%ls'", wzFile);
-                        return HRESULT_FROM_WIN32(ERROR_WRITE_FAULT);
-                    }
-                    WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Successfully created path '%s' in file '%ls'", sElementPath.c_str(), wzFile);
+                hr = WriteJsonOutput(wzFile, j);
+                if (FAILED(hr))
+                {
+                    return hr;
                 }
+                WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Successfully set path '%s' in file '%ls'", sElementPath.c_str(), wzFile);
             }
             else {
 
                 json query = jsonpath::json_query(j, sElementPath);
 
-                WcaLog(LOGMSG_VERBOSE, "WixJsonFile: JSONPath query '%s' found %d element(s) in file '%ls'", 
+                WcaLog(LOGMSG_VERBOSE, "WixJsonFile: JSONPath query '%s' found %d element(s) in file '%ls'",
                        sElementPath.c_str(), query.size(), wzFile);
 
                 if (!query.empty()) {
+                    // Type-preserving update: existing string values stay strings; anything else
+                    // takes the parsed (typed) form of the authored value with string fallback.
                     auto f = [valueUtf8](const std::string& /*path*/, json& value)
                         {
-                            value = valueUtf8;
+                            value = MakeJsonValue(valueUtf8, &value);
                         };
 
                     jsonpath::json_replace(j, sElementPath, f);
@@ -105,29 +103,14 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                     WcaLog(LOGMSG_STANDARD, "WixJsonFile: Successfully updated path '%s' in file '%ls' with value '%s'",
                            sElementPath.c_str(), wzFile, valueUtf8.c_str());
 
-                    // Serialize before truncating so a serialization failure cannot leave the file empty.
-                    std::ostringstream serialized;
-                    serialized << pretty_print(j);
-
-                    SetLastError(0);
-                    std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
-                    if (!os.is_open())
+                    hr = WriteJsonOutput(wzFile, j);
+                    if (FAILED(hr))
                     {
-                        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to create output stream for file '%ls'", wzFile);
-                        hr = ReturnLastError("creating the output stream");
-                        return FAILED(hr) ? hr : HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
-                    }
-
-                    os << serialized.str();
-                    os.close();
-                    if (os.fail())
-                    {
-                        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to write file '%ls'", wzFile);
-                        return HRESULT_FROM_WIN32(ERROR_WRITE_FAULT);
+                        return hr;
                     }
                 }
                 else {
-                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - No elements found at path '%s' in file '%ls'. Ensure the path exists or use createJsonPointerValue action to create it.", 
+                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - No elements found at path '%s' in file '%ls'. Ensure the path exists or use createJsonPointerValue action to create it.",
                            sElementPath.c_str(), wzFile);
 
                     return HRESULT_FROM_WIN32(ERROR_OBJECT_NOT_FOUND);

@@ -55,25 +55,10 @@ HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath)
                        locations.size(), sElementPath.c_str(), wzFile);
             }
 
-            // Serialize before truncating so a serialization failure cannot leave the file empty.
-            std::ostringstream serialized;
-            serialized << pretty_print(j);
-
-            SetLastError(0);
-            std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
-            if (!os.is_open())
+            hr = WriteJsonOutput(wzFile, j);
+            if (FAILED(hr))
             {
-                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to create output stream for file '%ls'", wzFile);
-                hr = ReturnLastError("creating the output stream");
-                return FAILED(hr) ? hr : HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
-            }
-
-            os << serialized.str();
-            os.close();
-            if (os.fail())
-            {
-                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Failed to write file '%ls'", wzFile);
-                return HRESULT_FROM_WIN32(ERROR_WRITE_FAULT);
+                return hr;
             }
         }
         else {

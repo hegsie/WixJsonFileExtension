@@ -149,6 +149,91 @@ static void Test_OnlyIfExists_AppliesWhenPresent()
     RemoveFile(path);
 }
 
+static void Test_SetValue_PreservesStringType()
+{
+    // Replacing an existing string with something that parses as JSON must stay a string.
+    auto path = WriteTempJson(R"({"version":"1.0"})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.version", L"2.5", FlagFor(FLAG_SETVALUE), -1, L""));
+    auto j = ReadJson(path);
+    CHECK(j["version"].is_string());
+    CHECK(j["version"].as<std::string>() == "2.5");
+    RemoveFile(path);
+}
+
+static void Test_SetValue_WritesTypedValueForNonStrings()
+{
+    // Replacing a number/boolean takes the parsed (typed) form of the authored value.
+    auto path = WriteTempJson(R"({"port":8080,"enabled":false})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.port", L"9090", FlagFor(FLAG_SETVALUE), -1, L""));
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.enabled", L"true", FlagFor(FLAG_SETVALUE), -1, L""));
+    auto j = ReadJson(path);
+    CHECK(j["port"].is_number());
+    CHECK(j["port"].as<int>() == 9090);
+    CHECK(j["enabled"].is_bool());
+    CHECK(j["enabled"].as<bool>() == true);
+    RemoveFile(path);
+}
+
+static void Test_CreatePointer_UpdatesExistingValue()
+{
+    // createJsonPointerValue is set-or-create: an existing value is replaced, not left as-is.
+    auto path = WriteTempJson(R"({"a":{"b":"old"}})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"/a/b", L"new", FlagFor(FLAG_CREATEVALUE), -1, L""));
+    auto j = ReadJson(path);
+    CHECK(j["a"]["b"].as<std::string>() == "new");
+    RemoveFile(path);
+}
+
+static void Test_CreatePointer_TypedValueForNewPath()
+{
+    // A newly created value has no existing type to preserve, so JSON-parseable text is typed.
+    auto path = WriteTempJson(R"({})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"/timeout", L"30", FlagFor(FLAG_CREATEVALUE), -1, L""));
+    auto j = ReadJson(path);
+    CHECK(j["timeout"].is_number());
+    CHECK(j["timeout"].as<int>() == 30);
+    RemoveFile(path);
+}
+
+static void Test_OnlyIfExists_SkipsMissingFile()
+{
+    // A missing file with OnlyIfExists is a successful no-op, not a failed install.
+    fs::path missing = fs::temp_directory_path() / L"jsonca_test_missing_file.json";
+    RemoveFile(missing.wstring());
+    int flags = FlagFor(FLAG_SETVALUE) | FlagFor(FLAG_ONLYIFEXISTS);
+    CHECK_HR(UpdateJsonFile(missing.wstring().c_str(), L"$.config.value", L"x", flags, -1, L""));
+    CHECK(!fs::exists(missing));
+}
+
+static void Test_RemoveArrayElement_ByValue()
+{
+    auto path = WriteTempJson(R"({"items":["a","b","a"]})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.items", L"a", FlagFor(FLAG_REMOVEARRAYELEMENT), -1, L""));
+    auto j = ReadJson(path);
+    CHECK(j["items"].size() == 1);
+    CHECK(j["items"][0].as<std::string>() == "b");
+    RemoveFile(path);
+}
+
+static void Test_DistinctArray_RemovesDuplicates()
+{
+    auto path = WriteTempJson(R"({"items":[1,2,1,3,2]})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.items", L"", FlagFor(FLAG_DISTINCTVALUES), -1, L""));
+    auto j = ReadJson(path);
+    CHECK(j["items"].size() == 3);
+    RemoveFile(path);
+}
+
+static void Test_Write_LeavesNoTempFile()
+{
+    auto path = WriteTempJson(R"({"config":{"value":"old"}})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.config.value", L"new", FlagFor(FLAG_SETVALUE), -1, L""));
+    fs::path tempPath(path);
+    tempPath += L".wixjson.tmp";
+    CHECK(!fs::exists(tempPath));
+    RemoveFile(path);
+}
+
 static void Test_Schema_ValidPasses_InvalidFails()
 {
     auto schemaPath = WriteTempJson(
@@ -231,6 +316,14 @@ int main(int argc, char** argv)
     RunTest("InsertArray_AtIndex", Test_InsertArray_AtIndex);
     RunTest("OnlyIfExists_SkipsMissingPath", Test_OnlyIfExists_SkipsMissingPath);
     RunTest("OnlyIfExists_AppliesWhenPresent", Test_OnlyIfExists_AppliesWhenPresent);
+    RunTest("SetValue_PreservesStringType", Test_SetValue_PreservesStringType);
+    RunTest("SetValue_WritesTypedValueForNonStrings", Test_SetValue_WritesTypedValueForNonStrings);
+    RunTest("CreatePointer_UpdatesExistingValue", Test_CreatePointer_UpdatesExistingValue);
+    RunTest("CreatePointer_TypedValueForNewPath", Test_CreatePointer_TypedValueForNewPath);
+    RunTest("OnlyIfExists_SkipsMissingFile", Test_OnlyIfExists_SkipsMissingFile);
+    RunTest("RemoveArrayElement_ByValue", Test_RemoveArrayElement_ByValue);
+    RunTest("DistinctArray_RemovesDuplicates", Test_DistinctArray_RemovesDuplicates);
+    RunTest("Write_LeavesNoTempFile", Test_Write_LeavesNoTempFile);
     RunTest("Schema_ValidPasses_InvalidFails", Test_Schema_ValidPasses_InvalidFails);
 
     std::string out = (argc > 1) ? argv[1] : "cpp-tests.xml";

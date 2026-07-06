@@ -103,16 +103,11 @@ HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElemen
 
             WcaLog(LOGMSG_STANDARD, "Successfully removed elements from array");
 
-            std::ofstream os(wzFile, std::ios_base::out | std::ios_base::trunc);
-
-            if (!os.is_open())
+            hr = WriteJsonOutput(wzFile, j);
+            if (FAILED(hr))
             {
-                WcaLog(LOGMSG_STANDARD, "Failed to open output file stream for writing: %ls", wzFile);
-                return HRESULT_FROM_WIN32(ERROR_OPEN_FAILED);
+                return hr;
             }
-
-            pretty_print(j).dump(os);
-            os.close();
         }
         else {
             WcaLog(LOGMSG_STANDARD, "Unable to locate file: %ls", wzFile);

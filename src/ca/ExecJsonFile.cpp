@@ -72,12 +72,6 @@ extern "C" UINT WINAPI ExecJsonFile(
         ExitOnFailure(hr, "WixJsonFile: Failed while updating file '%ls' at path '%ls'", sczFile, sczElementPath)
     }
 
-    // reaching the end of the list is actually a good thing, not an error
-    if (E_NOMOREITEMS == hr)
-    {
-        hr = S_OK;
-    }
-
 LExit:
     ReleaseStr(pwzCustomActionData)
     ReleaseStr(sczFile)

@@ -17,6 +17,26 @@ namespace Hegsie.Wix.JsonExtension
 		private static readonly Regex NumericIndexPattern = new Regex(@"^\d+$", RegexOptions.Compiled);
 		private static readonly Regex PropertyReferencePattern = new Regex(@"\[([^\]]+)\]", RegexOptions.Compiled);
 
+		// Elements without an explicit Sequence get an increasing default so operations on the
+		// same file execute in authoring order instead of tying at Sequence=1 (which leaves the
+		// execution order undefined - the custom action sorts by File, Sequence).
+		private int _nextDefaultSequence = 1;
+
+		/// <summary>
+		/// Resolves the sequence for an element: the authored value wins, then a transaction
+		/// override, then the next default. Future defaults always start above any sequence
+		/// handed out here so unsequenced elements never tie with earlier ones.
+		/// </summary>
+		private int ResolveSequence(int? authoredSequence, int? sequenceOverride = null)
+		{
+			int sequence = authoredSequence ?? sequenceOverride ?? _nextDefaultSequence;
+			if (sequence >= _nextDefaultSequence)
+			{
+				_nextDefaultSequence = sequence + 1;
+			}
+			return sequence;
+		}
+
 		public override XNamespace Namespace => "http://schemas.hegsie.com/wix/JsonExtension";
 
 		/// <summary>
@@ -83,7 +103,7 @@ namespace Hegsie.Wix.JsonExtension
 		/// <param name="parentDirectory">Identifier of parent component's directory.</param>
 		/// <param name="section"></param>
 		private void ParseJsonFileElement(XElement node, string componentId, string parentDirectory,
-			IntermediateSection section)
+			IntermediateSection section, string fileOverride = null, int? sequenceOverride = null)
 		{
 			var sourceLineNumbers = ParseHelper.GetSourceLineNumbers(node);
 			Identifier id = null;
@@ -95,7 +115,7 @@ namespace Hegsie.Wix.JsonExtension
 			string schemaFile = null;
 			int flags = 0;
 			int action = CompilerConstants.IntegerNotSet;
-			int? sequence = 1;
+			int? sequence = null;
 			int? index = null;
 
 			if (node.Attributes().Any())
@@ -191,6 +211,15 @@ namespace Hegsie.Wix.JsonExtension
 				flags |= (int)JsonFlags.SetValue;
 			}
 
+			// Apply values inherited from a parent JsonTransaction, then fall back to a
+			// deterministic default sequence when none was authored.
+			if (string.IsNullOrEmpty(file) && !string.IsNullOrEmpty(fileOverride))
+			{
+				file = fileOverride;
+			}
+
+			sequence = ResolveSequence(sequence, sequenceOverride);
+
 			foreach (var child in node.Elements())
 			{
 				if (XmlNodeType.Element != child.NodeType)
@@ -237,7 +266,7 @@ namespace Hegsie.Wix.JsonExtension
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section,
 				action == (int)JsonAction.ReadValue ? "WixPropertyJsonFile" : "WixSchedJsonFile", Context.Platform,
-				CustomActionPlatforms.X64);
+				CustomActionPlatforms.X86 | CustomActionPlatforms.X64 | CustomActionPlatforms.ARM64);
 		}
 
 		private int ValidateAction(XElement node, SourceLineNumber sourceLineNumbers, XAttribute attribute,
@@ -603,7 +632,9 @@ namespace Hegsie.Wix.JsonExtension
 				return;
 			}
 
-			// Parse child JsonFile elements
+			// Parse child JsonFile elements. Defaults from the transaction (File, sequence based
+			// on BaseSequence) are passed as overrides instead of mutating the source XML; the
+			// child's own attributes always win.
 			int sequenceOffset = 0;
 			int childCount = 0;
 			foreach (var child in node.Elements())
@@ -611,22 +642,11 @@ namespace Hegsie.Wix.JsonExtension
 				if (child.Name.Namespace == Namespace && child.Name.LocalName == "JsonFile")
 				{
 					childCount++;
-					
-					// If the child doesn't have File attribute and we have a default, inject it
-					if (!string.IsNullOrEmpty(defaultFile) && child.Attribute("File") == null)
-					{
-						child.SetAttributeValue("File", defaultFile);
-					}
 
-					// If the child doesn't have Sequence attribute, assign one based on baseSequence
-					if (child.Attribute("Sequence") == null && baseSequence.HasValue)
-					{
-						child.SetAttributeValue("Sequence", (baseSequence.Value + sequenceOffset).ToString());
-					}
-					
+					int? childSequence = baseSequence.HasValue ? baseSequence.Value + sequenceOffset : (int?)null;
 					sequenceOffset++;
 
-					ParseJsonFileElement(child, componentId, parentDirectory, section);
+					ParseJsonFileElement(child, componentId, parentDirectory, section, defaultFile, childSequence);
 				}
 				else if (child.Name.Namespace == Namespace)
 				{
@@ -652,7 +672,7 @@ namespace Hegsie.Wix.JsonExtension
 			string file = null;
 			string key = null;
 			string value = null;
-			int? sequence = 1;
+			int? sequence = null;
 			bool createIfMissing = true;
 
 			// Parse attributes
@@ -734,16 +754,27 @@ namespace Hegsie.Wix.JsonExtension
 				Messaging.Write(WarningMessages.InvalidPropertyNameCharacters(sourceLineNumbers, node.Name.ToString(), "Key", key));
 			}
 
-			// Convert dot notation to JSONPath
-			// e.g., "ApplicationSettings.Environment" -> "$.ApplicationSettings.Environment"
-			string elementPath = "$." + key;
-
-			// Create underlying JsonFile symbol
-			int flags = (int)JsonFlags.SetValue; // Default to setValue
-			if (!createIfMissing)
+			// CreateIfMissing=yes (the default) must create the key when it is absent, which the
+			// setValue action cannot do (it fails on missing paths). Map it to the
+			// createJsonPointerValue action, which sets the value and creates intermediate
+			// objects as needed. The dot-notation key converts to a JSON Pointer,
+			// e.g. "ApplicationSettings.Environment" -> "/ApplicationSettings/Environment".
+			// CreateIfMissing=no keeps setValue (JSONPath) with OnlyIfExists so a missing key
+			// is skipped rather than failing the install.
+			string elementPath;
+			int flags;
+			if (createIfMissing)
 			{
-				flags |= (int)JsonFlags.OnlyIfExists;
+				elementPath = "/" + key.Replace(".", "/");
+				flags = (int)JsonFlags.CreateJsonPointerValue;
 			}
+			else
+			{
+				elementPath = "$." + key;
+				flags = (int)JsonFlags.SetValue | (int)JsonFlags.OnlyIfExists;
+			}
+
+			sequence = ResolveSequence(sequence);
 
 			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
@@ -756,7 +787,7 @@ namespace Hegsie.Wix.JsonExtension
 			});
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,
-				CustomActionPlatforms.X64);
+				CustomActionPlatforms.X86 | CustomActionPlatforms.X64 | CustomActionPlatforms.ARM64);
 		}
 
 		/// <summary>
@@ -770,7 +801,7 @@ namespace Hegsie.Wix.JsonExtension
 			string file = null;
 			string name = null;
 			string value = null;
-			int? sequence = 1;
+			int? sequence = null;
 
 			// Parse attributes
 			foreach (var attribute in node.Attributes())
@@ -836,6 +867,8 @@ namespace Hegsie.Wix.JsonExtension
 			// Create underlying JsonFile symbol with setValue action
 			int flags = (int)JsonFlags.SetValue;
 
+			sequence = ResolveSequence(sequence);
+
 			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
 				File = file,
@@ -847,7 +880,7 @@ namespace Hegsie.Wix.JsonExtension
 			});
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,
-				CustomActionPlatforms.X64);
+				CustomActionPlatforms.X86 | CustomActionPlatforms.X64 | CustomActionPlatforms.ARM64);
 		}
 
 		/// <summary>
@@ -861,7 +894,7 @@ namespace Hegsie.Wix.JsonExtension
 			string file = null;
 			string category = "Default";
 			string level = null;
-			int? sequence = 1;
+			int? sequence = null;
 
 			// Parse attributes
 			foreach (var attribute in node.Attributes())
@@ -927,6 +960,8 @@ namespace Hegsie.Wix.JsonExtension
 			// Create underlying JsonFile symbol with setValue action
 			int flags = (int)JsonFlags.SetValue;
 
+			sequence = ResolveSequence(sequence);
+
 			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
 				File = file,
@@ -938,7 +973,7 @@ namespace Hegsie.Wix.JsonExtension
 			});
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,
-				CustomActionPlatforms.X64);
+				CustomActionPlatforms.X86 | CustomActionPlatforms.X64 | CustomActionPlatforms.ARM64);
 		}
 	}
 

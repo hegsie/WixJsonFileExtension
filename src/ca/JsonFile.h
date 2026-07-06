@@ -1,7 +1,6 @@
 #pragma once
 #include "stdafx.h"
 
-#include <atlbase.h>
 #include <vector>
 
 using namespace jsoncons;
@@ -123,6 +122,11 @@ HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile);
 
 std::string GetLastErrorAsString();
 HRESULT ReturnLastError(const std::string& action);
+
+// Atomically serializes and writes a JSON document to a file (temp file + replace).
+HRESULT WriteJsonOutput(__in_z LPCWSTR wzFile, const json& j);
+// Converts an authored value to a typed JSON value; preserves string type when replacing a string.
+json MakeJsonValue(const std::string& valueUtf8, const json* pExisting);
 
 inline HRESULT WideToUtf8(__in_z LPCWSTR wzInput, std::string& value)
 {

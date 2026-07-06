@@ -27,79 +27,74 @@ HRESULT UpdateJsonFile(
     }
 
 
+    std::bitset<32> flags(iFlags);
+    WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Processing file '%ls' with flags: %i", wzFile, iFlags);
+
+    // Check if OnlyIfExists flag is set
+    bool onlyIfExists = flags.test(FLAG_ONLYIFEXISTS);
+
+    // OnlyIfExists applies to every write action: skip the operation unless the target path
+    // already exists. createJsonPointerValue uses JSON Pointer syntax; all other actions use JSONPath.
+    bool isWriteAction = flags.test(FLAG_SETVALUE) || flags.test(FLAG_CREATEVALUE) || flags.test(FLAG_REPLACEJSONVALUE) ||
+                         flags.test(FLAG_DELETEVALUE) || flags.test(FLAG_APPENDARRAY) || flags.test(FLAG_INSERTARRAY) ||
+                         flags.test(FLAG_REMOVEARRAYELEMENT) || flags.test(FLAG_DISTINCTVALUES);
+
     // Check if file exists before attempting to parse
     if (!fs::exists(fs::path(wzFile)))
     {
+        // A missing file trivially means the target path does not exist, so OnlyIfExists
+        // turns this into a successful no-op instead of a failed install.
+        if (onlyIfExists && isWriteAction)
+        {
+            WcaLog(LOGMSG_STANDARD, "WixJsonFile: Skipping operation - file does not exist and OnlyIfExists=yes: '%ls'", wzFile);
+            return S_OK;
+        }
+
         WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - File not found: '%ls'", wzFile);
 
-        // Try to provide additional diagnostic information
+        // Additional diagnostics (verbose so a failing install log is not flooded)
         fs::path filePath(wzFile);
         fs::path parentDir = filePath.parent_path();
         if (!parentDir.empty())
         {
             if (fs::exists(parentDir))
             {
-                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Parent directory exists: '%ls'", parentDir.wstring().c_str());
+                WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Parent directory exists: '%ls'", parentDir.wstring().c_str());
                 // List files in the directory to help diagnose
                 try
                 {
-                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Files in directory:");
+                    WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Files in directory:");
                     int fileCount = 0;
                     for (const auto& entry : fs::directory_iterator(parentDir))
                     {
                         if (fileCount < 10) // Limit to first 10 files
                         {
-                            WcaLog(LOGMSG_STANDARD, "WixJsonFile:   - %ls", entry.path().filename().wstring().c_str());
+                            WcaLog(LOGMSG_VERBOSE, "WixJsonFile:   - %ls", entry.path().filename().wstring().c_str());
                         }
                         fileCount++;
                     }
                     if (fileCount > 10)
                     {
-                        WcaLog(LOGMSG_STANDARD, "WixJsonFile:   ... and %d more files", fileCount - 10);
+                        WcaLog(LOGMSG_VERBOSE, "WixJsonFile:   ... and %d more files", fileCount - 10);
                     }
                     else if (fileCount == 0)
                     {
-                        WcaLog(LOGMSG_STANDARD, "WixJsonFile:   (directory is empty)");
+                        WcaLog(LOGMSG_VERBOSE, "WixJsonFile:   (directory is empty)");
                     }
                 }
                 catch (...)
                 {
-                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Could not list directory contents");
+                    WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Could not list directory contents");
                 }
             }
             else
             {
                 WcaLog(LOGMSG_STANDARD, "WixJsonFile: Parent directory does NOT exist: '%ls'", parentDir.wstring().c_str());
-                // Check if grandparent exists
-                fs::path grandparentDir = parentDir.parent_path();
-                if (!grandparentDir.empty() && fs::exists(grandparentDir))
-                {
-                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Grandparent directory exists: '%ls'", grandparentDir.wstring().c_str());
-                    // List subdirectories to help identify the issue
-                    try
-                    {
-                        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Subdirectories in grandparent:");
-                        for (const auto& entry : fs::directory_iterator(grandparentDir))
-                        {
-                            if (entry.is_directory())
-                            {
-                                WcaLog(LOGMSG_STANDARD, "WixJsonFile:   - %ls", entry.path().filename().wstring().c_str());
-                            }
-                        }
-                    }
-                    catch (...)
-                    {
-                        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Could not list grandparent directory contents");
-                    }
-                }
             }
         }
 
         return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
     }
-
-    std::bitset<32> flags(iFlags);
-    WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Processing file '%ls' with flags: %i", wzFile, iFlags);
 
     std::string elementPath;
     hr = WideToUtf8(wzElementPath, elementPath);
@@ -111,14 +106,6 @@ HRESULT UpdateJsonFile(
 
     WcaLog(LOGMSG_VERBOSE, "Element path: %ls", wzElementPath);
 
-    // Check if OnlyIfExists flag is set
-    bool onlyIfExists = flags.test(FLAG_ONLYIFEXISTS);
-    
-    // OnlyIfExists applies to every write action: skip the operation unless the target path
-    // already exists. createJsonPointerValue uses JSON Pointer syntax; all other actions use JSONPath.
-    bool isWriteAction = flags.test(FLAG_SETVALUE) || flags.test(FLAG_CREATEVALUE) || flags.test(FLAG_REPLACEJSONVALUE) ||
-                         flags.test(FLAG_DELETEVALUE) || flags.test(FLAG_APPENDARRAY) || flags.test(FLAG_INSERTARRAY) ||
-                         flags.test(FLAG_REMOVEARRAYELEMENT) || flags.test(FLAG_DISTINCTVALUES);
     if (onlyIfExists && isWriteAction)
     {
         try
