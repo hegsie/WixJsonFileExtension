@@ -46,16 +46,21 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
+  <!-- For the non-x64 platforms prefer v143 when it is installed, but fall back to the default
+       toolset of the installed Visual Studio: CI runner images do not always carry the v143
+       compatibility toolset for every architecture (e.g. ARM64). -->
   <PropertyGroup Condition="'$(Configuration)'=='Debug' And ('$(Platform)'=='Win32' Or '$(Platform)'=='ARM64')" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset Condition="Exists('$(VCTargetsPath)\Platforms\$(Platform)\PlatformToolsets\v143')">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(PlatformToolset)'==''">$(DefaultPlatformToolset)</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Release' And ('$(Platform)'=='Win32' Or '$(Platform)'=='ARM64')" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset Condition="Exists('$(VCTargetsPath)\Platforms\$(Platform)\PlatformToolsets\v143')">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(PlatformToolset)'==''">$(DefaultPlatformToolset)</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <!-- Keep each platform's output in its own $(SolutionDir)<platform> directory so the wixlib can
@@ -147,7 +152,9 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>msi.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <!-- The WcaUtil/DUtil package props only add their libs for v14x toolsets, so list them
+           explicitly in case the fallback toolset has a different name (duplicates are harmless). -->
+      <AdditionalDependencies>msi.lib;version.lib;..\..\packages\WixToolset.WcaUtil.6.0.1\build\native\v14\$(PlatformTarget)\wcautil.lib;..\..\packages\WixToolset.DUtil.6.0.1\build\native\v14\$(PlatformTarget)\dutil.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>CustomAction.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -167,7 +174,9 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>msi.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <!-- The WcaUtil/DUtil package props only add their libs for v14x toolsets, so list them
+           explicitly in case the fallback toolset has a different name (duplicates are harmless). -->
+      <AdditionalDependencies>msi.lib;Version.lib;..\..\packages\WixToolset.WcaUtil.6.0.1\build\native\v14\$(PlatformTarget)\wcautil.lib;..\..\packages\WixToolset.DUtil.6.0.1\build\native\v14\$(PlatformTarget)\dutil.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>CustomAction.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>

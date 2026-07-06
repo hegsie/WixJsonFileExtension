@@ -51,6 +51,8 @@ jobs:
     # x86/ARM64 fragments (and embeds those DLLs) only when the outputs exist.
     - name: Build x86 and ARM64 custom action DLLs
       run: |
+        # Diagnostic: list the platform toolsets available on this runner image.
+        Get-ChildItem "C:\Program Files\Microsoft Visual Studio\*\*\MSBuild\Microsoft\VC\*\Platforms\*\PlatformToolsets\*" -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
         msbuild /m /p:Configuration=${{ env.BUILD_CONFIGURATION }} /p:Platform=Win32 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         msbuild /m /p:Configuration=${{ env.BUILD_CONFIGURATION }} /p:Platform=ARM64 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
