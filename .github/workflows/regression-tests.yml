@@ -39,6 +39,7 @@ jobs:
         msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=Win32 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=ARM64 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     - name: Build Solution
       working-directory: ${{env.GITHUB_WORKSPACE}}

@@ -22,6 +22,21 @@ namespace Hegsie.Wix.JsonExtension
 		// execution order undefined - the custom action sorts by File, Sequence).
 		private int _nextDefaultSequence = 1;
 
+		/// <summary>
+		/// Resolves the sequence for an element: the authored value wins, then a transaction
+		/// override, then the next default. Future defaults always start above any sequence
+		/// handed out here so unsequenced elements never tie with earlier ones.
+		/// </summary>
+		private int ResolveSequence(int? authoredSequence, int? sequenceOverride = null)
+		{
+			int sequence = authoredSequence ?? sequenceOverride ?? _nextDefaultSequence;
+			if (sequence >= _nextDefaultSequence)
+			{
+				_nextDefaultSequence = sequence + 1;
+			}
+			return sequence;
+		}
+
 		public override XNamespace Namespace => "http://schemas.hegsie.com/wix/JsonExtension";
 
 		/// <summary>
@@ -203,10 +218,7 @@ namespace Hegsie.Wix.JsonExtension
 				file = fileOverride;
 			}
 
-			if (!sequence.HasValue)
-			{
-				sequence = sequenceOverride ?? _nextDefaultSequence++;
-			}
+			sequence = ResolveSequence(sequence, sequenceOverride);
 
 			foreach (var child in node.Elements())
 			{
@@ -762,7 +774,7 @@ namespace Hegsie.Wix.JsonExtension
 				flags = (int)JsonFlags.SetValue | (int)JsonFlags.OnlyIfExists;
 			}
 
-			sequence = sequence ?? _nextDefaultSequence++;
+			sequence = ResolveSequence(sequence);
 
 			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
@@ -855,7 +867,7 @@ namespace Hegsie.Wix.JsonExtension
 			// Create underlying JsonFile symbol with setValue action
 			int flags = (int)JsonFlags.SetValue;
 
-			sequence = sequence ?? _nextDefaultSequence++;
+			sequence = ResolveSequence(sequence);
 
 			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
@@ -948,7 +960,7 @@ namespace Hegsie.Wix.JsonExtension
 			// Create underlying JsonFile symbol with setValue action
 			int flags = (int)JsonFlags.SetValue;
 
-			sequence = sequence ?? _nextDefaultSequence++;
+			sequence = ResolveSequence(sequence);
 
 			var symbol = section.AddSymbol(new JsonFileSymbol(sourceLineNumbers, id)
 			{
