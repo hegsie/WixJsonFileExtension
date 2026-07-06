@@ -20,6 +20,9 @@ env:
 
 permissions:
   contents: write
+  # Required for NuGet Trusted Publishing: the workflow exchanges its OIDC token for a
+  # short-lived NuGet.org API key instead of using a stored long-lived key.
+  id-token: write
 
 jobs:
   release:
@@ -84,6 +87,15 @@ jobs:
         draft: false
         prerelease: false
 
+    # Trusted Publishing: exchange this workflow's OIDC token for a short-lived NuGet.org
+    # API key. Requires a Trusted Publishing policy on nuget.org (account: hegsie) that
+    # trusts this repository and workflow file; no stored NUGET_API_KEY secret is used.
+    - name: NuGet login (Trusted Publishing)
+      id: nuget-login
+      uses: NuGet/login@v1
+      with:
+        user: hegsie
+
     - name: Push to NuGet
       working-directory: ${{env.SOLUTION_FILE_PATH}}\src\wixext\bin\${{env.BUILD_CONFIGURATION}}\
-      run: dotnet nuget push "*.nupkg" --api-key ${{secrets.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json --skip-duplicate
+      run: dotnet nuget push "*.nupkg" --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

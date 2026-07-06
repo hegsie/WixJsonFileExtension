@@ -56,8 +56,14 @@ The workflow will:
 
 ## Prerequisites
 
-The following secrets must be configured in the repository:
-- `NUGET_API_KEY`: API key for publishing to NuGet.org
+Publishing to NuGet.org uses [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) instead of a stored API key. The workflow exchanges its GitHub OIDC token for a short-lived NuGet.org API key via the `NuGet/login` action, so no long-lived secret exists to leak or expire.
+
+A Trusted Publishing policy must be configured on nuget.org under the `hegsie` account (nuget.org → account → Trusted Publishing):
+- **Repository owner**: `hegsie`
+- **Repository**: `WixJsonFileExtension`
+- **Workflow file**: `release.yml`
+
+No repository secrets are required for publishing.
 
 ## Notes
 
