@@ -183,10 +183,20 @@ jobs:
           Write-Host "::group::WiX $sdk consuming WixJsonFileExtension $version"
           # AcceptEula is only meaningful to WiX 7 (Open Source Maintenance Fee EULA, error
           # WIX7015); older toolsets ignore the property. See https://wixtoolset.org/osmf/
-          dotnet build $proj -c ${{ env.BUILD_CONFIGURATION }} -p:Platform=x64 -p:AcceptEula=wix7 -v normal
+          $out = dotnet build $proj -c ${{ env.BUILD_CONFIGURATION }} -p:Platform=x64 -p:AcceptEula=wix7 -v normal 2>&1
           $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_ }
           Write-Host "::endgroup::"
           if ($code -ne 0) { Write-Error "WiX $sdk failed to build against the packed extension"; exit $code }
+
+          # Both WiX 5 and WiX 7 only *warn* when an extension has no binary for their version
+          # (v7 codes it WIX1031); the build then fails later on the unparsed Json elements. Assert
+          # on the warning too, so this step reports the issue #45 symptom directly instead of
+          # leaving it to be inferred from a cascade of "unhandled extension element" errors.
+          if ($out -match "does not have support for WiX Toolset|does not support WiX Toolset") {
+            Write-Error "WiX $sdk reported the extension as unsupported - the wixext$major/ folder is missing or unusable"
+            exit 1
+          }
 
           $msi = Get-ChildItem -Path $work -Filter "Smoke-wix$major.msi" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $msi) { Write-Error "WiX $sdk reported success but produced no MSI"; exit 1 }
