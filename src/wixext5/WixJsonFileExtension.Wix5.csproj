@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
+
+<!--
+  WiX Toolset v5 flavour of the extension. It compiles the same sources as
+  ..\wixext\WixJsonFileExtension.csproj (the v6 flavour) against WixToolset.Extensibility 5.x and
+  produces an identically named assembly; the v6 project packs the output of this project into the
+  package's wixext5/ folder. The wixlib is version independent (the intermediate format is 4.0.0.0
+  from WiX 4 through WiX 7), so every flavour embeds the same one.
+
+  Before this project existed, wixext5/ held a copy of the WiX 6 build. That binary referenced
+  WixToolset.Data 6.0.0.0, and .NET resolves a reference forward to a higher assembly version but
+  never back to a lower one, so it could not load in a WiX 5 toolset at all.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\wixext\WixJsonFileExtension.Common.props" />
+
+  <PropertyGroup>
+    <!-- Only the v6 project produces the NuGet package; this one just contributes its assembly. -->
+    <IsPackable>false</IsPackable>
+
+    <!-- The sources live next to the v6 project, so the default globs would also pick up that
+         project's bin/obj output. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\wixext\**\*.cs" Exclude="..\wixext\bin\**;..\wixext\obj\**;..\wixext\Properties\**" />
+
+    <InternalsVisibleTo Include="WixJsonFileExtension.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\wixlib\bin\x64\$(Configuration)\Hegsie.Wix.JsonExtension.Data.json.wixlib">
+      <LogicalName>Hegsie.Wix.JsonExtension.Data.json.wixlib</LogicalName>
+      <Link>Hegsie.Wix.JsonExtension.Data.json.wixlib</Link>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Extensibility" Version="5.0.2" />
+  </ItemGroup>
+</Project>

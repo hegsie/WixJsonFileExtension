@@ -69,6 +69,25 @@ jobs:
       working-directory: ${{env.SOLUTION_FILE_PATH}}\src\wixext\
       run: dotnet pack --no-build --configuration ${{env.BUILD_CONFIGURATION}} /p:Version=${{ steps.version.outputs.version }}
 
+    # A package missing one of the wixextN/ folders makes WiX report the extension as unsupported
+    # on that version (issue #45). Check before publishing to NuGet, where it cannot be undone.
+    - name: Verify package layout
+      shell: pwsh
+      working-directory: ${{env.SOLUTION_FILE_PATH}}\src\wixext\bin\${{env.BUILD_CONFIGURATION}}\
+      run: |
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $nupkg = Get-ChildItem -Filter "*.nupkg" | Select-Object -First 1
+        if (-not $nupkg) { Write-Error "No .nupkg found"; exit 1 }
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($nupkg.FullName)
+        $entries = $zip.Entries.FullName
+        $zip.Dispose()
+        $entries | Sort-Object | ForEach-Object { Write-Host "  $_" }
+        $missing = @("wixext5/WixJsonFileExtension.dll",
+                     "wixext6/WixJsonFileExtension.dll",
+                     "wixext7/WixJsonFileExtension.dll") | Where-Object { $entries -notcontains $_ }
+        if ($missing) { Write-Error "Missing from $($nupkg.Name): $($missing -join ', ')"; exit 1 }
+        Write-Host "Package contains extension binaries for WiX 5, 6 and 7."
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:

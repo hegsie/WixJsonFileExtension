@@ -13,8 +13,10 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <WixExtensionPackageFolder>wixext6</WixExtensionPackageFolder>
-    <!-- Output of ..\wixext7\WixJsonFileExtension.Wix7.csproj: the same extension compiled against
-         WixToolset.Extensibility 7.x, packed into the wixext7/ folder that WiX v7 probes. -->
+    <!-- This project is the WiX 6 flavour and owns the package. The sibling projects build the same
+         sources against the other supported toolsets; their outputs are packed into the wixextN/
+         folder each of those toolsets probes. -->
+    <Wix5ExtensionPath>..\wixext5\bin\$(Configuration)\netstandard2.0\WixJsonFileExtension.dll</Wix5ExtensionPath>
     <Wix7ExtensionPath>..\wixext7\bin\$(Configuration)\netstandard2.0\WixJsonFileExtension.dll</Wix7ExtensionPath>
   </PropertyGroup>
   <ItemGroup>
@@ -23,8 +25,6 @@
     <None Remove="Properties\**" />
 
     <InternalsVisibleTo Include="WixJsonFileExtension.Tests" />
-
-    <None Include="$(OutDir)WixJsonFileExtension.dll" Pack="true" PackagePath="wixext5/" />
 
     <None Include="..\..\LICENSE">
       <Pack>True</Pack>
@@ -35,14 +35,20 @@
 
   <ItemGroup>
     <Content Include="$(MSBuildProjectName).targets" PackagePath="build" />
+    <Content Include="$(Wix5ExtensionPath)" PackagePath="wixext5" />
     <Content Include="$(TargetPath)" PackagePath="$(WixExtensionPackageFolder)" />
     <Content Include="$(Wix7ExtensionPath)" PackagePath="wixext7" />
     <Content Include="json.xsd" PackagePath="schemas" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Build ordering only: the v7 flavour has the same assembly name, so it must not be
-         referenced for compilation, copied to this project's output, or listed as a dependency. -->
+    <!-- Build ordering only: the other flavours have the same assembly name, so they must not be
+         referenced for compilation, copied to this project's output, or listed as dependencies. -->
+    <ProjectReference Include="..\wixext5\WixJsonFileExtension.Wix5.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+      <PrivateAssets>all</PrivateAssets>
+    </ProjectReference>
     <ProjectReference Include="..\wixext7\WixJsonFileExtension.Wix7.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <Private>false</Private>

@@ -104,29 +104,6 @@ jobs:
         path: TestResults/cpp-tests.xml
         reporter: java-junit
 
-    # WiX 7 support (issue #45). The solution builds a second flavour of the extension against
-    # WixToolset.Extensibility 7.x; this step proves that flavour actually works under the v7
-    # toolset - the extension assembly loads, the compiler extension parses every element it
-    # contributes, and the wixlib embedded in it links. The package is built, not installed.
-    - name: Build WiX 7 smoke package
-      shell: pwsh
-      run: |
-        # install fails when the tool is already on the image; fall back to pinning the version.
-        dotnet tool install --global wix --version 7.0.0
-        if ($LASTEXITCODE -ne 0) { dotnet tool update --global wix --version 7.0.0 }
-        $env:PATH = "$env:USERPROFILE\.dotnet\tools;$env:PATH"
-        wix --version
-        if ($LASTEXITCODE -ne 0) { Write-Error "WiX 7 command line not available"; exit 1 }
-        New-Item -ItemType Directory -Force -Path TestResults | Out-Null
-        # --acceptEula takes the EULA id (v7's is "wix7") and accepts the Open Source Maintenance
-        # Fee EULA for this invocation only, without writing an acceptance file.
-        # See https://wixtoolset.org/osmf/
-        wix build --acceptEula wix7 -arch x64 `
-          -ext "${{ github.workspace }}\src\wixext7\bin\${{ env.BUILD_CONFIGURATION }}\netstandard2.0\WixJsonFileExtension.dll" `
-          test\wix7smoke\Wix7Smoke.wxs `
-          -o "${{ github.workspace }}\TestResults\Wix7Smoke.msi"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
     - name: Pack
       working-directory: ${{ env.SOLUTION_FILE_PATH }}\src\wixext\
       run: dotnet pack --no-build --configuration ${{ env.BUILD_CONFIGURATION }} /p:Version=6.0.0.${{ github.run_number }}
@@ -151,6 +128,70 @@ jobs:
                      "wixext7/WixJsonFileExtension.dll") | Where-Object { $entries -notcontains $_ }
         if ($missing) { Write-Error "Missing from $($nupkg.Name): $($missing -join ', ')"; exit 1 }
         Write-Host "Package contains extension binaries for WiX 5, 6 and 7."
+
+    # Consume the freshly packed .nupkg exactly the way a user does - a PackageReference in a
+    # wixproj - once per supported WiX major version. This is the scenario from issue #45: the
+    # extension's .targets file probes ..\$(WixToolsetExtensionPackageFolder)\, and when that
+    # folder is missing the extension lands in UnsupportedWixExtension and the build reports it as
+    # unsupported. Passing the assembly with -ext instead would bypass exactly the mechanism that
+    # was broken, so the test has to go through the package.
+    #
+    # Building test\smoke\Smoke.wxs additionally proves, for each version, that the extension
+    # assembly loads against that toolset's WixToolset.Extensibility, that the compiler extension
+    # parses every element the extension contributes, and that the embedded wixlib links.
+    - name: Consume package with WiX 5, 6 and 7
+      shell: pwsh
+      run: |
+        $version = "6.0.0.${{ github.run_number }}"
+        $feed = "${{ github.workspace }}\src\wixext\bin\${{ env.BUILD_CONFIGURATION }}"
+        $work = "${{ github.workspace }}\.consume"
+        New-Item -ItemType Directory -Force -Path $work | Out-Null
+
+        # Restore from the pack output only, plus nuget.org for the WiX SDK itself. NuGet walks up
+        # from each project directory, so one config at the root covers all of them.
+        @"
+        <?xml version="1.0" encoding="utf-8"?>
+        <configuration>
+          <packageSources>
+            <clear />
+            <add key="local" value="$feed" />
+            <add key="nuget" value="https://api.nuget.org/v3/index.json" />
+          </packageSources>
+        </configuration>
+        "@ | Set-Content "$work\nuget.config" -Encoding UTF8
+
+        # Each project gets its own directory: sibling projects in one directory would share
+        # obj\project.assets.json and clobber each other's restore.
+        foreach ($sdk in @("5.0.2", "6.0.1", "7.0.0")) {
+          $major = $sdk.Split(".")[0]
+          $dir = "$work\wix$major"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          Copy-Item "${{ github.workspace }}\test\smoke\Smoke.wxs" $dir
+          $proj = "$dir\consume.wixproj"
+          @"
+        <Project Sdk="WixToolset.Sdk/$sdk">
+          <PropertyGroup>
+            <Platforms>x64</Platforms>
+            <OutputName>Smoke-wix$major</OutputName>
+          </PropertyGroup>
+          <ItemGroup>
+            <PackageReference Include="WixJsonFileExtension" Version="$version" />
+          </ItemGroup>
+        </Project>
+        "@ | Set-Content $proj -Encoding UTF8
+
+          Write-Host "::group::WiX $sdk consuming WixJsonFileExtension $version"
+          # AcceptEula is only meaningful to WiX 7 (Open Source Maintenance Fee EULA, error
+          # WIX7015); older toolsets ignore the property. See https://wixtoolset.org/osmf/
+          dotnet build $proj -c ${{ env.BUILD_CONFIGURATION }} -p:Platform=x64 -p:AcceptEula=wix7 -v normal
+          $code = $LASTEXITCODE
+          Write-Host "::endgroup::"
+          if ($code -ne 0) { Write-Error "WiX $sdk failed to build against the packed extension"; exit $code }
+
+          $msi = Get-ChildItem -Path $work -Filter "Smoke-wix$major.msi" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $msi) { Write-Error "WiX $sdk reported success but produced no MSI"; exit 1 }
+          Write-Host "WiX $sdk built $($msi.FullName)"
+        }
 
     - name: Upload NuGet Package
       uses: actions/upload-artifact@v4
