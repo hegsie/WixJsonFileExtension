@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
+
+<!--
+  Settings shared by every flavour of the extension assembly. One assembly is built per supported
+  WiX Toolset major version, because WixToolset.Data/WixToolset.Extensibility bump their assembly
+  version with each major release (6.0.0.0, 7.0.0.0, ...) and an extension can only bind to the
+  version it was compiled against. The flavours are otherwise identical: same sources, same
+  assembly name, same version, and each is packed into the matching wixextN/ package folder.
+-->
+<Project>
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>WixJsonFileExtension</AssemblyName>
+    <RootNamespace>Hegsie.Wix.JsonExtension</RootNamespace>
+    <DebugType>embedded</DebugType>
+    <LangVersion>latest</LangVersion>
+    <Version>6.3.2</Version>
+    <AssemblyVersion>6.3.2.0</AssemblyVersion>
+    <FileVersion>6.3.2.0</FileVersion>
+    <Authors>hegsie</Authors>
+    <Platforms>AnyCPU</Platforms>
+  </PropertyGroup>
+</Project>

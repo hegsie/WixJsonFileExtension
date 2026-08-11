@@ -104,9 +104,52 @@ jobs:
         path: TestResults/cpp-tests.xml
         reporter: java-junit
 
+    # WiX 7 support (issue #45). The solution builds a second flavour of the extension against
+    # WixToolset.Extensibility 7.x; this step proves that flavour actually works under the v7
+    # toolset - the extension assembly loads, the compiler extension parses every element it
+    # contributes, and the wixlib embedded in it links. The package is built, not installed.
+    - name: Build WiX 7 smoke package
+      shell: pwsh
+      run: |
+        # install fails when the tool is already on the image; fall back to pinning the version.
+        dotnet tool install --global wix --version 7.0.0
+        if ($LASTEXITCODE -ne 0) { dotnet tool update --global wix --version 7.0.0 }
+        $env:PATH = "$env:USERPROFILE\.dotnet\tools;$env:PATH"
+        wix --version
+        if ($LASTEXITCODE -ne 0) { Write-Error "WiX 7 command line not available"; exit 1 }
+        New-Item -ItemType Directory -Force -Path TestResults | Out-Null
+        # --acceptEula accepts the Open Source Maintenance Fee EULA for this invocation only,
+        # without writing an acceptance file. See https://wixtoolset.org/osmf/
+        wix build --acceptEula -arch x64 `
+          -ext "${{ github.workspace }}\src\wixext7\bin\${{ env.BUILD_CONFIGURATION }}\netstandard2.0\WixJsonFileExtension.dll" `
+          test\wix7smoke\Wix7Smoke.wxs `
+          -o "${{ github.workspace }}\TestResults\Wix7Smoke.msi"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
     - name: Pack
       working-directory: ${{ env.SOLUTION_FILE_PATH }}\src\wixext\
       run: dotnet pack --no-build --configuration ${{ env.BUILD_CONFIGURATION }} /p:Version=6.0.0.${{ github.run_number }}
+
+    # The wixextN/ folder names are how WiX finds the extension: the .targets file probes
+    # ..\$(WixToolsetExtensionPackageFolder)\, which the toolset sets to wixext5, wixext6 or
+    # wixext7. A missing folder is what makes WiX report the extension as unsupported, so fail the
+    # build here rather than shipping a package that only works on some versions.
+    - name: Verify package layout
+      shell: pwsh
+      working-directory: ${{ env.SOLUTION_FILE_PATH }}\src\wixext\bin\${{ env.BUILD_CONFIGURATION }}\
+      run: |
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $nupkg = Get-ChildItem -Filter "*.nupkg" | Select-Object -First 1
+        if (-not $nupkg) { Write-Error "No .nupkg found"; exit 1 }
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($nupkg.FullName)
+        $entries = $zip.Entries.FullName
+        $zip.Dispose()
+        $entries | Sort-Object | ForEach-Object { Write-Host "  $_" }
+        $missing = @("wixext5/WixJsonFileExtension.dll",
+                     "wixext6/WixJsonFileExtension.dll",
+                     "wixext7/WixJsonFileExtension.dll") | Where-Object { $entries -notcontains $_ }
+        if ($missing) { Write-Error "Missing from $($nupkg.Name): $($missing -join ', ')"; exit 1 }
+        Write-Host "Package contains extension binaries for WiX 5, 6 and 7."
 
     - name: Upload NuGet Package
       uses: actions/upload-artifact@v4

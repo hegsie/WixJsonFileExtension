@@ -58,10 +58,10 @@ namespace Hegsie.Wix.JsonExtension
 					switch (element.Name.LocalName)
 					{
 						case "JsonFile":
-							ParseJsonFileElement(element, componentId, directoryId, section);
+							ParseJsonFileElement(intermediate, element, componentId, directoryId, section);
 							break;
 						case "JsonTransaction":
-							ParseJsonTransactionElement(element, componentId, directoryId, section);
+							ParseJsonTransactionElement(intermediate, element, componentId, directoryId, section);
 							break;
 						case "AppSettings":
 							ParseAppSettingsElement(element, componentId, directoryId, section);
@@ -82,7 +82,7 @@ namespace Hegsie.Wix.JsonExtension
 					{
 						string componentId2 = context["ComponentId"];
 						string directoryId2 = context["DirectoryId"];
-						ParseJsonFileElement(element, componentId2, directoryId2, section);
+						ParseJsonFileElement(intermediate, element, componentId2, directoryId2, section);
 					}
 					else
 					{
@@ -98,11 +98,13 @@ namespace Hegsie.Wix.JsonExtension
 		/// <summary>
 		/// Parses a WixJsonFile element.
 		/// </summary>
+		/// <param name="intermediate">Parent intermediate, needed to hand foreign-namespace
+		/// attributes and elements to the extension that owns them.</param>
 		/// <param name="node">Element to parse.</param>
 		/// <param name="componentId">Identifier of parent component.</param>
 		/// <param name="parentDirectory">Identifier of parent component's directory.</param>
 		/// <param name="section"></param>
-		private void ParseJsonFileElement(XElement node, string componentId, string parentDirectory,
+		private void ParseJsonFileElement(Intermediate intermediate, XElement node, string componentId, string parentDirectory,
 			IntermediateSection section, string fileOverride = null, int? sequenceOverride = null)
 		{
 			var sourceLineNumbers = ParseHelper.GetSourceLineNumbers(node);
@@ -199,7 +201,10 @@ namespace Hegsie.Wix.JsonExtension
 					}
 					else
 					{
-						Messaging.Write(ErrorMessages.UnsupportedExtensionAttribute(sourceLineNumbers, attribute.Parent.Name.ToString(), attribute.Name.ToString()));
+						// Attribute from another extension's namespace: let that extension parse it.
+						// The core reports the "unhandled extension attribute" error when no loaded
+						// extension owns the namespace.
+						ParseHelper.ParseExtensionAttribute(Context.Extensions, intermediate, section, node, attribute);
 					}
 				}
 			}
@@ -233,7 +238,8 @@ namespace Hegsie.Wix.JsonExtension
 				}
 				else
 				{
-					Messaging.Write(ErrorMessages.UnsupportedExtensionElement(sourceLineNumbers, node.Name.ToString(), child.Name.ToString()));
+					// Child element from another extension's namespace: let that extension parse it.
+					ParseHelper.ParseExtensionElement(Context.Extensions, intermediate, section, node, child);
 				}
 			}
 
@@ -590,7 +596,7 @@ namespace Hegsie.Wix.JsonExtension
 		/// <summary>
 		/// Parses a JsonTransaction element that groups multiple JsonFile operations.
 		/// </summary>
-		private void ParseJsonTransactionElement(XElement node, string componentId, string parentDirectory,
+		private void ParseJsonTransactionElement(Intermediate intermediate, XElement node, string componentId, string parentDirectory,
 			IntermediateSection section)
 		{
 			var sourceLineNumbers = ParseHelper.GetSourceLineNumbers(node);
@@ -646,7 +652,7 @@ namespace Hegsie.Wix.JsonExtension
 					int? childSequence = baseSequence.HasValue ? baseSequence.Value + sequenceOffset : (int?)null;
 					sequenceOffset++;
 
-					ParseJsonFileElement(child, componentId, parentDirectory, section, defaultFile, childSequence);
+					ParseJsonFileElement(intermediate, child, componentId, parentDirectory, section, defaultFile, childSequence);
 				}
 				else if (child.Name.Namespace == Namespace)
 				{

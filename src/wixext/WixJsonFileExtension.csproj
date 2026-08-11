@@ -2,24 +2,20 @@
 <!-- Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
 
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="WixJsonFileExtension.Common.props" />
+
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <RootNamespace>Hegsie.Wix.JsonExtension</RootNamespace>
     <Description>WiX Toolset Utility extension</Description>
     <Title>WiX JSON extension</Title>
-    <DebugType>embedded</DebugType>
-    <LangVersion>latest</LangVersion>
-    <Version>6.3.2</Version>
-    <AssemblyVersion>6.3.2.0</AssemblyVersion>
-    <FileVersion>6.3.2.0</FileVersion>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    <Authors>hegsie</Authors>
-    <Platforms>AnyCPU</Platforms>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <WixExtensionPackageFolder>wixext6</WixExtensionPackageFolder>
+    <!-- Output of ..\wixext7\WixJsonFileExtension.Wix7.csproj: the same extension compiled against
+         WixToolset.Extensibility 7.x, packed into the wixext7/ folder that WiX v7 probes. -->
+    <Wix7ExtensionPath>..\wixext7\bin\$(Configuration)\netstandard2.0\WixJsonFileExtension.dll</Wix7ExtensionPath>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Properties\**" />
@@ -40,7 +36,18 @@
   <ItemGroup>
     <Content Include="$(MSBuildProjectName).targets" PackagePath="build" />
     <Content Include="$(TargetPath)" PackagePath="$(WixExtensionPackageFolder)" />
+    <Content Include="$(Wix7ExtensionPath)" PackagePath="wixext7" />
     <Content Include="json.xsd" PackagePath="schemas" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Build ordering only: the v7 flavour has the same assembly name, so it must not be
+         referenced for compilation, copied to this project's output, or listed as a dependency. -->
+    <ProjectReference Include="..\wixext7\WixJsonFileExtension.Wix7.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+      <PrivateAssets>all</PrivateAssets>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="..\wixlib\bin\x64\$(Configuration)\Hegsie.Wix.JsonExtension.Data.json.wixlib">

@@ -328,9 +328,12 @@ Test that changes are properly rolled back if installation fails or is rolled ba
 ### 4. Test with Different WiX Versions
 
 If possible, test with:
-- WiX 4.x
-- WiX 5.x
-- WiX 6.x
+- WiX 6.x (the `wixext6/` binary, built against WixToolset.Extensibility 6.0.1)
+- WiX 7.x (the `wixext7/` binary, built against WixToolset.Extensibility 7.0.0)
+
+CI already builds `test/wix7smoke/Wix7Smoke.wxs` with the WiX 7 command line and the `wixext7`
+binary on every push, which covers extension loading, element parsing and wixlib linking under v7.
+Installing a package built by WiX 7 is the part that still needs manual testing.
 
 ### 5. Test with Different .NET Application Types
 

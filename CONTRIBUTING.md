@@ -45,7 +45,7 @@ When reporting bugs or requesting features, please use the GitHub issue tracker 
 
 ### For Bug Reports
 
-- **WiX Toolset version** (e.g., WiX 5.0, WiX 6.0)
+- **WiX Toolset version** (e.g., WiX 6.0, WiX 7.0)
 - **Extension version** (from NuGet package version)
 - **.NET version** (if relevant)
 - **Minimal reproduction example**: A small WiX project that demonstrates the issue
@@ -102,14 +102,17 @@ WixJsonFileExtension/
 ├── src/
 │   ├── ca/                 # Native C++ custom action
 │   │   └── jsoncons/       # JSON library (jsoncons)
-│   ├── wixext/             # C# WiX extension
+│   ├── wixext/             # C# WiX extension (WiX 6 build; owns the NuGet package)
 │   │   ├── JsonCompiler.cs # Compiles JsonFile elements
 │   │   └── Table/          # Symbol definitions
+│   ├── wixext7/            # Same sources compiled against WiX 7 (packed into wixext7/)
 │   └── wixlib/             # WiX library with custom action definitions
 ├── TestJsonConfigInstaller/ # Example installer project
 │   ├── Product.wxs         # Original example
 │   ├── DotNetPatterns.wxs  # .NET configuration patterns example
 │   └── *.json              # Test JSON files
+├── test/
+│   └── wix7smoke/          # Package CI builds with the WiX 7 command line
 └── README.md
 ```
 
