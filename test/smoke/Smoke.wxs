@@ -1,0 +1,60 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
+  <!--
+    Smoke package built by CI once per supported WiX major version, each time with that toolset's
+    own command line and its wixextN flavour of the extension (see .github/workflows/msbuild.yml).
+    It is not installed; building it is the test. A successful build proves, for that version:
+      * the extension assembly loads (its IExtensionFactory is found and bound against the
+        matching WixToolset.Extensibility),
+      * the compiler extension parses every element the extension contributes,
+      * the embedded wixlib links and its custom actions and Binary rows make it into the MSI,
+      * the backend binder extension's table definitions are accepted.
+    Keep it exercising one of each authoring element rather than every attribute; the behavioural
+    coverage lives in TestJsonConfigInstaller and the regression workflow.
+
+    There are deliberately no File elements - the component is keyed on a registry value - so the
+    build emits "warning WIX1079: The cabinet 'cab1.cab' does not contain any files", which WiX
+    documents as safe to ignore for a package that installs no files.
+  -->
+  <Package Name="JsonExtensionSmoke" Language="1033" Version="1.0.0.0" Manufacturer="Testing"
+           UpgradeCode="6f2b0b1e-9d0e-4a0d-9a3f-6b2d6a4c1f77">
+
+    <Media Id="1" Cabinet="cab1.cab" EmbedCab="yes" />
+
+    <Feature Id="SmokeFeature" Title="JsonExtensionSmoke" Level="1">
+      <ComponentGroupRef Id="SmokeComponents" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="JsonExtensionSmoke" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="SmokeComponents" Directory="INSTALLFOLDER">
+      <Component Id="SmokeComponent" Guid="8f3f0c2a-3f1a-4a51-9b0e-7c1f5b2a9d34">
+        <RegistryValue Root="HKLM" Key="Software\JsonExtensionSmoke" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+
+        <Json:JsonFile Id="SmokeSetValue" File="[INSTALLFOLDER]appsettings.json"
+                       ElementPath="$.Logging.LogLevel.Default" Value="Warning" Action="setValue" />
+
+        <Json:JsonFile Id="SmokeReadValue" File="[INSTALLFOLDER]appsettings.json"
+                       ElementPath="$.Version" DefaultValue="1.0" Action="readValue" Property="SMOKE_VERSION" />
+
+        <Json:JsonTransaction Id="SmokeTransaction" File="[INSTALLFOLDER]appsettings.json">
+          <Json:JsonFile Id="SmokeTxnSet" ElementPath="$.Feature.Name" Value="Smoke" Action="setValue" />
+          <Json:JsonFile Id="SmokeTxnAppend" ElementPath="$.Feature.Tags" Value="ci" Action="appendArray" />
+        </Json:JsonTransaction>
+
+        <Json:AppSettings Id="SmokeAppSettings" File="[INSTALLFOLDER]appsettings.json"
+                          Key="Feature.Enabled" Value="true" />
+        <Json:ConnectionString Id="SmokeConnectionString" File="[INSTALLFOLDER]appsettings.json"
+                               Name="Default" Value="Server=.;Database=Smoke" />
+        <Json:LoggingLevel Id="SmokeLoggingLevel" File="[INSTALLFOLDER]appsettings.json"
+                           Category="Default" Level="Information" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>
