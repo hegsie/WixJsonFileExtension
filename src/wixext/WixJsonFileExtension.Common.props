@@ -15,9 +15,12 @@
     <RootNamespace>Hegsie.Wix.JsonExtension</RootNamespace>
     <DebugType>embedded</DebugType>
     <LangVersion>latest</LangVersion>
-    <Version>6.3.2</Version>
-    <AssemblyVersion>6.3.2.0</AssemblyVersion>
-    <FileVersion>6.3.2.0</FileVersion>
+    <Version>7.0.0</Version>
+    <!-- Pinned to the major so a patch release does not change the assembly identity. FileVersion
+         is deliberately left to default to $(Version), which the release workflow overrides with
+         the tag - otherwise every released binary carries the version hard-coded here rather than
+         the one it was published as. -->
+    <AssemblyVersion>7.0.0.0</AssemblyVersion>
     <Authors>hegsie</Authors>
     <Platforms>AnyCPU</Platforms>
   </PropertyGroup>
