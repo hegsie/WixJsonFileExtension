@@ -118,9 +118,10 @@ jobs:
         wix --version
         if ($LASTEXITCODE -ne 0) { Write-Error "WiX 7 command line not available"; exit 1 }
         New-Item -ItemType Directory -Force -Path TestResults | Out-Null
-        # --acceptEula accepts the Open Source Maintenance Fee EULA for this invocation only,
-        # without writing an acceptance file. See https://wixtoolset.org/osmf/
-        wix build --acceptEula -arch x64 `
+        # --acceptEula takes the EULA id (v7's is "wix7") and accepts the Open Source Maintenance
+        # Fee EULA for this invocation only, without writing an acceptance file.
+        # See https://wixtoolset.org/osmf/
+        wix build --acceptEula wix7 -arch x64 `
           -ext "${{ github.workspace }}\src\wixext7\bin\${{ env.BUILD_CONFIGURATION }}\netstandard2.0\WixJsonFileExtension.dll" `
           test\wix7smoke\Wix7Smoke.wxs `
           -o "${{ github.workspace }}\TestResults\Wix7Smoke.msi"
