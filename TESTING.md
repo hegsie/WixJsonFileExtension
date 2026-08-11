@@ -328,14 +328,16 @@ Test that changes are properly rolled back if installation fails or is rolled ba
 ### 4. Test with Different WiX Versions
 
 If possible, test with:
+- WiX 4.x (the `wixext4/` binary, built against WixToolset.Extensibility 4.0.6)
 - WiX 5.x (the `wixext5/` binary, built against WixToolset.Extensibility 5.0.2)
 - WiX 6.x (the `wixext6/` binary, built against WixToolset.Extensibility 6.0.1)
 - WiX 7.x (the `wixext7/` binary, built against WixToolset.Extensibility 7.0.0)
 
-CI already builds `test/smoke/Smoke.wxs` on every push with the WiX 5 and WiX 7 command lines and
-the matching binary, which covers extension loading, element parsing and wixlib linking on those
-versions; WiX 6 is covered end to end by the regression workflow. Installing a package built by
-WiX 5 or WiX 7 is the part that still needs manual testing.
+On every push CI consumes the packed `.nupkg` from a wixproj built with each of those four
+toolsets and compiles `test/smoke/Smoke.wxs`, which covers extension resolution from the
+`wixextN/` folder, extension loading, element parsing and wixlib linking on all of them; WiX 6 is
+additionally covered end to end by the regression workflow, which installs the MSI it builds.
+Installing a package built by WiX 4, 5 or 7 is the part that still needs manual testing.
 
 ### 5. Test with Different .NET Application Types
 

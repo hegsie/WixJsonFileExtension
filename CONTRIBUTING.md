@@ -105,6 +105,7 @@ WixJsonFileExtension/
 │   ├── wixext/             # C# WiX extension (WiX 6 build; owns the NuGet package)
 │   │   ├── JsonCompiler.cs # Compiles JsonFile elements
 │   │   └── Table/          # Symbol definitions
+│   ├── wixext4/            # Same sources compiled against WiX 4 (packed into wixext4/)
 │   ├── wixext5/            # Same sources compiled against WiX 5 (packed into wixext5/)
 │   ├── wixext7/            # Same sources compiled against WiX 7 (packed into wixext7/)
 │   └── wixlib/             # WiX library with custom action definitions

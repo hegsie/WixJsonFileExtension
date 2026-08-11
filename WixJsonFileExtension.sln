@@ -38,6 +38,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WixJsonFileExtension.Wix5",
 		{A20895B4-9F8D-4A32-A769-93C028CD153F} = {A20895B4-9F8D-4A32-A769-93C028CD153F}
 	EndProjectSection
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WixJsonFileExtension.Wix4", "src\wixext4\WixJsonFileExtension.Wix4.csproj", "{102DDC51-8306-4926-A959-19CF757B2C28}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A20895B4-9F8D-4A32-A769-93C028CD153F} = {A20895B4-9F8D-4A32-A769-93C028CD153F}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -68,6 +73,10 @@ Global
 		{A51F23B5-1EDA-4638-8C2E-7315C071FA71}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A51F23B5-1EDA-4638-8C2E-7315C071FA71}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A51F23B5-1EDA-4638-8C2E-7315C071FA71}.Release|Any CPU.Build.0 = Release|Any CPU
+		{102DDC51-8306-4926-A959-19CF757B2C28}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{102DDC51-8306-4926-A959-19CF757B2C28}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{102DDC51-8306-4926-A959-19CF757B2C28}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{102DDC51-8306-4926-A959-19CF757B2C28}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -79,6 +88,7 @@ Global
 		{505C6DB6-6999-487B-86D0-6AF96EF51D63} = {049F619E-819A-4427-9003-40FCDCBCCCC8}
 		{069F28E4-B77E-4C17-B5E1-E89BAF51290C} = {049F619E-819A-4427-9003-40FCDCBCCCC8}
 		{A51F23B5-1EDA-4638-8C2E-7315C071FA71} = {049F619E-819A-4427-9003-40FCDCBCCCC8}
+		{102DDC51-8306-4926-A959-19CF757B2C28} = {049F619E-819A-4427-9003-40FCDCBCCCC8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {1EE2C9A2-242A-4C8E-99F6-CE1EBADC58ED}

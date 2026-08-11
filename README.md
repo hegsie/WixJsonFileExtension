@@ -81,19 +81,19 @@ All operations are performed during installation with full rollback support.
 
 ### WiX Toolset Version Support
 
-This extension supports **WiX Toolset v5, v6 and v7**. Every flavour targets .NET Standard 2.0 and shares the same sources and the same wixlib; only the toolset it is compiled against differs.
+This extension supports **WiX Toolset v4, v5, v6 and v7**. Every flavour targets .NET Standard 2.0 and shares the same sources and the same wixlib; only the toolset it is compiled against differs.
 
 | WiX Version | Support Status | Notes |
 |-------------|----------------|-------|
 | **WiX 7.x** | ✅ Fully Supported | Built against WiX 7.0.0; shipped in `wixext7/` |
 | **WiX 6.x** | ✅ Fully Supported | Built against WiX 6.0.1; shipped in `wixext6/` |
 | **WiX 5.x** | ✅ Fully Supported | Built against WiX 5.0.2; shipped in `wixext5/` |
-| WiX 4.x | ❌ Not Supported | No `wixext4/` binary is shipped |
-| WiX 3.x | ❌ Not Supported | Use WiX 5+ for this extension |
+| **WiX 4.x** | ✅ Fully Supported | Built against WiX 4.0.6; shipped in `wixext4/` |
+| WiX 3.x | ❌ Not Supported | Use WiX 4+ for this extension |
 
-**Package distribution**: The extension is distributed via NuGet with binaries in the `wixext5/`, `wixext6/` and `wixext7/` package folders. WiX picks the folder matching its own major version, so nothing needs to be configured beyond the `PackageReference` - installing the package into a WiX 5, 6 or 7 project just works.
+**Package distribution**: The extension is distributed via NuGet with binaries in the `wixext4/`, `wixext5/`, `wixext6/` and `wixext7/` package folders. WiX picks the folder matching its own major version, so nothing needs to be configured beyond the `PackageReference` - installing the package into a WiX 4, 5, 6 or 7 project just works. Every push builds a package with each of those four toolsets to keep that true.
 
-Extension assemblies cannot be shared across WiX major versions: `WixToolset.Data` and `WixToolset.Extensibility` bump their assembly version with every major release (5.0.0.0, 6.0.0.0, 7.0.0.0, ...) and an extension binds to the version it was compiled against. .NET resolves such a reference forward to a higher assembly version but never back to a lower one, so one assembly cannot serve every toolset. That is why the package carries one assembly per version.
+Extension assemblies cannot be shared across WiX major versions: `WixToolset.Data` and `WixToolset.Extensibility` bump their assembly version with every major release (4.0.0.0, 5.0.0.0, 6.0.0.0, 7.0.0.0) and an extension binds to the version it was compiled against. .NET resolves such a reference forward to a higher assembly version but never back to a lower one, so one assembly cannot serve every toolset. That is why the package carries one assembly per version.
 
 **WiX 7 and the Open Source Maintenance Fee**: WiX v7 packages and tools refuse to run until the [OSMF EULA](https://wixtoolset.org/osmf/) is accepted (error `WIX7015`). This applies to your own build, independently of this extension - accept it once with `wix eula` (or `dotnet build -p:AcceptEula=wix7`) as described in the WiX documentation.
 

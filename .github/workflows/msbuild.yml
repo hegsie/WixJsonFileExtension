@@ -109,9 +109,9 @@ jobs:
       run: dotnet pack --no-build --configuration ${{ env.BUILD_CONFIGURATION }} /p:Version=6.0.0.${{ github.run_number }}
 
     # The wixextN/ folder names are how WiX finds the extension: the .targets file probes
-    # ..\$(WixToolsetExtensionPackageFolder)\, which the toolset sets to wixext5, wixext6 or
-    # wixext7. A missing folder is what makes WiX report the extension as unsupported, so fail the
-    # build here rather than shipping a package that only works on some versions.
+    # ..\$(WixToolsetExtensionPackageFolder)\, which the toolset sets to wixext4, wixext5, wixext6
+    # or wixext7. A missing folder is what makes WiX report the extension as unsupported, so fail
+    # the build here rather than shipping a package that only works on some versions.
     - name: Verify package layout
       shell: pwsh
       working-directory: ${{ env.SOLUTION_FILE_PATH }}\src\wixext\bin\${{ env.BUILD_CONFIGURATION }}\
@@ -123,11 +123,12 @@ jobs:
         $entries = $zip.Entries.FullName
         $zip.Dispose()
         $entries | Sort-Object | ForEach-Object { Write-Host "  $_" }
-        $missing = @("wixext5/WixJsonFileExtension.dll",
+        $missing = @("wixext4/WixJsonFileExtension.dll",
+                     "wixext5/WixJsonFileExtension.dll",
                      "wixext6/WixJsonFileExtension.dll",
                      "wixext7/WixJsonFileExtension.dll") | Where-Object { $entries -notcontains $_ }
         if ($missing) { Write-Error "Missing from $($nupkg.Name): $($missing -join ', ')"; exit 1 }
-        Write-Host "Package contains extension binaries for WiX 5, 6 and 7."
+        Write-Host "Package contains extension binaries for WiX 4, 5, 6 and 7."
 
     # Consume the freshly packed .nupkg exactly the way a user does - a PackageReference in a
     # wixproj - once per supported WiX major version. This is the scenario from issue #45: the
@@ -139,7 +140,7 @@ jobs:
     # Building test\smoke\Smoke.wxs additionally proves, for each version, that the extension
     # assembly loads against that toolset's WixToolset.Extensibility, that the compiler extension
     # parses every element the extension contributes, and that the embedded wixlib links.
-    - name: Consume package with WiX 5, 6 and 7
+    - name: Consume package with WiX 4, 5, 6 and 7
       shell: pwsh
       run: |
         $version = "6.0.0.${{ github.run_number }}"
@@ -162,7 +163,7 @@ jobs:
 
         # Each project gets its own directory: sibling projects in one directory would share
         # obj\project.assets.json and clobber each other's restore.
-        foreach ($sdk in @("5.0.2", "6.0.1", "7.0.0")) {
+        foreach ($sdk in @("4.0.6", "5.0.2", "6.0.1", "7.0.0")) {
           $major = $sdk.Split(".")[0]
           $dir = "$work\wix$major"
           New-Item -ItemType Directory -Force -Path $dir | Out-Null

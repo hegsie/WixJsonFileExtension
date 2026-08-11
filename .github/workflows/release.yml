@@ -82,11 +82,12 @@ jobs:
         $entries = $zip.Entries.FullName
         $zip.Dispose()
         $entries | Sort-Object | ForEach-Object { Write-Host "  $_" }
-        $missing = @("wixext5/WixJsonFileExtension.dll",
+        $missing = @("wixext4/WixJsonFileExtension.dll",
+                     "wixext5/WixJsonFileExtension.dll",
                      "wixext6/WixJsonFileExtension.dll",
                      "wixext7/WixJsonFileExtension.dll") | Where-Object { $entries -notcontains $_ }
         if ($missing) { Write-Error "Missing from $($nupkg.Name): $($missing -join ', ')"; exit 1 }
-        Write-Host "Package contains extension binaries for WiX 5, 6 and 7."
+        Write-Host "Package contains extension binaries for WiX 4, 5, 6 and 7."
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
