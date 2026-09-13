@@ -168,9 +168,10 @@ jobs:
         # after each of install, repair, upgrade and uninstall (see LifecycleComponent in
         # Product.wxs for the expected state after each step).
         $lifecycle = Join-Path $dir "lifecycle.json"
-        '{ "lifecycle": { "installed": false, "phase": "none" } }' | Out-File -FilePath $lifecycle -Encoding UTF8
+        Remove-Item -Path "$lifecycle.bak" -ErrorAction SilentlyContinue
+        '{ "lifecycle": { "installed": false, "phase": "none", "origin": "seed" } }' | Out-File -FilePath $lifecycle -Encoding UTF8
         $probe = Get-Content -Path $lifecycle -Raw -Encoding UTF8 | ConvertFrom-Json
-        if ($probe.lifecycle.installed -eq $false -and $probe.lifecycle.phase -eq 'none') {
+        if ($probe.lifecycle.installed -eq $false -and $probe.lifecycle.phase -eq 'none' -and $probe.lifecycle.origin -eq 'seed') {
           Note "| ✅ | Seeded On-timing fixture ($lifecycle) |"
           Write-Host "✓ Seeded $lifecycle"
         } else {
@@ -214,6 +215,9 @@ jobs:
 
         $lc = Get-Content -Path "C:\JsonRegression\lifecycle.json" -Raw -Encoding UTF8 | ConvertFrom-Json
         Check ($lc.lifecycle.installed -eq $false -and $lc.lifecycle.phase -eq 'none' -and -not ($lc.lifecycle.PSObject.Properties.Name -contains 'marker')) "lifecycle.json is untouched by a dry-run install"
+
+        Check (-not (Test-Path "$installed.wixbak")) "no backup of appsettings.json is taken by a dry run"
+        Check (-not (Test-Path "C:\JsonRegression\lifecycle.json.bak")) "no backup of lifecycle.json is taken by a dry run"
 
         $content = Get-Content -Path $log -Raw
         Check ($content -match "JSONEXT_DRYRUN is set") "scheduler reported dry-run mode"
@@ -478,6 +482,17 @@ jobs:
         $j = Get-Content -Path $appPath -Raw -Encoding UTF8 | ConvertFrom-Json
         Check ($j.expensive -eq 15) "On=uninstall setValue on the installed file did not run at install time (expensive still 15)"
 
+        Write-Host "CreateBackup:"
+        $srcHash = (Get-FileHash "TestJsonConfigInstaller\appsettings.json").Hash
+        Check ((Test-Path "$appPath.wixbak") -and (Get-FileHash "$appPath.wixbak").Hash -eq $srcHash) "CreateBackup copied appsettings.json to .wixbak before the first modification (matches the fixture)"
+        Check ($lc.lifecycle.origin -eq 'installer') "backed-up row still applied its change (origin=installer)"
+        $bak = "C:\JsonRegression\lifecycle.json.bak"
+        $bakJson = if (Test-Path $bak) { Get-Content -Path $bak -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
+        Check ($null -ne $bakJson -and $bakJson.lifecycle.origin -eq 'seed' -and $bakJson.lifecycle.phase -eq 'none') "CreateBackup with BackupSuffix=.bak preserved the seeded lifecycle.json"
+        $tlogEntries = @(Get-Content -Path "C:\JsonRegression\transform.json" -Raw -Encoding UTF8 | ConvertFrom-Json)
+        $bk = $tlogEntries | Where-Object { $_.elementPath -eq '$.lifecycle.origin' } | Select-Object -First 1
+        Check ($null -ne $bk -and $bk.backup -eq $bak) "transform log entry records the backup path"
+
         # Both schedulers are sequenced; the uninstall-time one ran as a no-op.
         $log = Get-Content -Path (Join-Path $env:RUNNER_TEMP "happy-install.log") -Raw
         Check ($log -match "Action start [\d:]+: WixSchedJsonFileUninstall_X64\.") "uninstall-time scheduler is sequenced in the install transaction"
@@ -530,6 +545,8 @@ jobs:
         Check ($lc.lifecycle.installed -eq $true) "On=install rows ran on repair (installed=true)"
         Check ($lc.lifecycle.marker -eq 'present') "marker still present after repair"
         Check (-not ($lc.lifecycle.PSObject.Properties.Name -contains 'readBack')) "On=uninstall rows did not run on repair (no readBack)"
+        $bakJson = Get-Content -Path "C:\JsonRegression\lifecycle.json.bak" -Raw -Encoding UTF8 | ConvertFrom-Json
+        Check ($bakJson.lifecycle.origin -eq 'seed') "repair did not overwrite the existing backup (still the seeded content)"
 
         if ($script:failed) {
           Write-Host "`nOn-timing (repair) assertions FAILED"
@@ -588,6 +605,12 @@ jobs:
         Check ($lc.lifecycle.marker -eq 'present') "v2's On=install rows ran after v1's removal (marker recreated)"
         Check ($lc.lifecycle.installed -eq $true) "installed=true after upgrade"
         Check ($lc.lifecycle.phase -eq 'upgrade') "On=both row last ran in the v2 install (phase=upgrade)"
+        Check ($lc.lifecycle.origin -eq 'installer') "v2 install re-applied origin=installer after v1's restore"
+        $bakJson = Get-Content -Path "C:\JsonRegression\lifecycle.json.bak" -Raw -Encoding UTF8 | ConvertFrom-Json
+        # v1's uninstall restored the seed and then ran its own On=uninstall rows on it, so v2's fresh
+        # backup holds that restored file: origin is the seed's again, unlike the "installer" v1 wrote.
+        Check ($bakJson.lifecycle.origin -eq 'seed') "v1's RestoreOnUninstall removed its backup and v2 took a fresh one of the restored file (origin=seed)"
+        Check ($content -match "Restored 'C:\\JsonRegression\\lifecycle\.json' from") "upgrade log shows v1 restoring lifecycle.json from its backup"
 
         if ($script:failed) {
           Write-Host "`nOn-timing (upgrade) assertions FAILED"
@@ -635,6 +658,14 @@ jobs:
         Check ($lc.lifecycle.phase -eq 'uninstall') "On=both setValue ran at uninstall time (phase=uninstall)"
         Check ($lc.lifecycle.readBack -eq 'present') "On=uninstall readValue read the marker before it was deleted (readBack=present)"
 
+        Write-Host "RestoreOnUninstall:"
+        $content = Get-Content -Path $log -Raw
+        Check ($lc.lifecycle.origin -eq 'seed') "RestoreOnUninstall put the backup back (origin=seed) before the On=uninstall rows ran"
+        Check (-not (Test-Path "C:\JsonRegression\lifecycle.json.bak")) "the backup was removed after the restore"
+        $restore = [regex]::Match($content, "Restored 'C:\\JsonRegression\\lifecycle\.json' from")
+        $firstUninstallEdit = [regex]::Match($content, "Configuring JSON file: C:\\JsonRegression\\lifecycle\.json \(flags=(2|1|8)\)")
+        Check ($restore.Success -and $firstUninstallEdit.Success -and $restore.Index -lt $firstUninstallEdit.Index) "restore ran before the first On=uninstall modification of the file"
+
         # Ordering proof: the uninstall-time scheduler runs before RemoveFiles, and the deferred
         # action edited the product's own appsettings.json while it still existed (had it run after
         # RemoveFiles the setValue would have failed with file-not-found and so would the uninstall).
@@ -648,8 +679,12 @@ jobs:
 
         # The transform log from the install was appended to, and records the uninstall phase.
         $entries = @(Get-Content -Path "C:\JsonRegression\transform.json" -Raw -Encoding UTF8 | ConvertFrom-Json)
+        # The restore runs first and already removed the marker (v2's backup was taken after v1's
+        # uninstall rows ran), so the deleteValue finds nothing; it still completes.
+        $rst = $entries | Where-Object { $_.phase -eq 'uninstall' -and $_.action -eq 'restoreBackup' -and $_.file -eq 'C:\JsonRegression\lifecycle.json' } | Select-Object -First 1
+        Check ($null -ne $rst -and $rst.outcome -eq 'applied' -and $rst.after.lifecycle.origin -eq 'seed') "transform log records the restoreBackup of lifecycle.json (after: origin=seed)"
         $del = $entries | Where-Object { $_.phase -eq 'uninstall' -and $_.elementPath -eq '$.lifecycle.marker' -and $_.action -eq 'deleteValue' } | Select-Object -First 1
-        Check ($null -ne $del -and $del.outcome -eq 'applied' -and @($del.before)[0] -eq 'present' -and $del.after -eq '<no match>') "transform log records the uninstall-time deleteValue (before present, after no match)"
+        Check ($null -ne $del -and $del.outcome -eq 'applied' -and $del.before -eq '<no match>' -and $del.after -eq '<no match>') "transform log records the uninstall-time deleteValue after the restore (marker already gone)"
 
         if ($script:failed) {
           Write-Host "`nOn-timing (uninstall) assertions FAILED"

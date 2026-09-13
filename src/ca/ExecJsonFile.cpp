@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "JsonFile.h"
+#include <set>
 
 /******************************************************************
  * ExecJsonFile - entry point for JsonFile Custom Action
@@ -18,6 +19,10 @@ extern "C" UINT WINAPI ExecJsonFile(
     LPWSTR sczSchemaFile = NULL;
     LPWSTR sczPhase = NULL;
     LPWSTR sczTransformLog = NULL;
+    LPWSTR sczBackupSuffix = NULL;
+
+    // Files backed up in this action (CreateBackup applies once per file per transaction).
+    std::set<std::wstring> backedUp;
 
     int iFlags = 0;
     int iIndex = -1;
@@ -86,8 +91,57 @@ extern "C" UINT WINAPI ExecJsonFile(
         hr = WcaReadStringFromCaData(&pwz, &sczSchemaFile);
         ExitOnFailure(hr, "WixJsonFile: Failed to get SchemaFile for WixJsonFile")
 
+        hr = WcaReadStringFromCaData(&pwz, &sczBackupSuffix);
+        ExitOnFailure(hr, "WixJsonFile: Failed to get BackupSuffix for WixJsonFile")
+
         JSON_OPERATION_TRACE trace;
-        hr = UpdateJsonFile(sczFile, sczElementPath, sczValue, iFlags, iIndex, sczSchemaFile, iOptions, fTransformLog ? &trace : NULL);
+        std::string backupNote;
+        const bool fRestoreRecord = 0 != (iFlags & (1 << FLAG_RESTOREBACKUP)) && 0 == (iFlags & ((1 << FLAG_RESTOREBACKUP) - 1));
+
+        if (fRestoreRecord)
+        {
+            // Synthesized by the uninstall scheduler: put the backup back before anything else
+            // touches the file. No backup is not an error - the file was never modified, or it
+            // was already restored.
+            trace.before = DescribeJsonAtPath(sczFile, "$", false);
+            if (iOptions & JSON_OPTION_DRYRUN)
+            {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: DRY RUN - would restore '%ls' from '%ls'", sczFile, JsonBackupPath(sczFile, sczBackupSuffix).c_str());
+                trace.outcome = "dry-run";
+                hr = S_OK;
+            }
+            else
+            {
+                bool fRestored = false;
+                hr = RestoreJsonFileBackup(sczFile, sczBackupSuffix, &fRestored);
+                trace.outcome = FAILED(hr) ? "failed" : (fRestored ? "applied" : "skipped");
+                trace.after = DescribeJsonAtPath(sczFile, "$", false);
+            }
+        }
+        else
+        {
+            if ((iFlags & (1 << FLAG_CREATEBACKUP)) && !(iOptions & JSON_OPTION_DRYRUN) && backedUp.insert(sczFile).second)
+            {
+                bool fCreated = false;
+                hr = BackupJsonFile(sczFile, sczBackupSuffix, &fCreated);
+                if (SUCCEEDED(hr))
+                {
+                    std::string backupUtf8;
+                    WideToUtf8(JsonBackupPath(sczFile, sczBackupSuffix).c_str(), backupUtf8);
+                    backupNote = fCreated ? backupUtf8 : "";
+                    hr = S_OK;
+                }
+            }
+
+            if (SUCCEEDED(hr))
+            {
+                hr = UpdateJsonFile(sczFile, sczElementPath, sczValue, iFlags, iIndex, sczSchemaFile, iOptions, fTransformLog ? &trace : NULL);
+            }
+            else
+            {
+                trace.outcome = "failed";
+            }
+        }
 
         if (fTransformLog)
         {
@@ -122,12 +176,13 @@ extern "C" UINT WINAPI ExecJsonFile(
                 entry["timestamp"] = std::string(szTime);
                 entry["phase"] = phaseUtf8;
                 entry["file"] = fileUtf8;
-                entry["action"] = JsonActionName(iFlags);
+                entry["action"] = fRestoreRecord ? "restoreBackup" : JsonActionName(iFlags);
                 entry["elementPath"] = pathUtf8;
                 entry["value"] = valueUtf8;
                 entry["index"] = iIndex;
                 entry["flags"] = iFlags;
                 if (!schemaUtf8.empty()) { entry["schemaFile"] = schemaUtf8; }
+                if (!backupNote.empty()) { entry["backup"] = backupNote; }
                 entry["outcome"] = trace.outcome;
                 entry["hresult"] = std::string(szHr);
                 entry["before"] = snapshot(trace.before);
@@ -145,6 +200,10 @@ extern "C" UINT WINAPI ExecJsonFile(
             }
         }
 
+        if (fRestoreRecord)
+        {
+            ExitOnFailure(hr, "WixJsonFile: Failed while restoring file '%ls' from its backup", sczFile)
+        }
         ExitOnFailure(hr, "WixJsonFile: Failed while updating file '%ls' at path '%ls'", sczFile, sczElementPath)
     }
 
@@ -156,6 +215,7 @@ LExit:
     ReleaseStr(sczSchemaFile)
     ReleaseStr(sczPhase)
     ReleaseStr(sczTransformLog)
+    ReleaseStr(sczBackupSuffix)
 
     DWORD er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);

@@ -37,6 +37,7 @@ An extension to [Windows Installer XML (WiX) Toolset](http://wixtoolset.org/) to
   - [Automatic Rollback Support](#automatic-rollback-support)
   - [Scheduling and Service Dependencies](#scheduling-and-service-dependencies)
   - [Install and Uninstall Timing](#install-and-uninstall-timing)
+  - [Backups and Restore on Uninstall](#backups-and-restore-on-uninstall)
   - [Creating New JSON Files](#creating-new-json-files)
 - [Common .NET Configuration Patterns](#common-net-configuration-patterns)
   - [Connection Strings](#connection-strings)
@@ -459,6 +460,9 @@ The `JsonFile` element supports the following actions:
 | `Sequence` | No | Order in which modifications are applied. Lower numbers execute first. When omitted, elements are automatically assigned increasing sequence numbers in authoring order, so operations on the same file execute deterministically in the order they appear in your source. Use this to ensure JSON changes happen before services start or in a specific order. All JSON modifications run after `InstallFiles` and before `StartServices` in the standard InstallExecuteSequence |
 | `Index` | No | For `insertArray` action: specifies the index at which to insert. Use -1 or omit to append to end |
 | `SchemaFile` | No | Path to a JSON schema file for validation. The JSON file will be validated against this schema after modifications |
+| `CreateBackup` | No | When `yes`, the file is copied to `<File><BackupSuffix>` before the first modification the extension makes to it in a transaction, unless that backup already exists. See [Backups and Restore on Uninstall](#backups-and-restore-on-uninstall). Default is `no` |
+| `BackupSuffix` | No | Suffix of the backup file, default `.wixbak`. Requires `CreateBackup="yes"` |
+| `RestoreOnUninstall` | No | When `yes`, uninstalling the component copies the backup back over the file and removes the backup, before any `On="uninstall"` modifications of that file. Requires `CreateBackup="yes"`. Default is `no` |
 | `OnlyIfExists` | No | When set to `yes`, the action is only performed if the ElementPath already exists in the JSON file. If the path (or the file itself) does not exist, the operation is skipped and the install continues. This is useful for conditional updates that should only modify existing values without creating new ones. Applies to all write actions. Default is `no` |
 
 ### Value Typing
@@ -790,6 +794,31 @@ The element's `Action` and `Value` are applied exactly as authored at each of th
 - **Rollback:** uninstall-time changes are captured and restored like install-time ones if the uninstall fails.
 
 Uninstall-time changes are only meaningful for a JSON file that **outlives the component**: a machine-wide or shared configuration file, a file owned by another product, or a file marked permanent. A file installed by the same component is edited and then deleted moments later by `RemoveFiles`, which is harmless but pointless.
+
+### Backups and Restore on Uninstall
+
+`CreateBackup="yes"` on any `JsonFile` element makes the extension copy that element's file to `<File><BackupSuffix>` (default `.wixbak`) before the first modification it makes to the file in a transaction. The backup is taken once: if it already exists it is left alone, so it always holds the file as it was **before the product first touched it**, and a repair, which re-applies the same modifications, does not overwrite it. An administrator can put the original back by copying the backup over the file.
+
+```xml
+<Json:JsonFile Id="SetConnection" File="[#AppConfig]" ElementPath="$.ConnectionStrings.Default"
+               Value="[DATABASE_CONNECTION]" CreateBackup="yes" BackupSuffix=".orig" />
+```
+
+`RestoreOnUninstall="yes"` turns that into a backup-and-restore mode for files that outlive the component: when the component is uninstalled, the backup is copied back over the file and then removed, before `RemoveFiles` and before any `On="uninstall"` modifications of that file run. The file therefore ends up exactly as it was before the product first modified it, whatever the product changed since, and a later reinstall starts a fresh backup.
+
+```xml
+<!-- Register with a host application's shared settings file; hand it back untouched on uninstall -->
+<Json:JsonFile Id="RegisterPlugin" File="[CommonAppDataFolder]HostApp\settings.json"
+               ElementPath="/plugins/MyApp" Value="[INSTALLFOLDER]MyApp.dll"
+               Action="createJsonPointerValue" CreateBackup="yes" RestoreOnUninstall="yes" />
+```
+
+**Details:**
+- One element with `CreateBackup="yes"` is enough for its file: the backup is taken before the first modification of that file in the transaction, whichever element makes it.
+- On a major upgrade the old package restores its backup (if `RestoreOnUninstall`) before the new package takes a fresh one.
+- Nothing is backed up or restored during a [dry run](#dry-run), and a missing file or missing backup is not an error.
+- Backups are not undone by rollback: a failed install leaves the (correct) backup in place next to the restored file.
+- The [transform log](#transform-log) records the backup path on the entry that created it, and a `restoreBackup` entry for each restore.
 
 ### Creating New JSON Files
 

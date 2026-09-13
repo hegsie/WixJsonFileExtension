@@ -649,6 +649,26 @@ This cookbook provides practical examples and patterns for common JSON configura
 - `UnregisterFromHost` runs only while the component is being uninstalled, before `RemoveFiles`, so the host file is edited while everything is still in place.
 - On a major upgrade the old version unregisters first, then the new version registers, so the entry ends up pointing at the new install.
 
+### Pattern: Hand a Shared File Back Exactly As It Was
+
+**Use Case**: You modify a file you do not own and want it returned to its pre-install state on uninstall, whatever you changed and however many times the product was repaired. This is the simpler alternative to authoring the reverts by hand.
+
+**WiX Fragment**:
+```xml
+<Component Id="HostRegistration" Guid="*">
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Host" Name="Registered" Type="integer" Value="1" KeyPath="yes" />
+
+  <!-- The backup is taken before this (the first) change and restored, then removed, on uninstall -->
+  <Json:JsonFile Id="RegisterWithHost" File="[CommonAppDataFolder]HostApp\plugins.json"
+                 ElementPath="/plugins/MyApp" Value='{"path":"[INSTALLFOLDER]MyApp.Plugin.dll"}'
+                 Action="createJsonPointerValue" CreateBackup="yes" RestoreOnUninstall="yes" />
+  <Json:JsonFile Id="EnableHostFeature" File="[CommonAppDataFolder]HostApp\plugins.json"
+                 ElementPath="$.features.pluginsEnabled" Value="true" Action="setValue" />
+</Component>
+```
+
+Both changes are undone by the restore; no `On="uninstall"` elements are needed. Prefer the explicit reverts of the previous pattern when other software may legitimately edit the file between your install and uninstall, since a restore also discards those edits.
+
 ### Pattern: Restore a Setting You Changed
 
 **Use Case**: Your installer switches a setting in a shared file (say, the host's default renderer) and should put the previous value back on uninstall.

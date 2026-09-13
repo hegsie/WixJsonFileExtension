@@ -120,6 +120,9 @@ namespace Hegsie.Wix.JsonExtension
 			int? sequence = null;
 			int? index = null;
 			JsonTiming on = JsonTiming.Install;
+			string backupSuffix = null;
+			bool createBackup = false;
+			bool restoreOnUninstall = false;
 
 			if (node.Attributes().Any())
 			{
@@ -190,6 +193,20 @@ namespace Hegsie.Wix.JsonExtension
 									flags |= (int)JsonFlags.ValidateSchema;
 								}
 								break;
+							case "CreateBackup":
+								// Copy the file to <File><BackupSuffix> before the first modification in a transaction,
+								// unless that backup already exists, so an administrator can always get the original back.
+								createBackup = ParseYesNo(node, sourceLineNumbers, attribute, "CreateBackup");
+								break;
+							case "BackupSuffix":
+								// Suffix of the backup file. Requires CreateBackup="yes"; defaults to ".wixbak".
+								backupSuffix = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+								break;
+							case "RestoreOnUninstall":
+								// When the component is uninstalled, copy the backup back over the file (and remove the
+								// backup) before any uninstall-time modifications run. Requires CreateBackup="yes".
+								restoreOnUninstall = ParseYesNo(node, sourceLineNumbers, attribute, "RestoreOnUninstall");
+								break;
 							case "OnlyIfExists":
 								// Optional attribute to only perform the action if the element path already exists
 								string onlyIfExistsValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
@@ -226,6 +243,31 @@ namespace Hegsie.Wix.JsonExtension
 				// default is set value
 				action = (int)JsonAction.SetValue;
 				flags |= (int)JsonFlags.SetValue;
+			}
+
+			if (createBackup)
+			{
+				flags |= (int)JsonFlags.CreateBackup;
+				if (string.IsNullOrEmpty(backupSuffix))
+				{
+					backupSuffix = ".wixbak";
+				}
+				if (restoreOnUninstall)
+				{
+					flags |= (int)JsonFlags.RestoreOnUninstall;
+				}
+			}
+			else
+			{
+				if (!string.IsNullOrEmpty(backupSuffix))
+				{
+					Messaging.Write(ErrorMessages.IllegalAttributeWithoutOtherAttributes(sourceLineNumbers, node.Name.ToString(), "BackupSuffix", "CreateBackup"));
+				}
+				if (restoreOnUninstall)
+				{
+					Messaging.Write(ErrorMessages.IllegalAttributeWithoutOtherAttributes(sourceLineNumbers, node.Name.ToString(), "RestoreOnUninstall", "CreateBackup"));
+				}
+				backupSuffix = null;
 			}
 
 			// Apply values inherited from a parent JsonTransaction, then fall back to a
@@ -280,7 +322,8 @@ namespace Hegsie.Wix.JsonExtension
 				Property = property,
 				Index = index,
 				SchemaFile = schemaFile,
-				On = (int)on
+				On = (int)on,
+				BackupSuffix = backupSuffix
 			});
 
 			// Each timing has its own immediate scheduling action because the two phases sit at
@@ -299,11 +342,29 @@ namespace Hegsie.Wix.JsonExtension
 				{
 					ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform, allPlatforms);
 				}
-				if (on.HasFlag(JsonTiming.Uninstall))
+				// The restore is itself an uninstall-time operation, whatever the row's own timing.
+				if (on.HasFlag(JsonTiming.Uninstall) || restoreOnUninstall)
 				{
 					ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFileUninstall", Context.Platform, allPlatforms);
 				}
 			}
+		}
+
+		/// <summary>
+		/// Parses a yes/no attribute, reporting anything else as an illegal value (which reads as "no").
+		/// </summary>
+		private bool ParseYesNo(XElement node, SourceLineNumber sourceLineNumbers, XAttribute attribute, string attributeName)
+		{
+			string value = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+			if (value.Equals("yes", System.StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+			if (!string.IsNullOrEmpty(value) && !value.Equals("no", System.StringComparison.OrdinalIgnoreCase))
+			{
+				Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(), attributeName, value, "yes", "no"));
+			}
+			return false;
 		}
 
 		private const string OnInstall = "install";

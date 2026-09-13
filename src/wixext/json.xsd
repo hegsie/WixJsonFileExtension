@@ -251,6 +251,37 @@
           </xs:documentation>
         </xs:annotation>
       </xs:attribute>
+      <xs:attribute name="CreateBackup" type="wxs:YesNoTypeUnion" default="no">
+        <xs:annotation>
+          <xs:documentation>
+            When 'yes', the JSON file is copied to its name plus BackupSuffix before the first modification the
+            extension makes to it in a transaction, unless that backup already exists. The backup therefore
+            preserves the file as it was before the extension first touched it (a repair does not overwrite it),
+            and an administrator can restore the original by copying it back. Any one element with
+            CreateBackup='yes' is enough to back up its file; the backup is not removed on uninstall unless
+            RestoreOnUninstall is set. Default is 'no'.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="BackupSuffix" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>
+            Suffix appended to the file name for the backup, e.g. '.wixbak' (the default) gives
+            'appsettings.json.wixbak'. Requires CreateBackup='yes'. May contain property references.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="RestoreOnUninstall" type="wxs:YesNoTypeUnion" default="no">
+        <xs:annotation>
+          <xs:documentation>
+            When 'yes', uninstalling the component copies the backup back over the JSON file (before
+            RemoveFiles and before any On='uninstall' modifications of that file run) and then removes the
+            backup, so the file ends up exactly as it was before the product first modified it. Nothing
+            happens if the backup does not exist. Requires CreateBackup='yes'. Only meaningful for files that
+            outlive the component, such as a shared configuration file. Default is 'no'.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
       <xs:attribute name="OnlyIfExists" type="wxs:YesNoTypeUnion" default="no">
         <xs:annotation>
           <xs:documentation>

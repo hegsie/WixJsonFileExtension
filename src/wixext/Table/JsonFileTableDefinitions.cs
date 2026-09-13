@@ -17,13 +17,14 @@ namespace Hegsie.Wix.JsonExtension.Table
 				new ColumnDefinition("Flags", ColumnType.Number, 4, primaryKey: false, nullable: false, ColumnCategory.Unknown,  minValue: 0, maxValue: 65536, 
 				description: "Action flags: deleteValue=1, setValue=2, replaceJsonValue=4, createJsonPointerValue=8, " +
 				            "readValue=16, appendArray=32, insertArray=64, removeArrayElement=128, validateSchema=256, " +
-				            "distinctValues=512, onlyIfExists=1024"),
+				            "distinctValues=512, onlyIfExists=1024, createBackup=2048, restoreOnUninstall=4096"),
 				new ColumnDefinition("Component_", ColumnType.String, 72, primaryKey: false, nullable: false, ColumnCategory.Identifier, keyTable: "Component", keyColumn: 1, description: "Foreign key, Component used to determine install state", modularizeType: ColumnModularizeType.Column),
 				new ColumnDefinition("Sequence", ColumnType.Number, 2, primaryKey: false, nullable: true, ColumnCategory.Unknown, description: "Order to execute the JSON file modifications."),
 				new ColumnDefinition("Property", ColumnType.String, 0, primaryKey: false, nullable: true, ColumnCategory.Unknown, description: "Property to load the json value into when executing a readValue action"),
 				new ColumnDefinition("Index", ColumnType.Number, 4, primaryKey: false, nullable: true, ColumnCategory.Unknown, description: "Index for array insert operations. -1 or omitted means append to end."),
 				new ColumnDefinition("SchemaFile", ColumnType.String, 0, primaryKey: false, nullable: true, ColumnCategory.Formatted, description: "Path to JSON schema file for validation", modularizeType: ColumnModularizeType.Property),
 				new ColumnDefinition("On", ColumnType.Number, 2, primaryKey: false, nullable: true, ColumnCategory.Unknown, minValue: 1, maxValue: 3, description: "When the operation runs: install=1, uninstall=2, both=3. Null is treated as install."),
+				new ColumnDefinition("BackupSuffix", ColumnType.String, 0, primaryKey: false, nullable: true, ColumnCategory.Formatted, description: "Suffix of the backup file taken before the first change when createBackup=2048 is set (default .wixbak).", modularizeType: ColumnModularizeType.Property),
 			},
 			symbolIdIsPrimaryKey: true
 		);

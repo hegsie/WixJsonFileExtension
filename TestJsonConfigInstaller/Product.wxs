@@ -81,8 +81,10 @@
         <Json:JsonFile Id="regReadPresent" File="[REG_READ_SOURCE]" ElementPath="$.config.environment" DefaultValue="READ_DEFAULT" Action="readValue" Property="REG_READ_PRESENT" />
         <Json:JsonFile Id="regReadMissing" File="[REG_READ_SOURCE]" ElementPath="$.config.missingKey" DefaultValue="READ_DEFAULT" Action="readValue" Property="REG_READ_MISSING" />
         
-        <!-- Replace entire JSON object -->
-        <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" Sequence="1" />
+        <!-- Replace entire JSON object. CreateBackup on this (the first) row copies the freshly
+             installed appsettings.json to appsettings.json.wixbak before anything modifies it; the
+             regression workflow checks the backup matches the source fixture byte for byte. -->
+        <Json:JsonFile Id="appSettingsSetBooks" File="[#JsonConfig]" ElementPath="$.store.book" Value="[MY_BOOKS]" Action="replaceJsonValue" Sequence="1" CreateBackup="yes" />
 
         <!-- Delete value with wildcard -->
         <Json:JsonFile Id="appSettingsDeletePrices" File="[#JsonConfig]" ElementPath="$..book[\[]*[\]].OldPrice" Action="deleteValue" Sequence="2" />
@@ -311,6 +313,14 @@
 
         <!-- install-time (the default, spelled out here for clarity) -->
         <Json:JsonFile Id="lcInstallFlag" File="[LIFECYCLE_FILE]" ElementPath="$.lifecycle.installed" Value="true" Action="setValue" On="install" Sequence="1" />
+
+        <!-- CreateBackup + RestoreOnUninstall: the seeded file is copied to lifecycle.json.bak
+             before the first install-time change (and kept as-is by the repair), and copied back -
+             ahead of the On="uninstall" rows below - when the component is uninstalled. The
+             workflow tracks it through $.lifecycle.origin: the seed says "seed", this row says
+             "installer", and after a restore the uninstall-time rows run on the restored file. -->
+        <Json:JsonFile Id="lcInstallOrigin" File="[LIFECYCLE_FILE]" ElementPath="$.lifecycle.origin" Value="installer" Action="setValue" On="install" Sequence="0"
+                       CreateBackup="yes" BackupSuffix=".bak" RestoreOnUninstall="yes" />
         <Json:JsonFile Id="lcInstallMarker" File="[LIFECYCLE_FILE]" ElementPath="/lifecycle/marker" Value="present" Action="createJsonPointerValue" On="install" Sequence="2" />
 
         <!-- both: records the phase of whichever transaction ran it last -->

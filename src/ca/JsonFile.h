@@ -20,7 +20,7 @@ namespace fs = std::filesystem;
 // Cost for progress bar calculations
 #define COST_JSONFILE 1000
 
-enum eJsonFileQuery { jfqId = 1, jfqFile, jfqElementPath, jfqValue, jfqDefaultValue, jfqFlags, jfqComponent, jfqProperty, jfqCompAttributes, jfqIndex, jfqSchemaFile, jfqOn };
+enum eJsonFileQuery { jfqId = 1, jfqFile, jfqElementPath, jfqValue, jfqDefaultValue, jfqFlags, jfqComponent, jfqProperty, jfqCompAttributes, jfqIndex, jfqSchemaFile, jfqOn, jfqBackupSuffix };
 
 // Values of the WixJsonFile.On column (bits, so both = install | uninstall). A null column is
 // treated as install, matching the compiler's default.
@@ -70,6 +70,9 @@ const int FLAG_REMOVEARRAYELEMENT = 7;
 const int FLAG_VALIDATESCHEMA = 8;
 const int FLAG_DISTINCTVALUES = 9;
 const int FLAG_ONLYIFEXISTS = 10;
+const int FLAG_CREATEBACKUP = 11;       // modifier: back the file up before its first modification
+const int FLAG_RESTOREBACKUP = 12;      // modifier on authored rows: restore that backup on uninstall.
+                                        // Alone, it marks a synthesized restore record in the deferred data.
 
 // These are bits
 enum eXmlAction
@@ -127,6 +130,7 @@ struct JSON_FILE_CHANGE
     int iIndex;
     LPWSTR pwzSchemaFile;
     int iOn;
+    LPWSTR pwzBackupSuffix;
 
     JSON_FILE_CHANGE* pxfcPrev;
     JSON_FILE_CHANGE* pxfcNext;
@@ -173,6 +177,13 @@ std::string DescribeJsonAtPath(__in_z LPCWSTR wzFile, const std::string& element
 
 // Appends one entry to the JSON transform log (a JSON array file), creating the file if needed.
 HRESULT AppendTransformLogEntry(__in_z LPCWSTR wzLogFile, const json& entry);
+
+// CreateBackup / RestoreOnUninstall (JsonBackup.cpp). A null or empty suffix means ".wixbak".
+std::wstring JsonBackupPath(__in_z LPCWSTR wzFile, __in_z_opt LPCWSTR wzSuffix);
+// Copies the file to its backup unless the backup already exists (S_FALSE) or the file is missing (S_FALSE).
+HRESULT BackupJsonFile(__in_z LPCWSTR wzFile, __in_z_opt LPCWSTR wzSuffix, __out_opt bool* pfCreated);
+// Copies the backup back over the file and removes the backup; S_FALSE when there is no backup.
+HRESULT RestoreJsonFileBackup(__in_z LPCWSTR wzFile, __in_z_opt LPCWSTR wzSuffix, __out_opt bool* pfRestored);
 HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue);
 HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue);
 HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath);

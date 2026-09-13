@@ -1,3 +1,4 @@
+using System.Linq;
 using Hegsie.Wix.JsonExtension;
 using Xunit;
 
@@ -80,6 +81,18 @@ namespace WixJsonFileExtension.Tests
         public void TryParseOn_RejectsUnknownValues(string value)
         {
             Assert.False(JsonCompiler.TryParseOn(value, out _));
+        }
+
+        [Fact]
+        public void JsonFlags_BackupModifiersDoNotOverlapActionsOrOtherModifiers()
+        {
+            // The custom action tests bit positions 11 and 12 for these; they must stay clear of
+            // every action bit (1..512) and the ValidateSchema/OnlyIfExists modifiers (256, 1024).
+            Assert.Equal(2048, (int)JsonFlags.CreateBackup);
+            Assert.Equal(4096, (int)JsonFlags.RestoreOnUninstall);
+            var all = System.Enum.GetValues(typeof(JsonFlags)).Cast<int>().ToArray();
+            Assert.Equal(all.Length, all.Distinct().Count());
+            Assert.All(all, v => Assert.Equal(1, System.Numerics.BitOperations.PopCount((uint)v)));
         }
 
         [Fact]
