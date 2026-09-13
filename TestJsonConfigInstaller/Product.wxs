@@ -36,6 +36,7 @@
          line to enable the corresponding failure scenario. -->
     <Property Id="TEST_INVALID_JSON" Value="0" />
     <Property Id="TEST_SCHEMA_FAILURE" Value="0" />
+    <Property Id="TEST_SCHEMA_NESTED_FAILURE" Value="0" />
 
     <!-- Install/uninstall timing (On attribute) regression. LIFECYCLE_FILE is a JSON file that
          outlives the product (the workflow creates it at this path), LIFECYCLE_PHASE is passed on
@@ -370,6 +371,21 @@
                ElementPath="$.Data.Value"
                Value="ShouldNeverBeWritten"
                Action="setValue"
+               Sequence="1" />
+      </Component>
+
+      <!-- Sad path: nested schema violation. Only installed when TEST_SCHEMA_NESTED_FAILURE=1 is
+           passed. schema-nested-invalid.json has the required top-level "store", so the root-only
+           checks of the old validator passed it; a book item is missing the required "author",
+           which the full JSON Schema validator reports (with its instance location) and fails. -->
+      <Component Id="SchemaNestedFailureComponent" Guid="{5C1D9E2B-7A3F-4F0E-8B6C-9D2E1F0A3B4C}" Condition="TEST_SCHEMA_NESTED_FAILURE=1">
+        <File Id="SchemaNestedInvalidFile" Name="schema-nested-invalid.json" Source="schema-nested-invalid.json" KeyPath="yes" />
+        <Json:JsonFile Id="validateSchemaNestedFailure"
+               File="[#SchemaNestedInvalidFile]"
+               ElementPath="$.expensive"
+               Value="4"
+               Action="setValue"
+               SchemaFile="[#AppSettingsSchema]"
                Sequence="1" />
       </Component>
 
