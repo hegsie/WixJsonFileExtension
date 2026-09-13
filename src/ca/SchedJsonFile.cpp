@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "JsonFile.h"
+#include <map>
+#include <set>
 
 // Helper function to schedule rollback for a file
 static HRESULT ScheduleFileRollback(
@@ -48,7 +50,11 @@ static UINT SchedJsonFileCore(
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
 
-    LPWSTR pwzCurrentFile = NULL;
+    // Files whose pre-transaction content has been captured for rollback (each once), and the
+    // files to back up before their first modification (file -> suffix). Declared up here because
+    // LExit is in their scope, so no ExitOnFailure may precede their initialization.
+    std::set<std::wstring> capturedFiles;
+    std::map<std::wstring, std::wstring> backupFiles;
 
     PMSIHANDLE hView = NULL;
     PMSIHANDLE hRec = NULL;
@@ -128,6 +134,68 @@ static UINT SchedJsonFileCore(
     MessageExitOnFailure(hr, msierrJsonFileFailedRead, "failed to read WixJsonFile table")
 
     WcaLog(LOGMSG_VERBOSE, "Finished reading WixJsonFile table (%s phase)", jpUninstall == phase ? "uninstall" : "install");
+
+    // Uninstall phase, first: RestoreOnUninstall. Every file that any row of a component being
+    // uninstalled asks to restore gets one synthesized "restore" record, ahead of all other records,
+    // so the file is back to its pre-product state before any On="uninstall" modifications of it
+    // run. The restore is independent of the rows' own On timing.
+    if (jpUninstall == phase)
+    {
+        std::set<std::wstring> restoreFiles;
+        for (pxfc = pxfcHead; pxfc; pxfc = pxfc->pxfcNext)
+        {
+            std::bitset<32> flags(pxfc->iJsonFlags);
+            if (!flags.test(FLAG_RESTOREBACKUP) || !JsonRowRunsInPhase(TIMING_UNINSTALL, pxfc->isInstalled, pxfc->isAction, jpUninstall))
+            {
+                continue;
+            }
+            if (!restoreFiles.insert(pxfc->wzFile).second)
+            {
+                continue;
+            }
+
+            WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Scheduling restore of '%ls' from its backup", pxfc->wzFile);
+
+            if (!(iOptions & JSON_OPTION_DRYRUN) && capturedFiles.insert(pxfc->wzFile).second)
+            {
+                hr = ScheduleFileRollback(pxfc->wzFile, &pwzRollbackCustomActionData);
+                ExitOnFailure(hr, "failed to schedule rollback for file: %ls", pxfc->wzFile);
+                ++cUniqueFiles;
+                fScheduledRollback = TRUE;
+            }
+
+            hr = WcaWriteIntegerToCaData(1 << FLAG_RESTOREBACKUP, &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write restore flags to custom action data")
+            hr = WcaWriteStringToCaData(pxfc->wzFile, &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write restore file to custom action data")
+            hr = WcaWriteStringToCaData(L"", &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write restore element path to custom action data")
+            hr = WcaWriteStringToCaData(L"", &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write restore value to custom action data")
+            hr = WcaWriteIntegerToCaData(-1, &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write restore index to custom action data")
+            hr = WcaWriteStringToCaData(L"", &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write restore schema file to custom action data")
+            hr = WcaWriteStringToCaData(pxfc->pwzBackupSuffix ? pxfc->pwzBackupSuffix : L"", &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write restore backup suffix to custom action data")
+            ++cFiles;
+        }
+    }
+
+    // CreateBackup is a property of the file, not of one row: any row that asks for it makes the
+    // deferred action back the file up before the first modification of that file in this phase,
+    // whichever row that is. Collect the files (and the suffix of the first row asking) up front
+    // and stamp the flag onto every record of those files.
+    for (pxfc = pxfcHead; pxfc; pxfc = pxfc->pxfcNext)
+    {
+        std::bitset<32> flags(pxfc->iJsonFlags);
+        if (flags.test(FLAG_CREATEBACKUP) && !flags.test(FLAG_READVALUE) &&
+            JsonRowRunsInPhase(pxfc->iOn, pxfc->isInstalled, pxfc->isAction, phase))
+        {
+            backupFiles.emplace(pxfc->wzFile, pxfc->pwzBackupSuffix ? pxfc->pwzBackupSuffix : L"");
+        }
+    }
+
     // loop through all the json configurations
     for (pxfc = pxfcHead; pxfc; pxfc = pxfc->pxfcNext)
     {
@@ -135,6 +203,14 @@ static UINT SchedJsonFileCore(
         if (JsonRowRunsInPhase(pxfc->iOn, pxfc->isInstalled, pxfc->isAction, phase))
         {
             std::bitset<32> flags(pxfc->iJsonFlags);
+            int iRecordFlags = pxfc->iJsonFlags;
+            LPCWSTR wzBackupSuffix = pxfc->pwzBackupSuffix ? pxfc->pwzBackupSuffix : L"";
+            auto backup = backupFiles.find(pxfc->wzFile);
+            if (backup != backupFiles.end())
+            {
+                iRecordFlags |= 1 << FLAG_CREATEBACKUP;
+                wzBackupSuffix = backup->second.c_str();
+            }
 
             // readValue is handled by the immediate ReadValueJsonFile action, not the deferred one.
             if (flags.test(FLAG_READVALUE))
@@ -153,20 +229,17 @@ static UINT SchedJsonFileCore(
 
             // Pass the complete flag set (action plus modifiers such as OnlyIfExists and ValidateSchema)
             // so the deferred ExecJsonFile action sees exactly what was authored in the WixJsonFile table.
-            hr = WcaWriteIntegerToCaData(pxfc->iJsonFlags, &pwzCustomActionData);
+            hr = WcaWriteIntegerToCaData(iRecordFlags, &pwzCustomActionData);
             ExitOnFailure(hr, "failed to write flags to custom action data")
             WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Scheduling %s-time operation (flags=%d, on=%d) for file: %ls",
-                jpUninstall == phase ? "uninstall" : "install", pxfc->iJsonFlags, pxfc->iOn, pxfc->wzFile);
+                jpUninstall == phase ? "uninstall" : "install", iRecordFlags, pxfc->iOn, pxfc->wzFile);
 
             // Schedule rollback for this file if we haven't already. A dry run writes nothing, so
             // there is nothing to roll back (and capturing every file would be wasted work).
-            if (!(iOptions & JSON_OPTION_DRYRUN) && (!pwzCurrentFile || 0 != lstrcmpW(pwzCurrentFile, pxfc->wzFile)))
+            if (!(iOptions & JSON_OPTION_DRYRUN) && capturedFiles.insert(pxfc->wzFile).second)
             {
-                hr = StrAllocString(&pwzCurrentFile, pxfc->wzFile, 0);
-                ExitOnFailure(hr, "failed to copy current file name");
-
-                hr = ScheduleFileRollback(pwzCurrentFile, &pwzRollbackCustomActionData);
-                ExitOnFailure(hr, "failed to schedule rollback for file: %ls", pwzCurrentFile);
+                hr = ScheduleFileRollback(pxfc->wzFile, &pwzRollbackCustomActionData);
+                ExitOnFailure(hr, "failed to schedule rollback for file: %ls", pxfc->wzFile);
 
                 ++cUniqueFiles;
                 fScheduledRollback = TRUE;
@@ -190,6 +263,9 @@ static UINT SchedJsonFileCore(
             hr = WcaWriteStringToCaData(pxfc->pwzSchemaFile, &pwzCustomActionData);
             WcaLog(LOGMSG_VERBOSE, "Schema file: %ls", pxfc->pwzSchemaFile);
             ExitOnFailure(hr, "failed to write SchemaFile to custom action data: %ls", pxfc->pwzSchemaFile)
+
+            hr = WcaWriteStringToCaData(wzBackupSuffix, &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write BackupSuffix to custom action data")
 
             ++cFiles;
         }
@@ -218,7 +294,6 @@ static UINT SchedJsonFileCore(
 LExit:
     ReleaseStr(pwzProperty)
     ReleaseStr(pwzTransformLog)
-    ReleaseStr(pwzCurrentFile)
     ReleaseStr(pwzCustomActionData)
     ReleaseStr(pwzRollbackCustomActionData)
 

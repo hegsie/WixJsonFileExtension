@@ -13,6 +13,7 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
+#include <iterator>
 
 struct TestResult
 {
@@ -352,6 +353,71 @@ static void Test_ActionName_FromFlags()
     CHECK(std::string(JsonActionName(FlagFor(FLAG_VALIDATESCHEMA))) == "unknown");
 }
 
+// CreateBackup / RestoreOnUninstall helpers (JsonBackup.cpp).
+static std::string ReadText(const std::wstring& path)
+{
+    std::ifstream is(fs::path(path), std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(is)), std::istreambuf_iterator<char>());
+}
+
+static void Test_Backup_CreatesOnceAndKeepsOriginal()
+{
+    auto path = WriteTempJson(R"({"v":1})");
+    std::wstring backup = JsonBackupPath(path.c_str(), L".bak");
+    RemoveFile(backup);
+
+    bool created = false;
+    CHECK_HR(BackupJsonFile(path.c_str(), L".bak", &created));
+    CHECK(created);
+    CHECK(fs::exists(fs::path(backup)));
+    CHECK(ReadText(backup) == R"({"v":1})");
+
+    // Modify the file, then ask again: the existing backup is kept, not overwritten.
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.v", L"2", FlagFor(FLAG_SETVALUE), -1, L""));
+    created = true;
+    HRESULT hr = BackupJsonFile(path.c_str(), L".bak", &created);
+    CHECK(S_FALSE == hr);
+    CHECK(!created);
+    CHECK(ReadText(backup) == R"({"v":1})");
+
+    RemoveFile(backup);
+    RemoveFile(path);
+}
+
+static void Test_Backup_DefaultSuffixAndMissingFile()
+{
+    CHECK(JsonBackupPath(L"C:\\x\\a.json", NULL) == L"C:\\x\\a.json.wixbak");
+    CHECK(JsonBackupPath(L"C:\\x\\a.json", L"") == L"C:\\x\\a.json.wixbak");
+    CHECK(JsonBackupPath(L"C:\\x\\a.json", L".orig") == L"C:\\x\\a.json.orig");
+
+    std::wstring missing = fs::temp_directory_path().wstring() + L"\\jsonca_missing_backup.json";
+    bool created = true;
+    CHECK(S_FALSE == BackupJsonFile(missing.c_str(), NULL, &created));
+    CHECK(!created);
+}
+
+static void Test_Restore_PutsBackupBackAndRemovesIt()
+{
+    auto path = WriteTempJson(R"({"v":1})");
+    std::wstring backup = JsonBackupPath(path.c_str(), NULL);
+    RemoveFile(backup);
+    CHECK_HR(BackupJsonFile(path.c_str(), NULL, NULL));
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.v", L"2", FlagFor(FLAG_SETVALUE), -1, L""));
+    CHECK(ReadJson(path)["v"].as<int>() == 2);
+
+    bool restored = false;
+    CHECK_HR(RestoreJsonFileBackup(path.c_str(), NULL, &restored));
+    CHECK(restored);
+    CHECK(ReadText(path) == R"({"v":1})");
+    CHECK(!fs::exists(fs::path(backup)));
+
+    // No backup left: restoring again is a no-op that reports S_FALSE.
+    restored = true;
+    CHECK(S_FALSE == RestoreJsonFileBackup(path.c_str(), NULL, &restored));
+    CHECK(!restored);
+    RemoveFile(path);
+}
+
 // Timing (On column) gating shared by the scheduling and readValue custom actions. The component
 // state pairs mirror what MsiGetComponentState reports: fresh install (absent -> local), repair
 // (local -> local), uninstall (local -> absent) and a component that is not part of the transaction
@@ -489,6 +555,9 @@ int main(int argc, char** argv)
     RunTest("DescribeJsonAtPath_Markers", Test_DescribeJsonAtPath_Markers);
     RunTest("TransformLog_AppendsEntries", Test_TransformLog_AppendsEntries);
     RunTest("ActionName_FromFlags", Test_ActionName_FromFlags);
+    RunTest("Backup_CreatesOnceAndKeepsOriginal", Test_Backup_CreatesOnceAndKeepsOriginal);
+    RunTest("Backup_DefaultSuffixAndMissingFile", Test_Backup_DefaultSuffixAndMissingFile);
+    RunTest("Restore_PutsBackupBackAndRemovesIt", Test_Restore_PutsBackupBackAndRemovesIt);
 
     std::string out = (argc > 1) ? argv[1] : "cpp-tests.xml";
     WriteJUnit(out);

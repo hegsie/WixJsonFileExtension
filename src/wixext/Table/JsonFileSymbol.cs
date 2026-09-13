@@ -18,7 +18,8 @@ public static partial class JsonFileDefinitions
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.Property), IntermediateFieldType.String),
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.Index), IntermediateFieldType.Number),
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.SchemaFile), IntermediateFieldType.String),
-			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.On), IntermediateFieldType.Number)
+			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.On), IntermediateFieldType.Number),
+			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.BackupSuffix), IntermediateFieldType.String)
 		},
 		typeof(JsonFileSymbol));
 }
@@ -35,7 +36,8 @@ public enum JsonFileSymbolFields
 	Property,
 	Index,
 	SchemaFile,
-	On
+	On,
+	BackupSuffix
 }
 
 public class JsonFileSymbol : IntermediateSymbol
@@ -116,5 +118,14 @@ public class JsonFileSymbol : IntermediateSymbol
 	{
 		get => this.Fields[(int)JsonFileSymbolFields.On].AsNullableNumber();
 		set => this.Set((int)JsonFileSymbolFields.On, value);
+	}
+
+	/// <summary>
+	/// Suffix appended to the file name for the backup taken when CreateBackup is set (".wixbak" by default).
+	/// </summary>
+	public string BackupSuffix
+	{
+		get => this.Fields[(int)JsonFileSymbolFields.BackupSuffix].AsString();
+		set => this.Set((int)JsonFileSymbolFields.BackupSuffix, value);
 	}
 }

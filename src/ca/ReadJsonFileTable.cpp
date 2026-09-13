@@ -2,7 +2,7 @@
 #include "JsonFile.h"
 
 LPCWSTR vcsJsonFileQuery = L"SELECT `WixJsonFile`.`JsonConfig`, `WixJsonFile`.`File`, `WixJsonFile`.`ElementPath`, "
-                           L"`WixJsonFile`.`Value`, `WixJsonFile`.`DefaultValue`, `WixJsonFile`.`Flags`, `WixJsonFile`.`Component_`, `WixJsonFile`.`Property`, `Component`.`Attributes`, `WixJsonFile`.`Index`, `WixJsonFile`.`SchemaFile`, `WixJsonFile`.`On` FROM `WixJsonFile`,`Component` "
+                           L"`WixJsonFile`.`Value`, `WixJsonFile`.`DefaultValue`, `WixJsonFile`.`Flags`, `WixJsonFile`.`Component_`, `WixJsonFile`.`Property`, `Component`.`Attributes`, `WixJsonFile`.`Index`, `WixJsonFile`.`SchemaFile`, `WixJsonFile`.`On`, `WixJsonFile`.`BackupSuffix` FROM `WixJsonFile`,`Component` "
                            L"WHERE `WixJsonFile`.`Component_`=`Component`.`Component` ORDER BY `File`, `Sequence`";
 
 static HRESULT AddJsonFileChangeToList(
@@ -149,6 +149,12 @@ HRESULT ReadJsonFileTable(
             (*ppxfcTail)->iOn = TIMING_INSTALL;
             hr = S_OK;
         }
+
+        // Get the backup suffix (formatted; empty unless CreateBackup was authored)
+        hr = WcaGetRecordFormattedString(hRec, jfqBackupSuffix, &pwzData);
+        ExitOnFailure(hr, "failed to get BackupSuffix for WixJsonFile: %ls", (*ppxfcTail)->wzId)
+        hr = StrAllocString(&(*ppxfcTail)->pwzBackupSuffix, pwzData, 0);
+        ExitOnFailure(hr, "failed to allocate buffer for backup suffix")
     }
 
     // if we looped through all records all is well
@@ -178,6 +184,7 @@ void FreeJsonFileChangeList(
         ReleaseStr(pxfc->pwzDefaultValue);
         ReleaseStr(pxfc->pwzProperty);
         ReleaseStr(pxfc->pwzSchemaFile);
+        ReleaseStr(pxfc->pwzBackupSuffix);
 
         // Free the structure itself
         MemFree(pxfc);
