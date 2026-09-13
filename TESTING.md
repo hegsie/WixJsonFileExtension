@@ -442,3 +442,15 @@ When reporting issues or test results, include:
 - [WiX Documentation](https://wixtoolset.org/docs/)
 - [JSONPath Online Evaluator](https://jsonpath.com/)
 - [MSI Log Analysis](https://docs.microsoft.com/en-us/windows/win32/msi/windows-installer-logging)
+
+## Testing Operations Outside MSI
+
+The package's `tools\jsoncli.exe` runs the same transform code as the custom action against any JSON file, so an `ElementPath` or a whole sequence of operations can be checked without building or installing an MSI:
+
+```
+jsoncli setValue sample.json $.ConnectionStrings.Default "Server=prod;Database=app" --dry-run
+jsoncli createJsonPointerValue sample.json /Features/NewUi true
+jsoncli validateSchema sample.json sample-schema.json
+```
+
+Each call prints the value at the path before and after the operation and exits non-zero on failure. For an end-to-end check of an installer, run it with `JSONEXT_DRYRUN=1 JSONEXT_TRANSFORMLOG=<path>` and inspect the resulting JSON log (see the README's Diagnostics section).

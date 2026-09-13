@@ -41,6 +41,11 @@
     <Content Include="$(TargetPath)" PackagePath="$(WixExtensionPackageFolder)" />
     <Content Include="$(Wix7ExtensionPath)" PackagePath="wixext7" />
     <Content Include="json.xsd" PackagePath="schemas" />
+    <!-- Command-line harness (src\cli), built by the solution before this project into the
+         solution-level x64\$(Configuration) folder (like jsonca.dll). The path is relative to this
+         project rather than $(SolutionDir) because `dotnet pack` on the project alone does not
+         define SolutionDir; the condition keeps a standalone build working before the harness exists. -->
+    <Content Include="..\..\x64\$(Configuration)\jsoncli.exe" PackagePath="tools" Condition="Exists('..\..\x64\$(Configuration)\jsoncli.exe')" />
   </ItemGroup>
 
   <ItemGroup>

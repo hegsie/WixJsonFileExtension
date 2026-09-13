@@ -64,9 +64,59 @@ static UINT SchedJsonFileCore(
     DWORD cUniqueFiles = 0;
     BOOL fScheduledRollback = FALSE;
 
+    LPWSTR pwzProperty = NULL;
+    LPWSTR pwzTransformLog = NULL;
+    int iOptions = 0;
+
     // initialize
     hr = WcaInitialize(hInstall, szLogName);
     ExitOnFailure(hr, "failed to initialize")
+
+    // Diagnostic switches, public properties so they can be set on the msiexec command line:
+    //   JSONEXT_LOGLEVEL=verbose   log the value at every ElementPath before and after each operation
+    //   JSONEXT_DRYRUN=1           log every operation but write nothing (no rollback is scheduled either)
+    //   JSONEXT_TRANSFORMLOG=path  append a JSON record of every operation to this file
+    // They are read here, in the immediate phase, and passed to the deferred action in the
+    // CustomActionData header because deferred actions cannot read properties.
+    hr = WcaGetProperty(L"JSONEXT_LOGLEVEL", &pwzProperty);
+    ExitOnFailure(hr, "failed to get JSONEXT_LOGLEVEL property")
+    if (pwzProperty && 0 == _wcsicmp(pwzProperty, L"verbose"))
+    {
+        iOptions |= JSON_OPTION_VERBOSE;
+    }
+
+    // A verbose MSI log (/l*v, or MsiLogging with 'v') gets the snapshots too. Decided here
+    // because the deferred action cannot read properties.
+    hr = WcaGetProperty(L"MsiLogging", &pwzProperty);
+    ExitOnFailure(hr, "failed to get MsiLogging property")
+    if (pwzProperty && (wcschr(pwzProperty, L'v') || wcschr(pwzProperty, L'V')))
+    {
+        iOptions |= JSON_OPTION_VERBOSE;
+    }
+
+    hr = WcaGetProperty(L"JSONEXT_DRYRUN", &pwzProperty);
+    ExitOnFailure(hr, "failed to get JSONEXT_DRYRUN property")
+    if (pwzProperty && *pwzProperty &&
+        (0 == _wcsicmp(pwzProperty, L"1") || 0 == _wcsicmp(pwzProperty, L"yes") || 0 == _wcsicmp(pwzProperty, L"true")))
+    {
+        iOptions |= JSON_OPTION_DRYRUN;
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: JSONEXT_DRYRUN is set - JSON operations will be logged but not applied");
+    }
+
+    hr = WcaGetProperty(L"JSONEXT_TRANSFORMLOG", &pwzTransformLog);
+    ExitOnFailure(hr, "failed to get JSONEXT_TRANSFORMLOG property")
+    if (pwzTransformLog && *pwzTransformLog)
+    {
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Transform log: %ls", pwzTransformLog);
+    }
+
+    // CustomActionData header: options, phase, transform log path. The records follow.
+    hr = WcaWriteIntegerToCaData(iOptions, &pwzCustomActionData);
+    ExitOnFailure(hr, "failed to write options to custom action data")
+    hr = WcaWriteStringToCaData(jpUninstall == phase ? L"uninstall" : L"install", &pwzCustomActionData);
+    ExitOnFailure(hr, "failed to write phase to custom action data")
+    hr = WcaWriteStringToCaData(pwzTransformLog ? pwzTransformLog : L"", &pwzCustomActionData);
+    ExitOnFailure(hr, "failed to write transform log path to custom action data")
 
     hr = ReadJsonFileTable(&pxfcHead, &pxfcTail);
     if (S_FALSE == hr)
@@ -108,8 +158,9 @@ static UINT SchedJsonFileCore(
             WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Scheduling %s-time operation (flags=%d, on=%d) for file: %ls",
                 jpUninstall == phase ? "uninstall" : "install", pxfc->iJsonFlags, pxfc->iOn, pxfc->wzFile);
 
-            // Schedule rollback for this file if we haven't already
-            if (!pwzCurrentFile || 0 != lstrcmpW(pwzCurrentFile, pxfc->wzFile))
+            // Schedule rollback for this file if we haven't already. A dry run writes nothing, so
+            // there is nothing to roll back (and capturing every file would be wasted work).
+            if (!(iOptions & JSON_OPTION_DRYRUN) && (!pwzCurrentFile || 0 != lstrcmpW(pwzCurrentFile, pxfc->wzFile)))
             {
                 hr = StrAllocString(&pwzCurrentFile, pxfc->wzFile, 0);
                 ExitOnFailure(hr, "failed to copy current file name");
@@ -155,17 +206,18 @@ static UINT SchedJsonFileCore(
         ExitOnFailure(hr, "failed to schedule ExecJsonFileRollback action")
     }
 
-    // Schedule the deferred custom action and add to progress bar
-    if (pwzCustomActionData && *pwzCustomActionData)
+    // Schedule the deferred custom action and add to progress bar (the data always carries the
+    // header, so check the record count rather than the string).
+    if (0 < cFiles)
     {
-        Assert(0 < cFiles);
-
         WcaLog(LOGMSG_VERBOSE, "Scheduling deferred custom action");
         hr = WcaDoDeferredAction(JSON_CUSTOM_ACTION_DECORATION(L"ExecJsonFile"), pwzCustomActionData, cFiles * COST_JSONFILE);
         ExitOnFailure(hr, "failed to schedule ExecJsonFile action")
     }
 
 LExit:
+    ReleaseStr(pwzProperty)
+    ReleaseStr(pwzTransformLog)
     ReleaseStr(pwzCurrentFile)
     ReleaseStr(pwzCustomActionData)
     ReleaseStr(pwzRollbackCustomActionData)

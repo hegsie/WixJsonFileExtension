@@ -139,14 +139,40 @@ HRESULT ReadJsonFileTable(
 void FreeJsonFileChangeList(
     __in JSON_FILE_CHANGE* pxfcHead
 );
+// Execution options, set from the JSONEXT_LOGLEVEL / JSONEXT_DRYRUN properties by the immediate
+// scheduler and carried to the deferred action at the head of its CustomActionData.
+const int JSON_OPTION_VERBOSE = 1;   // log the matched value before and after every operation
+const int JSON_OPTION_DRYRUN = 2;    // log what would be done, write nothing
+
+// What one operation did, for the verbose log and the transform log (JSONEXT_TRANSFORMLOG).
+struct JSON_OPERATION_TRACE
+{
+    std::string before;   // serialized value(s) at ElementPath before the operation (see DescribeJsonAtPath)
+    std::string after;    // ... and after it; empty when nothing was written
+    std::string outcome;  // "applied", "skipped" (OnlyIfExists), "dry-run" or "failed"
+};
+
 HRESULT UpdateJsonFile(
     __in_z LPCWSTR wzFile,
     __in_z LPCWSTR wzElementPath,
     __in_z LPCWSTR wzValue,
     __in int iFlags,
     __in int iIndex,
-    __in_z LPCWSTR wzSchemaFile
+    __in_z LPCWSTR wzSchemaFile,
+    __in int iOptions = 0,
+    __inout_opt JSON_OPERATION_TRACE* pTrace = NULL
 );
+
+// Name of the action selected by the flags ("setValue", ...), or "unknown".
+const char* JsonActionName(__in int iFlags);
+
+// Serializes the value(s) currently at elementPath in wzFile (JSON Pointer when fPointer, else
+// JSONPath): the JSON text of the match (an array of matches for JSONPath), or a bracketed marker
+// such as "<file not found>", "<no match>" or "<not valid JSON>". Truncated to a log-friendly size.
+std::string DescribeJsonAtPath(__in_z LPCWSTR wzFile, const std::string& elementPath, bool fPointer);
+
+// Appends one entry to the JSON transform log (a JSON array file), creating the file if needed.
+HRESULT AppendTransformLogEntry(__in_z LPCWSTR wzLogFile, const json& entry);
 HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue);
 HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue);
 HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath);
@@ -163,6 +189,27 @@ HRESULT ReturnLastError(const std::string& action);
 HRESULT WriteJsonOutput(__in_z LPCWSTR wzFile, const json& j);
 // Converts an authored value to a typed JSON value; preserves string type when replacing a string.
 json MakeJsonValue(const std::string& valueUtf8, const json* pExisting);
+
+// Logs text verbatim at the standard level. WcaLog places the message in record field 0, which
+// MSI formats: "[10]" there is a reference to (empty) record field 10 and vanishes from the log,
+// and the "[\[]" escape does not survive either. Passing the text as field 1 of a "[1]" template
+// inserts it untouched. Outside an MSI session (unit tests, jsoncli) there is nothing to log to.
+inline void JsonLogRaw(const std::string& text)
+{
+    if (!WcaIsInitialized())
+    {
+        return;
+    }
+    PMSIHANDLE hRec = ::MsiCreateRecord(1);
+    if (!hRec)
+    {
+        return;
+    }
+    std::string tmpl = std::string(WcaGetLogName()) + ":  [1]";
+    ::MsiRecordSetStringA(hRec, 0, tmpl.c_str());
+    ::MsiRecordSetStringA(hRec, 1, text.c_str());
+    WcaProcessMessage(INSTALLMESSAGE_INFO, hRec);
+}
 
 inline HRESULT WideToUtf8(__in_z LPCWSTR wzInput, std::string& value)
 {

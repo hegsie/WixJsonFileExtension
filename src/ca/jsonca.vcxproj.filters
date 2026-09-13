@@ -15,6 +15,7 @@
     <ClCompile Include="SchedJsonFile.cpp" />
     <ClCompile Include="SetJsonPathObject.cpp" />
     <ClCompile Include="SetJsonPathValue.cpp" />
+    <ClCompile Include="TransformLog.cpp" />
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="UpdateJsonFile.cpp" />
     <ClCompile Include="ValidateJsonSchema.cpp" />

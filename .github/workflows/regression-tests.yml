@@ -116,6 +116,8 @@ jobs:
     #   validateSchema, OnlyIfExists, non-ASCII values, invalid JSON.
     # Plus the On attribute (install / uninstall / both timing) across the whole product
     # lifecycle: install, repair, major upgrade to a second build of the same package, uninstall.
+    # Plus the diagnostics: a JSONEXT_DRYRUN=1 install/uninstall pair that must change nothing,
+    # and JSONEXT_LOGLEVEL=verbose / JSONEXT_TRANSFORMLOG on the real transactions.
     # ---------------------------------------------------------------------------
 
     - name: Prepare readValue source file
@@ -177,6 +179,69 @@ jobs:
           exit 1
         }
 
+    - name: Dry run install and uninstall change nothing
+      shell: pwsh
+      run: |
+        $failed = $false
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
+        }
+
+        Note ""
+        Note "## Dry run (JSONEXT_DRYRUN=1)"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
+
+        $msi = (Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse | Select-Object -First 1).FullName
+        $log = Join-Path $env:RUNNER_TEMP "dryrun-install.log"
+        $tlog = "C:\JsonRegression\dryrun-transform.json"
+        Remove-Item -Path $log, $tlog -ErrorAction SilentlyContinue
+
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msi`" /qn /norestart /l*v `"$log`" JSONEXT_DRYRUN=1 JSONEXT_TRANSFORMLOG=$tlog MY_VALUE=dry LOG_DIRECTORY=C:\temp\" -Wait -PassThru
+        Write-Host "dry-run install exit code: $($p.ExitCode)"
+        Check ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) "dry-run install succeeded (exit $($p.ExitCode))"
+        if (-not ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) -and (Test-Path $log)) { Get-Content -Path $log }
+
+        # The installed appsettings.json must be byte-identical to the source fixture: MSI copied it
+        # and the extension changed nothing.
+        $installed = Join-Path (Join-Path $env:ProgramFiles "TestJsonConfigInstaller") "appsettings.json"
+        $srcHash = (Get-FileHash "TestJsonConfigInstaller\appsettings.json").Hash
+        $dstHash = if (Test-Path $installed) { (Get-FileHash $installed).Hash } else { "missing" }
+        Check ($srcHash -eq $dstHash) "installed appsettings.json is untouched by a dry-run install"
+
+        $lc = Get-Content -Path "C:\JsonRegression\lifecycle.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+        Check ($lc.lifecycle.installed -eq $false -and $lc.lifecycle.phase -eq 'none' -and -not ($lc.lifecycle.PSObject.Properties.Name -contains 'marker')) "lifecycle.json is untouched by a dry-run install"
+
+        $content = Get-Content -Path $log -Raw
+        Check ($content -match "JSONEXT_DRYRUN is set") "scheduler reported dry-run mode"
+        Check ($content -match "DRY RUN - would apply setValue") "deferred action logged the operations it would apply"
+        Check (-not ($content -match "Action start [\d:]+: WixExecJsonFileRollback_X64\.")) "no rollback action was scheduled for a dry run"
+
+        Check (Test-Path $tlog) "transform log was written during the dry run"
+        if (Test-Path $tlog) {
+          $entries = @(Get-Content -Path $tlog -Raw -Encoding UTF8 | ConvertFrom-Json)
+          Check ($entries.Count -gt 10) "transform log has one entry per scheduled operation ($($entries.Count))"
+          Check ((@($entries | Where-Object { $_.outcome -ne 'dry-run' })).Count -eq 0) "every transform log entry has outcome dry-run"
+          Check ((@($entries | Where-Object { $_.PSObject.Properties.Name -contains 'after' })).Count -eq 0) "no entry carries an 'after' snapshot"
+          Check ((@($entries | Where-Object { $_.phase -eq 'install' })).Count -eq $entries.Count) "entries record the install phase"
+        }
+
+        # Uninstall, also as a dry run, so the On=uninstall rows leave lifecycle.json alone too.
+        $ulog = Join-Path $env:RUNNER_TEMP "dryrun-uninstall.log"
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$msi`" /qn /norestart /l*v `"$ulog`" JSONEXT_DRYRUN=1 JSONEXT_TRANSFORMLOG=$tlog" -Wait -PassThru
+        Write-Host "dry-run uninstall exit code: $($p.ExitCode)"
+        Check ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) "dry-run uninstall succeeded (exit $($p.ExitCode))"
+        $lc = Get-Content -Path "C:\JsonRegression\lifecycle.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+        Check ($lc.lifecycle.installed -eq $false -and $lc.lifecycle.phase -eq 'none') "lifecycle.json is untouched by a dry-run uninstall"
+        $entries = @(Get-Content -Path $tlog -Raw -Encoding UTF8 | ConvertFrom-Json)
+        Check ((@($entries | Where-Object { $_.phase -eq 'uninstall' -and $_.outcome -eq 'dry-run' })).Count -gt 0) "uninstall-phase dry-run entries were appended to the same transform log"
+
+        if ($script:failed) { Write-Host "`nDry-run assertions FAILED"; exit 1 }
+        Write-Host "`n✓ Dry-run assertions passed"
+
     - name: Install test MSI (happy path)
       shell: pwsh
       run: |
@@ -197,7 +262,10 @@ jobs:
         # MY_VALUE uses Cyrillic text to also regression-test non-ASCII (UTF-8) value handling.
         # Passing it as its own Start-Process argument keeps it Unicode-safe.
         $expectedCategory = "КатегорияПривет"
-        $argline = "/i `"$msi`" /qn /norestart /l*v `"$log`" MY_VALUE=$expectedCategory LOG_DIRECTORY=C:\temp\"
+        # JSONEXT_LOGLEVEL / JSONEXT_TRANSFORMLOG exercise the diagnostics on a real transaction; the
+        # "Verify diagnostics" step below asserts on their output.
+        Remove-Item -Path "C:\JsonRegression\transform.json" -ErrorAction SilentlyContinue
+        $argline = "/i `"$msi`" /qn /norestart /l*v `"$log`" MY_VALUE=$expectedCategory LOG_DIRECTORY=C:\temp\ JSONEXT_LOGLEVEL=verbose JSONEXT_TRANSFORMLOG=C:\JsonRegression\transform.json"
         $p = Start-Process -FilePath "msiexec.exe" -ArgumentList $argline -Wait -PassThru
         Write-Host "msiexec exit code: $($p.ExitCode)"
 
@@ -339,6 +407,49 @@ jobs:
     # ProductComponent carries an On="uninstall" row against the installed appsettings.json.
     # Each transaction below passes LIFECYCLE_PHASE so the On="both" row records which one ran it.
     # ---------------------------------------------------------------------------
+
+    - name: Verify diagnostics (verbose logging and transform log)
+      shell: pwsh
+      run: |
+        $failed = $false
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
+        }
+
+        Note ""
+        Note "## Diagnostics: JSONEXT_LOGLEVEL=verbose and JSONEXT_TRANSFORMLOG"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
+
+        $content = Get-Content -Path (Join-Path $env:RUNNER_TEMP "happy-install.log") -Raw
+        $befores = ([regex]::Matches($content, "WixJsonFile: \w+ '[^']*' in '[^']*' - before: ")).Count
+        $afters = ([regex]::Matches($content, "WixJsonFile: \w+ '[^']*' in '[^']*' - after: ")).Count
+        Check ($befores -gt 10) "verbose logging wrote a 'before' snapshot per operation ($befores)"
+        Check ($afters -gt 10) "verbose logging wrote an 'after' snapshot per applied operation ($afters)"
+        $expLines = @($content -split "`r?`n" | Where-Object { $_ -match "expensive" -and $_ -match "before:|after:" })
+        Write-Host "verbose lines for `$.expensive:"; $expLines | ForEach-Object { Write-Host "  $_" }
+        Check ((@($expLines | Where-Object { $_ -match "before:\s*\[10\]" })).Count -gt 0) "before snapshot shows the original value of `$.expensive (10)"
+        Check ((@($expLines | Where-Object { $_ -match "after:\s*\[15\]" })).Count -gt 0) "after snapshot shows the new value of `$.expensive (15)"
+
+        $tlog = "C:\JsonRegression\transform.json"
+        Check (Test-Path $tlog) "transform log exists"
+        $entries = @(Get-Content -Path $tlog -Raw -Encoding UTF8 | ConvertFrom-Json)
+        Write-Host "transform log entries: $($entries.Count)"
+        Check ($entries.Count -gt 20) "transform log has an entry per operation ($($entries.Count))"
+        $exp = $entries | Where-Object { $_.elementPath -eq '$.expensive' -and $_.action -eq 'setValue' } | Select-Object -First 1
+        Check ($null -ne $exp -and $exp.outcome -eq 'applied' -and @($exp.before)[0] -eq 10 -and @($exp.after)[0] -eq 15) "entry for `$.expensive: applied, before 10, after 15"
+        $skip = $entries | Where-Object { $_.elementPath -eq '$.nonExistentPath' } | Select-Object -First 1
+        Check ($null -ne $skip -and $skip.outcome -eq 'skipped' -and $skip.before -eq '<no match>') "entry for OnlyIfExists miss: skipped with '<no match>' before"
+        $ptr = $entries | Where-Object { $_.elementPath -eq '/NonExisting' } | Select-Object -First 1
+        Check ($null -ne $ptr -and $ptr.action -eq 'createJsonPointerValue' -and $ptr.after -eq 'Value Not Set') "entry for createJsonPointerValue records the created value"
+        Check ((@($entries | Where-Object { -not $_.timestamp -or -not $_.file -or -not $_.hresult })).Count -eq 0) "every entry has timestamp, file and hresult"
+        Check ((@($entries | Where-Object { $_.phase -ne 'install' })).Count -eq 0) "all entries are from the install phase"
+
+        if ($script:failed) { Write-Host "`nDiagnostics assertions FAILED"; exit 1 }
+        Write-Host "`n✓ Diagnostics assertions passed"
 
     - name: Verify On timing after install
       shell: pwsh
@@ -508,7 +619,7 @@ jobs:
         $msi2 = (Get-ChildItem -Path "upgrade-msi" -Filter "TestJsonConfigInstaller-v2.msi" -Recurse | Select-Object -First 1).FullName
         $log = Join-Path $env:RUNNER_TEMP "uninstall.log"
         Remove-Item -Path $log -ErrorAction SilentlyContinue
-        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$msi2`" /qn /norestart /l*v `"$log`" LIFECYCLE_PHASE=uninstall" -Wait -PassThru
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$msi2`" /qn /norestart /l*v `"$log`" LIFECYCLE_PHASE=uninstall JSONEXT_TRANSFORMLOG=C:\JsonRegression\transform.json" -Wait -PassThru
         Write-Host "Uninstall exit code: $($p.ExitCode)"
         $ok = ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010)
         Check $ok "MSI uninstall succeeded (exit $($p.ExitCode))"
@@ -534,6 +645,11 @@ jobs:
         Check ($content -match "Configuring JSON file: [^\r\n]*appsettings\.json") "On=uninstall row edited the installed appsettings.json during uninstall"
         $appPath = Join-Path (Join-Path $env:ProgramFiles "TestJsonConfigInstaller") "appsettings.json"
         Check (-not (Test-Path $appPath)) "installed appsettings.json was removed by the uninstall"
+
+        # The transform log from the install was appended to, and records the uninstall phase.
+        $entries = @(Get-Content -Path "C:\JsonRegression\transform.json" -Raw -Encoding UTF8 | ConvertFrom-Json)
+        $del = $entries | Where-Object { $_.phase -eq 'uninstall' -and $_.elementPath -eq '$.lifecycle.marker' -and $_.action -eq 'deleteValue' } | Select-Object -First 1
+        Check ($null -ne $del -and $del.outcome -eq 'applied' -and @($del.before)[0] -eq 'present' -and $del.after -eq '<no match>') "transform log records the uninstall-time deleteValue (before present, after no match)"
 
         if ($script:failed) {
           Write-Host "`nOn-timing (uninstall) assertions FAILED"

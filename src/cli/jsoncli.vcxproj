@@ -16,9 +16,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{3F2A6B1C-9D4E-4A7B-8C12-9A0B1C2D3E4F}</ProjectGuid>
+    <ProjectGuid>{7D1E5C2A-4B3F-4E8A-9C6D-2F1A0B3C4D5E}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>jsoncatests</RootNamespace>
+    <RootNamespace>jsoncli</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -33,6 +33,9 @@
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <TargetName>jsoncli</TargetName>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -63,9 +66,9 @@
       <AdditionalDependencies>msi.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <!-- Compile the production transform sources directly (no production refactor). UpdateJsonFile
-       calls every transform, so all of them must be present to satisfy the linker. The only WiX
-       symbol they reference is WcaLog, which resolves from the linked wcautil import lib. -->
+  <!-- Command-line harness: compiles the production transform sources (like the unit tests) with a
+       console entry point, so the tool applies exactly the code the custom action runs. Packed into
+       the NuGet package's tools/ folder by the wixext project. -->
   <ItemGroup>
     <ClCompile Include="..\..\src\ca\AppendJsonArray.cpp" />
     <ClCompile Include="..\..\src\ca\DeleteJsonPath.cpp" />
@@ -79,7 +82,7 @@
     <ClCompile Include="..\..\src\ca\TransformLog.cpp" />
     <ClCompile Include="..\..\src\ca\UpdateJsonFile.cpp" />
     <ClCompile Include="..\..\src\ca\ValidateJsonSchema.cpp" />
-    <ClCompile Include="tests.cpp" />
+    <ClCompile Include="jsoncli.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

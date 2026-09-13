@@ -104,6 +104,40 @@ jobs:
         path: TestResults/cpp-tests.xml
         reporter: java-junit
 
+    # The command-line harness runs the same transform code as the custom action; drive it once
+    # through an apply, a dry run and a readValue so a packaging or argument-parsing regression
+    # is caught here rather than by a user.
+    - name: Smoke test jsoncli harness
+      shell: pwsh
+      run: |
+        $cli = "x64\${{ env.BUILD_CONFIGURATION }}\jsoncli.exe"
+        if (-not (Test-Path $cli)) { Write-Error "jsoncli.exe not built at $cli"; exit 1 }
+        $f = Join-Path $env:RUNNER_TEMP "jsoncli-smoke.json"
+        '{ "app": { "level": "Information", "tags": ["a"] } }' | Set-Content $f -Encoding UTF8
+
+        & $cli setValue $f '$.app.level' Warning --dry-run
+        if ($LASTEXITCODE -ne 0) { Write-Error "dry run failed"; exit 1 }
+        if ((Get-Content $f -Raw | ConvertFrom-Json).app.level -ne 'Information') { Write-Error "dry run modified the file"; exit 1 }
+
+        & $cli setValue $f '$.app.level' Warning
+        if ($LASTEXITCODE -ne 0) { Write-Error "setValue failed"; exit 1 }
+        & $cli appendArray $f '$.app.tags' b
+        if ($LASTEXITCODE -ne 0) { Write-Error "appendArray failed"; exit 1 }
+        $j = Get-Content $f -Raw | ConvertFrom-Json
+        if ($j.app.level -ne 'Warning' -or @($j.app.tags).Count -ne 2) { Write-Error "jsoncli did not apply the operations"; exit 1 }
+
+        $read = & $cli readValue $f '$.app.level' --quiet
+        if ($LASTEXITCODE -ne 0 -or "$read".Trim() -ne 'Warning') { Write-Error "readValue returned '$read'"; exit 1 }
+
+        & $cli setValue $f '$.app.missing' x --only-if-exists --quiet
+        if ($LASTEXITCODE -ne 0) { Write-Error "OnlyIfExists skip should succeed"; exit 1 }
+        & $cli setValue $f '$.app.missing' x --quiet
+        if ($LASTEXITCODE -eq 0) { Write-Error "setValue on a missing path should fail"; exit 1 }
+        Write-Host "jsoncli harness smoke test passed"
+        # The step's exit code is the last native command's unless set explicitly, and that last
+        # command is an expected failure.
+        exit 0
+
     - name: Pack
       working-directory: ${{ env.SOLUTION_FILE_PATH }}\src\wixext\
       run: dotnet pack --no-build --configuration ${{ env.BUILD_CONFIGURATION }} /p:Version=6.0.0.${{ github.run_number }}
@@ -126,9 +160,10 @@ jobs:
         $missing = @("wixext4/WixJsonFileExtension.dll",
                      "wixext5/WixJsonFileExtension.dll",
                      "wixext6/WixJsonFileExtension.dll",
-                     "wixext7/WixJsonFileExtension.dll") | Where-Object { $entries -notcontains $_ }
+                     "wixext7/WixJsonFileExtension.dll",
+                     "tools/jsoncli.exe") | Where-Object { $entries -notcontains $_ }
         if ($missing) { Write-Error "Missing from $($nupkg.Name): $($missing -join ', ')"; exit 1 }
-        Write-Host "Package contains extension binaries for WiX 4, 5, 6 and 7."
+        Write-Host "Package contains extension binaries for WiX 4, 5, 6 and 7, and the jsoncli harness."
 
     # Consume the freshly packed .nupkg exactly the way a user does - a PackageReference in a
     # wixproj - once per supported WiX major version. This is the scenario from issue #45: the
