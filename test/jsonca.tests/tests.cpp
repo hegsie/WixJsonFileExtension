@@ -250,6 +250,108 @@ static void Test_Schema_ValidPasses_InvalidFails()
     RemoveFile(badPath);
 }
 
+// Diagnostics: dry run, before/after trace and the transform log (JSONEXT_DRYRUN, JSONEXT_LOGLEVEL,
+// JSONEXT_TRANSFORMLOG).
+static void Test_DryRun_LeavesFileUntouched()
+{
+    auto path = WriteTempJson(R"({"config":{"value":"old"}})");
+    JSON_OPERATION_TRACE trace;
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.config.value", L"new", FlagFor(FLAG_SETVALUE), -1, L"", JSON_OPTION_DRYRUN, &trace));
+    auto j = ReadJson(path);
+    CHECK(j["config"]["value"].as<std::string>() == "old");
+    CHECK(trace.outcome == "dry-run");
+    CHECK(trace.before == R"(["old"])");
+    CHECK(trace.after.empty());
+    RemoveFile(path);
+}
+
+static void Test_DryRun_ReportsMissingFile()
+{
+    // A dry run still reports (and fails on) a missing file the way the real run would.
+    std::wstring missing = fs::temp_directory_path().wstring() + L"\\jsonca_missing_dryrun.json";
+    JSON_OPERATION_TRACE trace;
+    HRESULT hr = UpdateJsonFile(missing.c_str(), L"$.a", L"1", FlagFor(FLAG_SETVALUE), -1, L"", JSON_OPTION_DRYRUN, &trace);
+    CHECK(FAILED(hr));
+    CHECK(trace.outcome == "failed");
+    CHECK(trace.before == "<file not found>");
+}
+
+static void Test_Trace_CapturesBeforeAndAfter()
+{
+    auto path = WriteTempJson(R"({"config":{"value":"old","n":1}})");
+    JSON_OPERATION_TRACE trace;
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.config.value", L"new", FlagFor(FLAG_SETVALUE), -1, L"", 0, &trace));
+    CHECK(trace.outcome == "applied");
+    CHECK(trace.before == R"(["old"])");
+    CHECK(trace.after == R"(["new"])");
+
+    // JSON Pointer actions describe the single value rather than a match array.
+    JSON_OPERATION_TRACE ptr;
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"/config/n", L"2", FlagFor(FLAG_CREATEVALUE), -1, L"", 0, &ptr));
+    CHECK(ptr.before == "1");
+    CHECK(ptr.after == "2");
+
+    // A skipped OnlyIfExists operation says so and captures no "after".
+    JSON_OPERATION_TRACE skipped;
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.config.missing", L"x", FlagFor(FLAG_SETVALUE) | FlagFor(FLAG_ONLYIFEXISTS), -1, L"", 0, &skipped));
+    CHECK(skipped.outcome == "skipped");
+    CHECK(skipped.before == "<no match>");
+    CHECK(skipped.after.empty());
+    RemoveFile(path);
+}
+
+static void Test_DescribeJsonAtPath_Markers()
+{
+    auto path = WriteTempJson(R"({"a":[1,2]})");
+    CHECK(DescribeJsonAtPath(path.c_str(), "$.a", false) == "[[1,2]]");
+    CHECK(DescribeJsonAtPath(path.c_str(), "/a/1", true) == "2");
+    CHECK(DescribeJsonAtPath(path.c_str(), "$.zzz", false) == "<no match>");
+    CHECK(DescribeJsonAtPath(path.c_str(), "/zzz", true) == "<no match>");
+    CHECK(DescribeJsonAtPath(L"C:\\does\\not\\exist\\x.json", "$.a", false) == "<file not found>");
+    RemoveFile(path);
+
+    auto bad = WriteTempJson("{ not json");
+    CHECK(DescribeJsonAtPath(bad.c_str(), "$.a", false) == "<not valid JSON>");
+    RemoveFile(bad);
+}
+
+static void Test_TransformLog_AppendsEntries()
+{
+    std::wstring logPath = fs::temp_directory_path().wstring() + L"\\jsonca_transform_" +
+        std::to_wstring(g_counter.fetch_add(1)) + L".json";
+    RemoveFile(logPath);
+
+    json first; first["action"] = "setValue"; first["outcome"] = "applied";
+    json second; second["action"] = "deleteValue"; second["outcome"] = "skipped";
+    CHECK_HR(AppendTransformLogEntry(logPath.c_str(), first));
+    CHECK_HR(AppendTransformLogEntry(logPath.c_str(), second));
+
+    auto log = ReadJson(logPath);
+    CHECK(log.is_array());
+    CHECK(log.size() == 2);
+    CHECK(log[0]["action"].as<std::string>() == "setValue");
+    CHECK(log[1]["outcome"].as<std::string>() == "skipped");
+
+    // A log that is not an array is replaced rather than corrupted.
+    {
+        std::ofstream os(fs::path(logPath), std::ios::binary | std::ios::trunc);
+        os << R"({"not":"an array"})";
+    }
+    CHECK_HR(AppendTransformLogEntry(logPath.c_str(), first));
+    log = ReadJson(logPath);
+    CHECK(log.is_array() && log.size() == 1);
+    RemoveFile(logPath);
+}
+
+static void Test_ActionName_FromFlags()
+{
+    CHECK(std::string(JsonActionName(FlagFor(FLAG_SETVALUE))) == "setValue");
+    CHECK(std::string(JsonActionName(FlagFor(FLAG_SETVALUE) | FlagFor(FLAG_ONLYIFEXISTS))) == "setValue");
+    CHECK(std::string(JsonActionName(FlagFor(FLAG_CREATEVALUE))) == "createJsonPointerValue");
+    CHECK(std::string(JsonActionName(FlagFor(FLAG_DISTINCTVALUES))) == "distinctValues");
+    CHECK(std::string(JsonActionName(FlagFor(FLAG_VALIDATESCHEMA))) == "unknown");
+}
+
 // Timing (On column) gating shared by the scheduling and readValue custom actions. The component
 // state pairs mirror what MsiGetComponentState reports: fresh install (absent -> local), repair
 // (local -> local), uninstall (local -> absent) and a component that is not part of the transaction
@@ -381,6 +483,12 @@ int main(int argc, char** argv)
     RunTest("Timing_BothRow_RunsInEachMatchingPhase", Test_Timing_BothRow_RunsInEachMatchingPhase);
     RunTest("Timing_NullColumn_MeansInstall", Test_Timing_NullColumn_MeansInstall);
     RunTest("Timing_UnchangedComponent_NeverRuns", Test_Timing_UnchangedComponent_NeverRuns);
+    RunTest("DryRun_LeavesFileUntouched", Test_DryRun_LeavesFileUntouched);
+    RunTest("DryRun_ReportsMissingFile", Test_DryRun_ReportsMissingFile);
+    RunTest("Trace_CapturesBeforeAndAfter", Test_Trace_CapturesBeforeAndAfter);
+    RunTest("DescribeJsonAtPath_Markers", Test_DescribeJsonAtPath_Markers);
+    RunTest("TransformLog_AppendsEntries", Test_TransformLog_AppendsEntries);
+    RunTest("ActionName_FromFlags", Test_ActionName_FromFlags);
 
     std::string out = (argc > 1) ? argv[1] : "cpp-tests.xml";
     WriteJUnit(out);

@@ -49,6 +49,11 @@ An extension to [Windows Installer XML (WiX) Toolset](http://wixtoolset.org/) to
   - [Complete Example: Typical .NET 6+ Application](#complete-example-typical-net-6-application)
   - [Best Practices for .NET Configuration](#best-practices-for-net-configuration)
 - [Escaping Special Characters](#escaping-special-characters)
+- [Diagnostics](#diagnostics)
+  - [Dry Run](#dry-run)
+  - [Verbose Logging](#verbose-logging)
+  - [Transform Log](#transform-log)
+  - [Command-Line Harness (jsoncli)](#command-line-harness-jsoncli)
 - [Troubleshooting](#troubleshooting)
 - [Building from Source](#building-from-source)
 - [Contributing](#contributing)
@@ -1459,6 +1464,96 @@ Value="C:\\Program Files\\MyApp\\config.json"
 Value="[INSTALLFOLDER]config.json"
 ```
 
+## Diagnostics
+
+Three public properties switch on diagnostics for a whole transaction. Pass them on the `msiexec` command line (they are read in the immediate phase and handed to the deferred action, so they work for install, repair and uninstall alike):
+
+| Property | Effect |
+|----------|--------|
+| `JSONEXT_DRYRUN=1` | Every operation is logged but nothing is written, and no rollback is scheduled |
+| `JSONEXT_LOGLEVEL=verbose` | The value at each `ElementPath` is logged before and after every operation |
+| `JSONEXT_TRANSFORMLOG=<path>` | A JSON record of every operation is appended to `<path>` |
+
+### Dry Run
+
+```
+msiexec /i MyApp.msi /qn /l*v install.log JSONEXT_DRYRUN=1
+```
+
+The install runs to completion, files are installed, but every `JsonFile` operation short-circuits after logging what it would have done:
+
+```
+WixJsonFile: JSONEXT_DRYRUN is set - JSON operations will be logged but not applied
+...
+WixJsonFile: DRY RUN - would apply setValue to '$.ConnectionStrings.Default' in 'C:\...\appsettings.json' with value 'Server=...' (flags=2, index=-1)
+```
+
+Combine it with `JSONEXT_TRANSFORMLOG` to get the same information as structured JSON, including what each path contained at the time. Use a dry run to check property expansion and paths against a real machine before a rollout, or in CI to prove an installer schedules what you expect. `readValue` operations still run: they modify nothing.
+
+### Verbose Logging
+
+```
+msiexec /i MyApp.msi /qn /l*v install.log JSONEXT_LOGLEVEL=verbose
+```
+
+adds, for every operation, the JSON at the path before and after it:
+
+```
+WixJsonFile: setValue '$.Logging.LogLevel.Default' in 'C:\...\appsettings.json' - before: ["Information"]
+WixJsonFile: setValue '$.Logging.LogLevel.Default' in 'C:\...\appsettings.json' - after: ["Warning"] (hr=0x00000000)
+```
+
+JSONPath snapshots are the array of matches; `createJsonPointerValue` snapshots are the single value at the pointer. A path with no match reads `<no match>`, a missing file `<file not found>`, and a file that does not parse `<not valid JSON>`. Snapshots are truncated at 2 KB. The same lines are also written whenever the MSI log itself is verbose (`/l*v`, or `MsiLogging` containing `v`), so `JSONEXT_LOGLEVEL=verbose` only matters for a non-verbose log.
+
+### Transform Log
+
+```
+msiexec /i MyApp.msi /qn JSONEXT_TRANSFORMLOG=C:\Logs\MyApp-json.log
+```
+
+writes a JSON array with one entry per operation, appended as each operation completes (so it is complete up to the point of a failure, and is not undone by rollback):
+
+```json
+[
+  {
+    "timestamp": "2026-09-13T15:20:36Z",
+    "phase": "install",
+    "file": "C:\\Program Files\\MyApp\\appsettings.json",
+    "action": "setValue",
+    "elementPath": "$.expensive",
+    "value": "15",
+    "index": -1,
+    "flags": 1026,
+    "outcome": "applied",
+    "hresult": "0x00000000",
+    "before": [10],
+    "after": [15]
+  }
+]
+```
+
+`outcome` is one of `applied`, `skipped` (an `OnlyIfExists` miss), `dry-run` or `failed`; `after` is omitted when nothing was written. The same file can be reused across transactions: entries from an uninstall carry `"phase": "uninstall"`. A transform log that cannot be written is reported in the MSI log and never fails the install.
+
+### Command-Line Harness (jsoncli)
+
+The NuGet package ships `tools/jsoncli.exe`, a console harness that runs the exact transform code of the custom action against a JSON file, outside of any MSI. Use it to try an `ElementPath` against a sample file, preview an action, or reproduce an operation from a transform log:
+
+```
+jsoncli <action> <jsonFile> <elementPath> [value] [--index n] [--schema file] [--only-if-exists] [--dry-run] [--quiet]
+jsoncli readValue <jsonFile> <elementPath> [--default value]
+jsoncli validateSchema <jsonFile> <schemaFile>
+```
+
+```
+> jsoncli setValue appsettings.json $.Logging.LogLevel.Default Warning
+setValue $.Logging.LogLevel.Default in appsettings.json
+  before:  ["Information"]
+  after:   ["Warning"]
+  outcome: applied (hr=0x00000000)
+```
+
+Values and paths are taken literally: `[PROPERTY]` references are not expanded and brackets need no MSI escaping (`$.a[0]`, not `$.a[\[]0[\]]`). The exit code is 0 on success, 1 when the operation fails and 2 for a usage error, so it can gate a CI job. The tool lives in the package's `tools` folder (for example `%USERPROFILE%\.nuget\packages\wixjsonfileextension\<version>\tools`).
+
 ## Troubleshooting
 
 ### Common Issues
@@ -1498,6 +1593,9 @@ Value="[INSTALLFOLDER]config.json"
      - **Property name format**: Warns if property names aren't uppercase
 
 ### Debugging Tips
+
+- Run the install with `JSONEXT_LOGLEVEL=verbose` and `JSONEXT_TRANSFORMLOG=<path>` to see exactly what each operation found and wrote, or `JSONEXT_DRYRUN=1` to see what it would do without changing anything (see [Diagnostics](#diagnostics)).
+- Reproduce a single operation outside MSI with `tools\jsoncli.exe` from the package.
 
 - Use the `readValue` action to verify paths are correct before modifying
 - Test your JSONPath expressions in an online evaluator like [jsonpath.com](https://jsonpath.com/)

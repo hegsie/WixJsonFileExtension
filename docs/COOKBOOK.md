@@ -762,6 +762,20 @@ Generate a detailed log file to troubleshoot JSON file operations:
 msiexec /i YourInstaller.msi /l*v install.log
 ```
 
+### Dry Run, Verbose Snapshots and the Transform Log
+```
+msiexec /i MyApp.msi /qn /l*v install.log JSONEXT_DRYRUN=1 JSONEXT_TRANSFORMLOG=C:\temp\json-ops.json
+msiexec /i MyApp.msi /qn /l*v install.log JSONEXT_LOGLEVEL=verbose
+```
+The first command applies nothing and writes one JSON record per operation, with the value found at each path; the second logs the value before and after every operation in the MSI log. See the README's Diagnostics section.
+
+### Try a Path Outside MSI
+```
+jsoncli readValue appsettings.json $.ConnectionStrings.Default
+jsoncli setValue appsettings.json $.Logging.LogLevel.Default Warning --dry-run
+```
+`tools\jsoncli.exe` from the NuGet package runs the custom action's transform code directly against a file.
+
 ### Search for JSON Operations
 Look for these patterns in the log:
 - `ExecJsonFile` - Custom action execution
