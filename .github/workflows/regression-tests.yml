@@ -395,9 +395,12 @@ jobs:
         $log = Join-Path $env:RUNNER_TEMP "repair.log"
         Remove-Item -Path $log -ErrorAction SilentlyContinue
 
-        # /fa reinstalls every file, so the install-time rows run again on a fresh appsettings.json
-        # exactly as on first install. The uninstall-time rows must stay idle: a repair is not a removal.
-        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/fa `"$msi`" /qn /norestart /l*v `"$log`" LIFECYCLE_PHASE=repair LOG_DIRECTORY=C:\temp\" -Wait -PassThru
+        # A repair with public properties has to be spelled /i + REINSTALL=ALL: msiexec's /f switch
+        # accepts no property assignments (anything after the package is silently dropped, as the
+        # "Command Line:" entry in the log shows). REINSTALLMODE=amus reinstalls every file, so the
+        # install-time rows run again on a fresh appsettings.json exactly as on first install. The
+        # uninstall-time rows must stay idle: a repair is not a removal.
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msi`" REINSTALL=ALL REINSTALLMODE=amus /qn /norestart /l*v `"$log`" LIFECYCLE_PHASE=repair LOG_DIRECTORY=C:\temp\" -Wait -PassThru
         Write-Host "repair exit code: $($p.ExitCode)"
         Check ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) "MSI repair succeeded (exit $($p.ExitCode))"
         if (-not ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) -and (Test-Path $log)) { Write-Host "----- repair log -----"; Get-Content -Path $log }
