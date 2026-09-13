@@ -245,8 +245,11 @@
         <xs:annotation>
           <xs:documentation>
             Path to a JSON schema file for validation. The JSON file will be validated against this schema
-            after modifications. If validation fails, the installation will fail.
-            Supports basic JSON Schema features (type checking, required properties).
+            after the modification. If validation fails, the installation will fail, and every violation is
+            written to the log with its location in the document. Drafts 4, 6, 7, 2019-09 and 2020-12 are
+            supported (chosen by the schema's $schema, 2020-12 when absent) with the full keyword set:
+            nested properties and items, required, enum, pattern, minimum/maximum, format, $ref within the
+            document, allOf/anyOf/oneOf/not and if/then/else.
           </xs:documentation>
         </xs:annotation>
       </xs:attribute>

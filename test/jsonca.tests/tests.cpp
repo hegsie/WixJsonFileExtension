@@ -235,6 +235,51 @@ static void Test_Write_LeavesNoTempFile()
     RemoveFile(path);
 }
 
+static void Test_Schema_EnforcesNestedKeywords()
+{
+    // The hand-rolled validator only checked the root type, root required and top-level property
+    // types; the jsoncons validator enforces the whole schema.
+    auto schemaPath = WriteTempJson(R"({
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+            "items": { "type": "array", "items": { "type": "object", "required": ["name"],
+                       "properties": { "name": { "type": "string", "pattern": "^[a-z]+$" } } } },
+            "mode": { "enum": ["fast", "safe"] },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+        }
+    })");
+
+    auto good = WriteTempJson(R"({"items":[{"name":"abc"}],"mode":"fast","port":80})");
+    CHECK_HR(ValidateJsonSchema(good.c_str(), schemaPath.c_str()));
+
+    auto missingNested = WriteTempJson(R"({"items":[{"title":"abc"}]})");
+    CHECK(FAILED(ValidateJsonSchema(missingNested.c_str(), schemaPath.c_str())));
+
+    auto badEnum = WriteTempJson(R"({"mode":"slow"})");
+    CHECK(FAILED(ValidateJsonSchema(badEnum.c_str(), schemaPath.c_str())));
+
+    auto badPattern = WriteTempJson(R"({"items":[{"name":"ABC"}]})");
+    CHECK(FAILED(ValidateJsonSchema(badPattern.c_str(), schemaPath.c_str())));
+
+    auto badRange = WriteTempJson(R"({"port":70000})");
+    CHECK(FAILED(ValidateJsonSchema(badRange.c_str(), schemaPath.c_str())));
+
+    auto notInteger = WriteTempJson(R"({"port":80.5})");
+    CHECK(FAILED(ValidateJsonSchema(notInteger.c_str(), schemaPath.c_str())));
+
+    for (auto& p : { schemaPath, good, missingNested, badEnum, badPattern, badRange, notInteger }) RemoveFile(p);
+}
+
+static void Test_Schema_BadSchemaFails()
+{
+    auto schemaPath = WriteTempJson(R"({"$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"a":{"$ref":"#/definitions/missing"}}})");
+    auto data = WriteTempJson(R"({"a":1})");
+    CHECK(FAILED(ValidateJsonSchema(data.c_str(), schemaPath.c_str())));
+    RemoveFile(schemaPath);
+    RemoveFile(data);
+}
+
 static void Test_Schema_ValidPasses_InvalidFails()
 {
     auto schemaPath = WriteTempJson(
@@ -667,6 +712,8 @@ int main(int argc, char** argv)
     RunTest("DistinctArray_RemovesDuplicates", Test_DistinctArray_RemovesDuplicates);
     RunTest("Write_LeavesNoTempFile", Test_Write_LeavesNoTempFile);
     RunTest("Schema_ValidPasses_InvalidFails", Test_Schema_ValidPasses_InvalidFails);
+    RunTest("Schema_EnforcesNestedKeywords", Test_Schema_EnforcesNestedKeywords);
+    RunTest("Schema_BadSchemaFails", Test_Schema_BadSchemaFails);
     RunTest("Timing_InstallRow_RunsOnlyInInstallPhase", Test_Timing_InstallRow_RunsOnlyInInstallPhase);
     RunTest("Timing_UninstallRow_RunsOnlyInUninstallPhase", Test_Timing_UninstallRow_RunsOnlyInUninstallPhase);
     RunTest("Timing_BothRow_RunsInEachMatchingPhase", Test_Timing_BothRow_RunsInEachMatchingPhase);

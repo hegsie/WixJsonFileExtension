@@ -797,6 +797,46 @@ jobs:
         if ($script:failed) { Write-Host "`nSchema-failure sad-path assertions FAILED"; exit 1 }
         Write-Host "`n✓ Schema violation correctly aborted the install for the right reason"
 
+    - name: Sad path - nested schema violation aborts install
+      shell: pwsh
+      run: |
+        $failed = $false
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
+        }
+
+        Note ""
+        Note "## Sad path: nested schema violation aborts install"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
+
+        $msi = (Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse | Select-Object -First 1).FullName
+        $log = Join-Path $env:RUNNER_TEMP "schema-nested-failure.log"
+        Remove-Item -Path $log -ErrorAction SilentlyContinue
+
+        # TEST_SCHEMA_NESTED_FAILURE=1 enables a component whose JSON satisfies the root of the
+        # schema but has a book item without the required "author": only a full validator sees it.
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msi`" /qn /norestart /l*v `"$log`" TEST_SCHEMA_NESTED_FAILURE=1" -Wait -PassThru
+        Write-Host "msiexec exit code: $($p.ExitCode)"
+
+        $nonZero = ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010)
+        Check $nonZero "install failed as expected (exit $($p.ExitCode))"
+
+        $content = if (Test-Path $log) { Get-Content -Path $log -Raw } else { "" }
+        Check ($content -match [regex]::Escape("Schema validation failed")) "extension reported a schema validation failure"
+        Check ($content -match "Schema violation at '/store/book/0'") "the violation was reported at its instance location (/store/book/0)"
+        Check ($content -match "Schema violation at '/store/book/0' \(required\)") "the violated keyword (required) was named"
+
+        if (-not $nonZero) {
+          Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$msi`" /qn /norestart" -Wait | Out-Null
+        }
+
+        if ($script:failed) { Write-Host "`nNested schema sad-path assertions FAILED"; exit 1 }
+        Write-Host "`n✓ Nested schema violation correctly aborted the install for the right reason"
+
     - name: Verify repository test JSON fixtures
       shell: pwsh
       run: |
@@ -814,7 +854,7 @@ jobs:
         Note "| --- | --- |"
 
         # Valid fixtures should parse.
-        foreach ($f in @("TestJsonConfigInstaller\appsettings.json", "TestJsonConfigInstaller\appsettings.dotnet.json")) {
+        foreach ($f in @("TestJsonConfigInstaller\appsettings.json", "TestJsonConfigInstaller\appsettings.dotnet.json", "TestJsonConfigInstaller\schema-nested-invalid.json")) {
           $ok = $true
           try { $null = Get-Content $f -Raw | ConvertFrom-Json } catch { $ok = $false }
           Check $ok "fixture parses as valid JSON: $f"

@@ -1141,24 +1141,25 @@ Example schema file (`config-schema.json`):
 }
 ```
 
-The installer will fail if the modified JSON does not conform to the schema, preventing configuration corruption.
+The installer will fail if the modified JSON does not conform to the schema, preventing configuration corruption. Every violation is written to the MSI log with its location in the document and the keyword it breaks, for example:
+
+```
+Schema violation at '/store/book/0' (required): Required property 'author' not found.
+JSON schema validation failed with 1 violation(s)
+```
 
 **Schema Validation Capabilities:**
 
-The extension provides basic JSON Schema validation including:
-- ✅ Root type validation (object, array, string, number, boolean, null)
-- ✅ Required properties checking
-- ✅ Property type validation
-- ✅ Basic integer/number type matching
+Validation is done by the jsoncons JSON Schema validator, so the whole schema is enforced:
+- ✅ Drafts 4, 6, 7, 2019-09 and 2020-12, chosen by the schema's `$schema` (2020-12 when absent)
+- ✅ Nested `properties`, `items`, `additionalProperties`, `required` at any depth
+- ✅ `enum`, `const`, `pattern`, `minimum`/`maximum`, `minLength`/`maxLength`, `minItems`/`uniqueItems` and the other value constraints
+- ✅ `integer` (whole numbers only), `format` for the standard formats
+- ✅ `$ref` within the schema document (`definitions` / `$defs`), `allOf`/`anyOf`/`oneOf`/`not`, `if`/`then`/`else`
 
-**Limitations:**
-- ❌ Integer values are not checked for whole numbers (any numeric value is accepted)
-- ❌ $ref references not supported
-- ❌ Pattern, enum, min/max constraints not validated
-- ❌ Complex schemas with conditional logic (if/then/else) not supported
-- ❌ Format validation not implemented
+`$ref` to another file or URL is not resolved; keep referenced definitions inside the schema file. The validation runs after the operation it is attached to, against the whole file, so attach `SchemaFile` to the last operation on a file (or to each one whose intermediate state must be valid).
 
-For more complex validation needs, consider pre-validating your JSON files separately or using a dedicated JSON Schema validation tool.
+> **Upgrading from 7.x:** earlier versions validated only the root type, the root `required` list and the types of top-level properties. Schemas that used to pass may now report violations in nested structures that were previously ignored; those are real mismatches between the file and the schema. Run the install with `JSONEXT_DRYRUN=1` first if in doubt (the validation is skipped in a dry run, but the log shows which operations carry a `SchemaFile`), or check the file with `jsoncli validateSchema`.
 
 ### Advanced JSONPath Features
 

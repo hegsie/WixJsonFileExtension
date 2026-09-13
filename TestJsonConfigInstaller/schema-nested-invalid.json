@@ -1,0 +1,8 @@
+{
+  "store": {
+    "book": [
+      { "category": "fiction", "title": "No Author Here", "price": 1.5 }
+    ]
+  },
+  "expensive": 3
+}
