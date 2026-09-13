@@ -158,7 +158,7 @@ Install-Package WixJsonFileExtension
 ### Using PackageReference in .csproj/.wixproj
 
 ```xml
-<PackageReference Include="WixJsonFileExtension" Version="7.0.0" />
+<PackageReference Include="WixJsonFileExtension" Version="7.1.0" />
 ```
 
 ## Quick Start
