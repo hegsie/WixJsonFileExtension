@@ -402,13 +402,26 @@ jobs:
         Check ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) "MSI repair succeeded (exit $($p.ExitCode))"
         if (-not ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) -and (Test-Path $log)) { Write-Host "----- repair log -----"; Get-Content -Path $log }
 
+        # Diagnostics: component states the engine decided on, the property as seen by the
+        # install session, and everything the extension logged.
+        Write-Host "----- repair log: component states / properties / extension -----"
+        if (Test-Path $log) {
+          Get-Content -Path $log | Where-Object { $_ -match "Component: (LifecycleComponent|ProductComponent)|LIFECYCLE_PHASE|REINSTALL|JsonFile|Action start [\d:]+: (WixSched|WixExec|WixProperty)" } | ForEach-Object { Write-Host $_ }
+        }
+        Write-Host "----- lifecycle.json after repair -----"
+        Get-Content -Path "C:\JsonRegression\lifecycle.json" -Raw -Encoding UTF8 | Write-Host
+
         $lc = Get-Content -Path "C:\JsonRegression\lifecycle.json" -Raw -Encoding UTF8 | ConvertFrom-Json
         Check ($lc.lifecycle.phase -eq 'repair') "On=both setValue ran at repair time (phase=repair)"
         Check ($lc.lifecycle.installed -eq $true) "On=install rows ran on repair (installed=true)"
         Check ($lc.lifecycle.marker -eq 'present') "marker still present after repair"
         Check (-not ($lc.lifecycle.PSObject.Properties.Name -contains 'readBack')) "On=uninstall rows did not run on repair (no readBack)"
 
-        if ($script:failed) { Write-Host "`nOn-timing (repair) assertions FAILED"; exit 1 }
+        if ($script:failed) {
+          Write-Host "`nOn-timing (repair) assertions FAILED"
+          if (Test-Path $log) { Write-Host "----- full repair log -----"; Get-Content -Path $log }
+          exit 1
+        }
         Write-Host "`n✓ On-timing (repair) assertions passed"
 
     # A major upgrade needs a second package with a higher version and its own ProductCode.
@@ -462,7 +475,13 @@ jobs:
         Check ($lc.lifecycle.installed -eq $true) "installed=true after upgrade"
         Check ($lc.lifecycle.phase -eq 'upgrade') "On=both row last ran in the v2 install (phase=upgrade)"
 
-        if ($script:failed) { Write-Host "`nOn-timing (upgrade) assertions FAILED"; exit 1 }
+        if ($script:failed) {
+          Write-Host "`nOn-timing (upgrade) assertions FAILED"
+          Write-Host "----- lifecycle.json after upgrade -----"
+          Get-Content -Path "C:\JsonRegression\lifecycle.json" -Raw -Encoding UTF8 | Write-Host
+          if (Test-Path $log) { Write-Host "----- full upgrade log -----"; Get-Content -Path $log }
+          exit 1
+        }
         Write-Host "`n✓ On-timing (upgrade) assertions passed"
 
     - name: Uninstall product and verify On timing
@@ -513,7 +532,13 @@ jobs:
         $appPath = Join-Path (Join-Path $env:ProgramFiles "TestJsonConfigInstaller") "appsettings.json"
         Check (-not (Test-Path $appPath)) "installed appsettings.json was removed by the uninstall"
 
-        if ($script:failed) { Write-Host "`nOn-timing (uninstall) assertions FAILED"; exit 1 }
+        if ($script:failed) {
+          Write-Host "`nOn-timing (uninstall) assertions FAILED"
+          Write-Host "----- lifecycle.json after uninstall -----"
+          Get-Content -Path "C:\JsonRegression\lifecycle.json" -Raw -Encoding UTF8 | Write-Host
+          Write-Host "----- full uninstall log -----"; Get-Content -Path $log
+          exit 1
+        }
         Write-Host "`n✓ On-timing (uninstall) assertions passed"
 
     - name: Sad path - invalid JSON aborts install
