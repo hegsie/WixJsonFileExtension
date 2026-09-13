@@ -43,6 +43,11 @@
         <Json:JsonFile Id="SmokeReadValue" File="[INSTALLFOLDER]appsettings.json"
                        ElementPath="$.Version" DefaultValue="1.0" Action="readValue" Property="SMOKE_VERSION" />
 
+        <!-- On="uninstall" pulls in the uninstall-time scheduling action (WixSchedJsonFileUninstall,
+             sequenced before RemoveFiles), so the smoke build also proves that fragment links. -->
+        <Json:JsonFile Id="SmokeUninstallDelete" File="[INSTALLFOLDER]appsettings.json"
+                       ElementPath="$.Logging.LogLevel.Default" Action="deleteValue" On="uninstall" />
+
         <Json:JsonTransaction Id="SmokeTransaction" File="[INSTALLFOLDER]appsettings.json">
           <Json:JsonFile Id="SmokeTxnSet" ElementPath="$.Feature.Name" Value="Smoke" Action="setValue" />
           <Json:JsonFile Id="SmokeTxnAppend" ElementPath="$.Feature.Tags" Value="ci" Action="appendArray" />

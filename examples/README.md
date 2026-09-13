@@ -133,6 +133,25 @@ High-level composite elements and JsonTransaction grouping for cleaner authoring
 - ✅ **Type safety** - Specific attributes for common patterns
 - 📚 **Best practices** - Follows .NET conventions automatically
 
+### 8. UninstallCleanup.wxs ⭐ NEW
+Uninstall-time and both-time JSON modifications with the `On` attribute.
+
+**Scenarios covered:**
+- Registering with a shared configuration file the product does not own
+- Removing that registration again on uninstall (`On="uninstall"`)
+- Keeping a stamp current at both install and uninstall time (`On="both"`)
+- Remembering a setting's previous value and restoring it on uninstall (uninstall-time `readValue`)
+
+**Usage:**
+```xml
+<ComponentGroupRef Id="UninstallCleanupComponents" />
+```
+
+**Key points:**
+- Uninstall-time modifications run before `RemoveFiles`, so the target file still exists
+- The same `Action` and `Value` apply at each time; a revert is its own element
+- Only useful for files that outlive the component (shared, machine-wide or permanent files)
+
 
 ## How to Use These Examples
 

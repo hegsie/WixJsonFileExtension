@@ -3,6 +3,7 @@ LIBRARY "jsonca"
 EXPORTS
 ; JsonFile.cpp
 	SchedJsonFile
+    SchedJsonFileUninstall
     ExecJsonFile
     ExecJsonFileRollback
     ReadValueJsonFile

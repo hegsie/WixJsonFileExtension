@@ -114,6 +114,8 @@ jobs:
     #   readValue, setValue, replaceJsonValue, createJsonPointerValue, deleteValue,
     #   appendArray, insertArray (Index 0 and -1), removeArrayElement, distinctValues,
     #   validateSchema, OnlyIfExists, non-ASCII values, invalid JSON.
+    # Plus the On attribute (install / uninstall / both timing) across the whole product
+    # lifecycle: install, repair, major upgrade to a second build of the same package, uninstall.
     # ---------------------------------------------------------------------------
 
     - name: Prepare readValue source file
@@ -155,6 +157,23 @@ jobs:
         } else {
           Note "| ❌ | Failed to create/verify readValue source ($readSrc) |"
           Write-Host "✗ Failed to create/verify $readSrc"
+          exit 1
+        }
+
+        # Seed the fixture for the On attribute (install/uninstall timing) regression. It lives
+        # outside the install directory because it has to outlive the product: the uninstall-time
+        # rows edit it after the product's own files are gone, and the assertions read it back
+        # after each of install, repair, upgrade and uninstall (see LifecycleComponent in
+        # Product.wxs for the expected state after each step).
+        $lifecycle = Join-Path $dir "lifecycle.json"
+        '{ "lifecycle": { "installed": false, "phase": "none" } }' | Out-File -FilePath $lifecycle -Encoding UTF8
+        $probe = Get-Content -Path $lifecycle -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($probe.lifecycle.installed -eq $false -and $probe.lifecycle.phase -eq 'none') {
+          Note "| ✅ | Seeded On-timing fixture ($lifecycle) |"
+          Write-Host "✓ Seeded $lifecycle"
+        } else {
+          Note "| ❌ | Failed to seed On-timing fixture ($lifecycle) |"
+          Write-Host "✗ Failed to seed $lifecycle"
           exit 1
         }
 
@@ -312,30 +331,190 @@ jobs:
         if ($script:failed) { exit 1 }
         Write-Host "`n✓ validateSchema (happy) assertion passed"
 
-    - name: Uninstall happy-path product
+    # ---------------------------------------------------------------------------
+    # On attribute (install / uninstall / both timing) across the product lifecycle.
+    #
+    # LifecycleComponent in Product.wxs edits C:\JsonRegression\lifecycle.json with rows timed
+    # On="install", On="uninstall" and On="both" (including an uninstall-time readValue), and
+    # ProductComponent carries an On="uninstall" row against the installed appsettings.json.
+    # Each transaction below passes LIFECYCLE_PHASE so the On="both" row records which one ran it.
+    # ---------------------------------------------------------------------------
+
+    - name: Verify On timing after install
       shell: pwsh
       run: |
+        $failed = $false
         function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
+        }
+
         Note ""
-        Note "## Uninstall (happy path)"
+        Note "## On timing: after install"
         Note ""
         Note "| Result | Check |"
         Note "| --- | --- |"
 
-        # Uninstall via the package path (no ProductCode coupling that could drift from Product.wxs).
+        $lc = Get-Content -Path "C:\JsonRegression\lifecycle.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+        Check ($lc.lifecycle.installed -eq $true) "On=install setValue ran (installed=true)"
+        Check ($lc.lifecycle.marker -eq 'present') "On=install createJsonPointerValue ran (marker=present)"
+        Check ($lc.lifecycle.phase -eq 'install') "On=both setValue ran at install time (phase=install)"
+        Check (-not ($lc.lifecycle.PSObject.Properties.Name -contains 'readBack')) "On=uninstall rows did not run at install time (no readBack)"
+
+        # The On=uninstall row against the installed file must not have touched it.
+        $appPath = Join-Path (Join-Path $env:ProgramFiles "TestJsonConfigInstaller") "appsettings.json"
+        $j = Get-Content -Path $appPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        Check ($j.expensive -eq 15) "On=uninstall setValue on the installed file did not run at install time (expensive still 15)"
+
+        # Both schedulers are sequenced; the uninstall-time one ran as a no-op.
+        $log = Get-Content -Path (Join-Path $env:RUNNER_TEMP "happy-install.log") -Raw
+        Check ($log -match "Action start [\d:]+: WixSchedJsonFileUninstall_X64\.") "uninstall-time scheduler is sequenced in the install transaction"
+        Check ($log -match "Action start [\d:]+: WixSchedJsonFile_X64\.") "install-time scheduler is sequenced in the install transaction"
+
+        if ($script:failed) { Write-Host "`nOn-timing (install) assertions FAILED"; exit 1 }
+        Write-Host "`n✓ On-timing (install) assertions passed"
+
+    - name: Repair product and verify On timing
+      shell: pwsh
+      run: |
+        $failed = $false
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
+        }
+
+        Note ""
+        Note "## On timing: repair"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
+
         $msi = (Get-ChildItem -Path "TestJsonConfigInstaller\bin" -Filter "*.msi" -Recurse | Select-Object -First 1).FullName
+        $log = Join-Path $env:RUNNER_TEMP "repair.log"
+        Remove-Item -Path $log -ErrorAction SilentlyContinue
+
+        # /fa reinstalls every file, so the install-time rows run again on a fresh appsettings.json
+        # exactly as on first install. The uninstall-time rows must stay idle: a repair is not a removal.
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/fa `"$msi`" /qn /norestart /l*v `"$log`" LIFECYCLE_PHASE=repair LOG_DIRECTORY=C:\temp\" -Wait -PassThru
+        Write-Host "repair exit code: $($p.ExitCode)"
+        Check ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) "MSI repair succeeded (exit $($p.ExitCode))"
+        if (-not ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) -and (Test-Path $log)) { Write-Host "----- repair log -----"; Get-Content -Path $log }
+
+        $lc = Get-Content -Path "C:\JsonRegression\lifecycle.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+        Check ($lc.lifecycle.phase -eq 'repair') "On=both setValue ran at repair time (phase=repair)"
+        Check ($lc.lifecycle.installed -eq $true) "On=install rows ran on repair (installed=true)"
+        Check ($lc.lifecycle.marker -eq 'present') "marker still present after repair"
+        Check (-not ($lc.lifecycle.PSObject.Properties.Name -contains 'readBack')) "On=uninstall rows did not run on repair (no readBack)"
+
+        if ($script:failed) { Write-Host "`nOn-timing (repair) assertions FAILED"; exit 1 }
+        Write-Host "`n✓ On-timing (repair) assertions passed"
+
+    # A major upgrade needs a second package with a higher version and its own ProductCode.
+    # Product.wxs takes the version from the TestProductVersion preprocessor variable (default
+    # 1.0.0.0) and auto-generates the ProductCode, so the same sources build the upgrade package.
+    # Separate output and intermediate directories keep it apart from the v1 build the other steps
+    # pick up from TestJsonConfigInstaller\bin.
+    - name: Build v2 test installer for the major upgrade
+      shell: pwsh
+      run: |
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=x64 /p:DefineConstants="TestProductVersion=2.0.0.0" /p:OutputPath=..\upgrade-msi\ /p:IntermediateOutputPath=..\upgrade-obj\ /p:OutputName=TestJsonConfigInstaller-v2 TestJsonConfigInstaller\TestJsonConfigInstaller.wixproj
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        $msi2 = Get-ChildItem -Path "upgrade-msi" -Filter "TestJsonConfigInstaller-v2.msi" -Recurse | Select-Object -First 1
+        if (-not $msi2) { Write-Error "v2 test installer not found under upgrade-msi"; exit 1 }
+        Write-Host "✓ Built v2 test installer: $($msi2.FullName)"
+
+    - name: Major upgrade to v2 and verify On timing
+      shell: pwsh
+      run: |
+        $failed = $false
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
+        }
+
+        Note ""
+        Note "## On timing: major upgrade"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
+
+        $msi2 = (Get-ChildItem -Path "upgrade-msi" -Filter "TestJsonConfigInstaller-v2.msi" -Recurse | Select-Object -First 1).FullName
+        $log = Join-Path $env:RUNNER_TEMP "upgrade.log"
+        Remove-Item -Path $log -ErrorAction SilentlyContinue
+
+        # RemoveExistingProducts (afterInstallValidate) uninstalls v1 - running its On=uninstall rows,
+        # with v1's own default LIFECYCLE_PHASE - before v2's InstallFiles and On=install rows run
+        # with the LIFECYCLE_PHASE passed here.
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$msi2`" /qn /norestart /l*v `"$log`" LIFECYCLE_PHASE=upgrade LOG_DIRECTORY=C:\temp\" -Wait -PassThru
+        Write-Host "upgrade exit code: $($p.ExitCode)"
+        Check ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) "MSI major upgrade succeeded (exit $($p.ExitCode))"
+        if (-not ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) -and (Test-Path $log)) { Write-Host "----- upgrade log -----"; Get-Content -Path $log }
+
+        $content = if (Test-Path $log) { Get-Content -Path $log -Raw } else { "" }
+        Check ($content -match "Action start [\d:]+: RemoveExistingProducts\.") "RemoveExistingProducts ran (v1 was uninstalled by the upgrade)"
+
+        $lc = Get-Content -Path "C:\JsonRegression\lifecycle.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+        Check ($lc.lifecycle.readBack -eq 'present') "v1's On=uninstall rows ran during the upgrade (readBack=present)"
+        Check ($lc.lifecycle.marker -eq 'present') "v2's On=install rows ran after v1's removal (marker recreated)"
+        Check ($lc.lifecycle.installed -eq $true) "installed=true after upgrade"
+        Check ($lc.lifecycle.phase -eq 'upgrade') "On=both row last ran in the v2 install (phase=upgrade)"
+
+        if ($script:failed) { Write-Host "`nOn-timing (upgrade) assertions FAILED"; exit 1 }
+        Write-Host "`n✓ On-timing (upgrade) assertions passed"
+
+    - name: Uninstall product and verify On timing
+      shell: pwsh
+      run: |
+        $failed = $false
+        function Note([string]$line) { $line | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+        function Check([bool]$cond, [string]$msg) {
+          if ($cond) { Write-Host "  [PASS] $msg"; Note "| ✅ | $msg |" }
+          else { Write-Host "  [FAIL] $msg"; Note "| ❌ | $msg |"; $script:failed = $true }
+        }
+
+        Note ""
+        Note "## On timing: uninstall"
+        Note ""
+        Note "| Result | Check |"
+        Note "| --- | --- |"
+
+        # v2 is the product that is installed now (the upgrade removed v1). Uninstall via the
+        # package path (no ProductCode coupling; it is auto-generated per build).
+        $msi2 = (Get-ChildItem -Path "upgrade-msi" -Filter "TestJsonConfigInstaller-v2.msi" -Recurse | Select-Object -First 1).FullName
         $log = Join-Path $env:RUNNER_TEMP "uninstall.log"
         Remove-Item -Path $log -ErrorAction SilentlyContinue
-        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$msi`" /qn /norestart /l*v `"$log`"" -Wait -PassThru
+        $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$msi2`" /qn /norestart /l*v `"$log`" LIFECYCLE_PHASE=uninstall" -Wait -PassThru
         Write-Host "Uninstall exit code: $($p.ExitCode)"
-        if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) {
-          Note "| ✅ | MSI uninstall succeeded (exit $($p.ExitCode)) |"
-        } else {
-          Note "| ❌ | MSI uninstall failed (exit $($p.ExitCode)) — later steps may be affected |"
-          Write-Host "✗ Uninstall failed; later install steps may be affected"
-          if (Test-Path $log) { Get-Content -Path $log }
+        $ok = ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010)
+        Check $ok "MSI uninstall succeeded (exit $($p.ExitCode))"
+        if (-not $ok) {
+          Note "| ❌ | Uninstall failed — later steps may be affected |"
+          if (Test-Path $log) { Write-Host "----- uninstall log -----"; Get-Content -Path $log }
           exit 1
         }
+
+        $lc = Get-Content -Path "C:\JsonRegression\lifecycle.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+        Check ($lc.lifecycle.installed -eq $false) "On=uninstall setValue reverted installed to false"
+        Check (-not ($lc.lifecycle.PSObject.Properties.Name -contains 'marker')) "On=uninstall deleteValue removed the marker"
+        Check ($lc.lifecycle.phase -eq 'uninstall') "On=both setValue ran at uninstall time (phase=uninstall)"
+        Check ($lc.lifecycle.readBack -eq 'present') "On=uninstall readValue read the marker before it was deleted (readBack=present)"
+
+        # Ordering proof: the uninstall-time scheduler runs before RemoveFiles, and the deferred
+        # action edited the product's own appsettings.json while it still existed (had it run after
+        # RemoveFiles the setValue would have failed with file-not-found and so would the uninstall).
+        $content = Get-Content -Path $log -Raw
+        $sched = [regex]::Match($content, "Action start [\d:]+: WixSchedJsonFileUninstall_X64\.")
+        $remove = [regex]::Match($content, "Action start [\d:]+: RemoveFiles\.")
+        Check ($sched.Success -and $remove.Success -and $sched.Index -lt $remove.Index) "WixSchedJsonFileUninstall is sequenced before RemoveFiles"
+        Check ($content -match "Configuring JSON file: [^\r\n]*appsettings\.json") "On=uninstall row edited the installed appsettings.json during uninstall"
+        $appPath = Join-Path (Join-Path $env:ProgramFiles "TestJsonConfigInstaller") "appsettings.json"
+        Check (-not (Test-Path $appPath)) "installed appsettings.json was removed by the uninstall"
+
+        if ($script:failed) { Write-Host "`nOn-timing (uninstall) assertions FAILED"; exit 1 }
+        Write-Host "`n✓ On-timing (uninstall) assertions passed"
 
     - name: Sad path - invalid JSON aborts install
       shell: pwsh

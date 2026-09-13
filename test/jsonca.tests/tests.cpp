@@ -250,6 +250,57 @@ static void Test_Schema_ValidPasses_InvalidFails()
     RemoveFile(badPath);
 }
 
+// Timing (On column) gating shared by the scheduling and readValue custom actions. The component
+// state pairs mirror what MsiGetComponentState reports: fresh install (absent -> local), repair
+// (local -> local), uninstall (local -> absent) and a component that is not part of the transaction
+// (local -> unknown, i.e. no change requested).
+static void Test_Timing_InstallRow_RunsOnlyInInstallPhase()
+{
+    CHECK(JsonRowRunsInPhase(TIMING_INSTALL, INSTALLSTATE_ABSENT, INSTALLSTATE_LOCAL, jpInstall));
+    CHECK(JsonRowRunsInPhase(TIMING_INSTALL, INSTALLSTATE_LOCAL, INSTALLSTATE_LOCAL, jpInstall));   // repair
+    CHECK(!JsonRowRunsInPhase(TIMING_INSTALL, INSTALLSTATE_LOCAL, INSTALLSTATE_ABSENT, jpInstall)); // uninstalling
+    CHECK(!JsonRowRunsInPhase(TIMING_INSTALL, INSTALLSTATE_ABSENT, INSTALLSTATE_LOCAL, jpUninstall));
+    CHECK(!JsonRowRunsInPhase(TIMING_INSTALL, INSTALLSTATE_LOCAL, INSTALLSTATE_ABSENT, jpUninstall));
+}
+
+static void Test_Timing_UninstallRow_RunsOnlyInUninstallPhase()
+{
+    CHECK(JsonRowRunsInPhase(TIMING_UNINSTALL, INSTALLSTATE_LOCAL, INSTALLSTATE_ABSENT, jpUninstall));
+    CHECK(JsonRowRunsInPhase(TIMING_UNINSTALL, INSTALLSTATE_SOURCE, INSTALLSTATE_REMOVED, jpUninstall));
+    CHECK(!JsonRowRunsInPhase(TIMING_UNINSTALL, INSTALLSTATE_ABSENT, INSTALLSTATE_LOCAL, jpUninstall)); // installing
+    CHECK(!JsonRowRunsInPhase(TIMING_UNINSTALL, INSTALLSTATE_LOCAL, INSTALLSTATE_LOCAL, jpUninstall));  // repair
+    CHECK(!JsonRowRunsInPhase(TIMING_UNINSTALL, INSTALLSTATE_ABSENT, INSTALLSTATE_LOCAL, jpInstall));
+    CHECK(!JsonRowRunsInPhase(TIMING_UNINSTALL, INSTALLSTATE_LOCAL, INSTALLSTATE_ABSENT, jpInstall));
+}
+
+static void Test_Timing_BothRow_RunsInEachMatchingPhase()
+{
+    const int both = TIMING_INSTALL | TIMING_UNINSTALL;
+    CHECK(JsonRowRunsInPhase(both, INSTALLSTATE_ABSENT, INSTALLSTATE_LOCAL, jpInstall));
+    CHECK(JsonRowRunsInPhase(both, INSTALLSTATE_LOCAL, INSTALLSTATE_LOCAL, jpInstall));
+    CHECK(JsonRowRunsInPhase(both, INSTALLSTATE_LOCAL, INSTALLSTATE_ABSENT, jpUninstall));
+    // The phase still has to match the component transition: an install-phase scheduler never
+    // runs a row of a component being removed, and vice versa.
+    CHECK(!JsonRowRunsInPhase(both, INSTALLSTATE_LOCAL, INSTALLSTATE_ABSENT, jpInstall));
+    CHECK(!JsonRowRunsInPhase(both, INSTALLSTATE_ABSENT, INSTALLSTATE_LOCAL, jpUninstall));
+}
+
+static void Test_Timing_NullColumn_MeansInstall()
+{
+    CHECK(JsonRowRunsInPhase(MSI_NULL_INTEGER, INSTALLSTATE_ABSENT, INSTALLSTATE_LOCAL, jpInstall));
+    CHECK(!JsonRowRunsInPhase(MSI_NULL_INTEGER, INSTALLSTATE_LOCAL, INSTALLSTATE_ABSENT, jpUninstall));
+}
+
+static void Test_Timing_UnchangedComponent_NeverRuns()
+{
+    // INSTALLSTATE_UNKNOWN action means the component is not touched by this transaction.
+    const int both = TIMING_INSTALL | TIMING_UNINSTALL;
+    CHECK(!JsonRowRunsInPhase(both, INSTALLSTATE_LOCAL, INSTALLSTATE_UNKNOWN, jpInstall));
+    CHECK(!JsonRowRunsInPhase(both, INSTALLSTATE_LOCAL, INSTALLSTATE_UNKNOWN, jpUninstall));
+    CHECK(!JsonRowRunsInPhase(both, INSTALLSTATE_ABSENT, INSTALLSTATE_UNKNOWN, jpInstall));
+    CHECK(!JsonRowRunsInPhase(both, INSTALLSTATE_ABSENT, INSTALLSTATE_ABSENT, jpUninstall)); // never installed
+}
+
 static void RunTest(const char* name, void (*fn)())
 {
     g_results.push_back(TestResult{ name });
@@ -325,6 +376,11 @@ int main(int argc, char** argv)
     RunTest("DistinctArray_RemovesDuplicates", Test_DistinctArray_RemovesDuplicates);
     RunTest("Write_LeavesNoTempFile", Test_Write_LeavesNoTempFile);
     RunTest("Schema_ValidPasses_InvalidFails", Test_Schema_ValidPasses_InvalidFails);
+    RunTest("Timing_InstallRow_RunsOnlyInInstallPhase", Test_Timing_InstallRow_RunsOnlyInInstallPhase);
+    RunTest("Timing_UninstallRow_RunsOnlyInUninstallPhase", Test_Timing_UninstallRow_RunsOnlyInUninstallPhase);
+    RunTest("Timing_BothRow_RunsInEachMatchingPhase", Test_Timing_BothRow_RunsInEachMatchingPhase);
+    RunTest("Timing_NullColumn_MeansInstall", Test_Timing_NullColumn_MeansInstall);
+    RunTest("Timing_UnchangedComponent_NeverRuns", Test_Timing_UnchangedComponent_NeverRuns);
 
     std::string out = (argc > 1) ? argv[1] : "cpp-tests.xml";
     WriteJUnit(out);

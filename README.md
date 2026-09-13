@@ -36,6 +36,7 @@ An extension to [Windows Installer XML (WiX) Toolset](http://wixtoolset.org/) to
 - [Advanced Features](#advanced-features)
   - [Automatic Rollback Support](#automatic-rollback-support)
   - [Scheduling and Service Dependencies](#scheduling-and-service-dependencies)
+  - [Install and Uninstall Timing](#install-and-uninstall-timing)
   - [Creating New JSON Files](#creating-new-json-files)
 - [Common .NET Configuration Patterns](#common-net-configuration-patterns)
   - [Connection Strings](#connection-strings)
@@ -449,6 +450,7 @@ The `JsonFile` element supports the following actions:
 | `Value` | Conditional | The value to set. Required for `setValue`, `replaceJsonValue`, `createJsonPointerValue`, `appendArray`, and `insertArray` actions. For `removeArrayElement`, `Value` is optional: if omitted, elements matched by the JSONPath expression are removed; if provided, all array elements matching that value are removed. Can be a simple value, property reference like `[PROPERTY_NAME]`, or JSON-formatted string. See "Value typing" below for how values are converted to JSON types |
 | `DefaultValue` | No | Default value to use if the value cannot be read - the path doesn't exist, the file doesn't exist, or the file cannot be parsed (used with `readValue`) |
 | `Property` | Conditional | Windows Installer property to store the read value. Required for `readValue` action |
+| `On` | No | When the modification runs: `install` (default) while the component is being installed or repaired, `uninstall` while it is being uninstalled, or `both`. The same `Action` and `Value` apply at each time; see [Install and Uninstall Timing](#install-and-uninstall-timing) |
 | `Sequence` | No | Order in which modifications are applied. Lower numbers execute first. When omitted, elements are automatically assigned increasing sequence numbers in authoring order, so operations on the same file execute deterministically in the order they appear in your source. Use this to ensure JSON changes happen before services start or in a specific order. All JSON modifications run after `InstallFiles` and before `StartServices` in the standard InstallExecuteSequence |
 | `Index` | No | For `insertArray` action: specifies the index at which to insert. Use -1 or omit to append to end |
 | `SchemaFile` | No | Path to a JSON schema file for validation. The JSON file will be validated against this schema after modifications |
@@ -730,6 +732,59 @@ To ensure JSON configuration changes are applied before Windows services start o
 3. Services are started
 
 This ensures your application configuration is ready before the service attempts to read it.
+
+On uninstall the order is mirrored: services are stopped, uninstall-time JSON modifications (`On="uninstall"`) run, and only then are files removed.
+
+### Install and Uninstall Timing
+
+By default a `JsonFile` element runs while its component is being **installed or repaired**. The `On` attribute selects the other moments in a product's life:
+
+| `On` | Runs when | Scheduled |
+|------|-----------|-----------|
+| `install` (default) | The component is being installed or repaired | After `InstallFiles` |
+| `uninstall` | The component is being uninstalled | Before `RemoveFiles`, so the target file still exists |
+| `both` | Both of the above | At both points |
+
+The element's `Action` and `Value` are applied exactly as authored at each of those times. There is no separate "uninstall value": like WiX's own `util:XmlConfig`, an uninstall-time change is its own element, usually the revert of an install-time one. Nothing is reverted implicitly. Without `On="uninstall"` elements, JSON changes made at install time are left in place when the product is removed.
+
+**Example - add a plugin entry to a shared configuration file and remove it again on uninstall:**
+```xml
+<Component Id="PluginRegistration" Guid="{YOUR-GUID}">
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Plugin" Name="Registered" Type="integer" Value="1" KeyPath="yes" />
+
+  <!-- Install: register the plugin (creating the section if needed) -->
+  <Json:JsonFile Id="RegisterPlugin"
+                 File="[CommonAppDataFolder]HostApp\plugins.json"
+                 ElementPath="/Plugins/MyPlugin/Path"
+                 Value="[INSTALLFOLDER]MyPlugin.dll"
+                 Action="createJsonPointerValue" />
+
+  <!-- Uninstall: unregister it. deleteValue with OnlyIfExists tolerates a hand-edited file. -->
+  <Json:JsonFile Id="UnregisterPlugin"
+                 File="[CommonAppDataFolder]HostApp\plugins.json"
+                 ElementPath="$.Plugins.MyPlugin"
+                 Action="deleteValue"
+                 OnlyIfExists="yes"
+                 On="uninstall" />
+
+  <!-- Both: keep a last-touched stamp current whichever way the component goes -->
+  <Json:JsonFile Id="StampPlugins"
+                 File="[CommonAppDataFolder]HostApp\plugins.json"
+                 ElementPath="/Plugins/LastModifiedBy"
+                 Value="[ProductName] [ProductVersion]"
+                 Action="createJsonPointerValue"
+                 On="both" />
+</Component>
+```
+
+**What to expect across the product lifecycle:**
+- **Install:** `On="install"` and `On="both"` elements run. `On="uninstall"` elements are ignored.
+- **Repair** (`msiexec /f`): the same as install. A repair is not a removal, so `On="uninstall"` elements are ignored.
+- **Uninstall:** `On="uninstall"` and `On="both"` elements run, before `RemoveFiles`. `readValue` with `On="uninstall"` runs in the uninstall's immediate phase, so a property read this way can feed the `Value` of an uninstall-time write.
+- **Major upgrade** (with WiX's default `afterInstallValidate` scheduling): the old package's uninstall-time elements run first, then the new package's install-time elements. Property values passed on the upgrade's command line are not visible to the old package's uninstall; it uses its own defaults.
+- **Rollback:** uninstall-time changes are captured and restored like install-time ones if the uninstall fails.
+
+Uninstall-time changes are only meaningful for a JSON file that **outlives the component**: a machine-wide or shared configuration file, a file owned by another product, or a file marked permanent. A file installed by the same component is edited and then deleted moments later by `RemoveFiles`, which is harmless but pointless.
 
 ### Creating New JSON Files
 

@@ -17,7 +17,8 @@ public static partial class JsonFileDefinitions
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.Sequence), IntermediateFieldType.Number),
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.Property), IntermediateFieldType.String),
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.Index), IntermediateFieldType.Number),
-			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.SchemaFile), IntermediateFieldType.String)
+			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.SchemaFile), IntermediateFieldType.String),
+			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.On), IntermediateFieldType.Number)
 		},
 		typeof(JsonFileSymbol));
 }
@@ -33,7 +34,8 @@ public enum JsonFileSymbolFields
 	Sequence,
 	Property,
 	Index,
-	SchemaFile
+	SchemaFile,
+	On
 }
 
 public class JsonFileSymbol : IntermediateSymbol
@@ -105,5 +107,14 @@ public class JsonFileSymbol : IntermediateSymbol
 	{
 		get => this.Fields[(int)JsonFileSymbolFields.SchemaFile].AsString();
 		set => this.Set((int)JsonFileSymbolFields.SchemaFile, value);
+	}
+
+	/// <summary>
+	/// When the operation runs: 1 = install, 2 = uninstall, 3 = both (see JsonTiming).
+	/// </summary>
+	public int? On
+	{
+		get => this.Fields[(int)JsonFileSymbolFields.On].AsNullableNumber();
+		set => this.Set((int)JsonFileSymbolFields.On, value);
 	}
 }

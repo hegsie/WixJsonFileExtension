@@ -36,11 +36,14 @@ extern "C" UINT WINAPI ReadValueJsonFile(
     MessageExitOnFailure(hr, msierrJsonFileFailedRead, "failed to read WixJsonFile table")
 
     WcaLog(LOGMSG_STANDARD, "Finished Reading WixJsonFile");
-    // loop through all the json configurations
+    // loop through all the json configurations. This immediate action runs after CostFinalize in
+    // every transaction, so a row is honoured when its On timing matches what is happening to its
+    // component: install-timed rows while it is being installed or repaired, uninstall-timed rows
+    // while it is being uninstalled.
     for (pxfc = pxfcHead; pxfc; pxfc = pxfc->pxfcNext)
     {
-        // If it's being installed
-        if (WcaIsInstalling(pxfc->isInstalled, pxfc->isAction))
+        if (JsonRowRunsInPhase(pxfc->iOn, pxfc->isInstalled, pxfc->isAction, jpInstall) ||
+            JsonRowRunsInPhase(pxfc->iOn, pxfc->isInstalled, pxfc->isAction, jpUninstall))
         {
             std::bitset<32> flags(pxfc->iJsonFlags);
             if (flags.test(FLAG_DELETEVALUE) ||

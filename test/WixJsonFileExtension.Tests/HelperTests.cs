@@ -59,6 +59,38 @@ namespace WixJsonFileExtension.Tests
             Assert.True(_compiler.ContainsUnescapedBrackets(path));
         }
 
+        // JsonTiming is internal, so the expected value is passed as its column value (install=1,
+        // uninstall=2, both=3) rather than as the enum, which a public test signature cannot expose.
+        [Theory]
+        [InlineData(null, 1)]        // attribute absent
+        [InlineData("", 1)]          // empty value falls back to the default
+        [InlineData("install", 1)]
+        [InlineData("uninstall", 2)]
+        [InlineData("both", 3)]
+        public void TryParseOn_AcceptsKnownValues(string value, int expected)
+        {
+            Assert.True(JsonCompiler.TryParseOn(value, out var timing));
+            Assert.Equal((JsonTiming)expected, timing);
+        }
+
+        [Theory]
+        [InlineData("Install")]   // case-sensitive, like every other WiX enumeration
+        [InlineData("remove")]
+        [InlineData("yes")]
+        public void TryParseOn_RejectsUnknownValues(string value)
+        {
+            Assert.False(JsonCompiler.TryParseOn(value, out _));
+        }
+
+        [Fact]
+        public void JsonTiming_BothIsUnionOfInstallAndUninstall()
+        {
+            // The custom actions test the bit for the phase they run in, so Both must carry both bits.
+            Assert.True(JsonTiming.Both.HasFlag(JsonTiming.Install));
+            Assert.True(JsonTiming.Both.HasFlag(JsonTiming.Uninstall));
+            Assert.False(JsonTiming.Install.HasFlag(JsonTiming.Uninstall));
+        }
+
         [Theory]
         [InlineData("$.store.book")]                 // no brackets
         [InlineData(@"$.Books[\[]0[\]].Title")]      // MSI-escaped brackets

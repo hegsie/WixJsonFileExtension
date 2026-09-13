@@ -119,6 +119,7 @@ namespace Hegsie.Wix.JsonExtension
 			int action = CompilerConstants.IntegerNotSet;
 			int? sequence = null;
 			int? index = null;
+			JsonTiming on = JsonTiming.Install;
 
 			if (node.Attributes().Any())
 			{
@@ -155,8 +156,19 @@ namespace Hegsie.Wix.JsonExtension
 								defaultValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
 								break;
 							case "Action":
-								// The type of modification to be made to the JSON file when the component is installed or un-installed.
+								// The type of modification to be made to the JSON file.
 								action = ValidateAction(node, sourceLineNumbers, attribute, ref flags);
+								break;
+							case "On":
+								// When the modification runs: while the component is being installed (default), while it
+								// is being uninstalled, or both. The same Action and Value apply at each time; a revert is
+								// authored as a separate JsonFile element with On="uninstall".
+								string onValue = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+								if (!TryParseOn(onValue, out on))
+								{
+									Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
+										"On", onValue, OnInstall, OnUninstall, OnBoth));
+								}
 								break;
 							case "Property":
 								// The Windows Installer property that receives the value read from the JSON file. Used with the readValue action.
@@ -267,12 +279,59 @@ namespace Hegsie.Wix.JsonExtension
 				Sequence = sequence,
 				Property = property,
 				Index = index,
-				SchemaFile = schemaFile
+				SchemaFile = schemaFile,
+				On = (int)on
 			});
 
-			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section,
-				action == (int)JsonAction.ReadValue ? "WixPropertyJsonFile" : "WixSchedJsonFile", Context.Platform,
-				CustomActionPlatforms.X86 | CustomActionPlatforms.X64 | CustomActionPlatforms.ARM64);
+			// Each timing has its own immediate scheduling action because the two phases sit at
+			// different points of the InstallExecuteSequence: install-time work runs after
+			// InstallFiles, uninstall-time work must run before RemoveFiles while the target file
+			// still exists. readValue is a single immediate action (after CostFinalize) that runs in
+			// both phases and gates on the timing itself.
+			const CustomActionPlatforms allPlatforms = CustomActionPlatforms.X86 | CustomActionPlatforms.X64 | CustomActionPlatforms.ARM64;
+			if (action == (int)JsonAction.ReadValue)
+			{
+				ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixPropertyJsonFile", Context.Platform, allPlatforms);
+			}
+			else
+			{
+				if (on.HasFlag(JsonTiming.Install))
+				{
+					ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform, allPlatforms);
+				}
+				if (on.HasFlag(JsonTiming.Uninstall))
+				{
+					ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFileUninstall", Context.Platform, allPlatforms);
+				}
+			}
+		}
+
+		private const string OnInstall = "install";
+		private const string OnUninstall = "uninstall";
+		private const string OnBoth = "both";
+
+		/// <summary>
+		/// Parses the On attribute value. An empty value means the default (install).
+		/// </summary>
+		internal static bool TryParseOn(string value, out JsonTiming timing)
+		{
+			switch (value)
+			{
+				case null:
+				case "":
+				case OnInstall:
+					timing = JsonTiming.Install;
+					return true;
+				case OnUninstall:
+					timing = JsonTiming.Uninstall;
+					return true;
+				case OnBoth:
+					timing = JsonTiming.Both;
+					return true;
+				default:
+					timing = JsonTiming.Install;
+					return false;
+			}
 		}
 
 		private int ValidateAction(XElement node, SourceLineNumber sourceLineNumbers, XAttribute attribute,
@@ -789,7 +848,8 @@ namespace Hegsie.Wix.JsonExtension
 				Value = value,
 				Flags = flags,
 				ComponentRef = componentId,
-				Sequence = sequence
+				Sequence = sequence,
+				On = (int)JsonTiming.Install
 			});
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,
@@ -882,7 +942,8 @@ namespace Hegsie.Wix.JsonExtension
 				Value = value,
 				Flags = flags,
 				ComponentRef = componentId,
-				Sequence = sequence
+				Sequence = sequence,
+				On = (int)JsonTiming.Install
 			});
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,
@@ -975,7 +1036,8 @@ namespace Hegsie.Wix.JsonExtension
 				Value = level,
 				Flags = flags,
 				ComponentRef = componentId,
-				Sequence = sequence
+				Sequence = sequence,
+				On = (int)JsonTiming.Install
 			});
 
 			ParseHelper.CreateCustomActionReference(sourceLineNumbers, section, "WixSchedJsonFile", Context.Platform,

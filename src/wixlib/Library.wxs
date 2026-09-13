@@ -4,22 +4,27 @@
     (or WixPropertyJsonFile_<platform> for readValue), which pulls in exactly one of these
     fragments and, through the BinaryRef, the matching custom action DLL.
 
-    WixSchedJsonFile is sequenced in the InstallExecuteSequence and therefore runs on install,
-    uninstall, and repair. The custom action self-gates on component install state
-    (WcaIsInstalling), so it is a no-op on uninstall. Consequently JSON modifications are applied
-    on install/repair and are NOT reverted on uninstall; the rollback action only restores files
-    that were captured before a failed install. Install/uninstall timing control is tracked as a
-    future enhancement (see issue #39).
+    Two immediate scheduling actions cover the two phases a JsonFile row can run in (its On
+    column): WixSchedJsonFile runs after InstallFiles and schedules the install-time rows of
+    components that are being installed or repaired; WixSchedJsonFileUninstall runs before
+    RemoveFiles - while the target files still exist - and schedules the uninstall-time rows of
+    components that are being uninstalled. Both self-gate on component install state, so each is a
+    no-op in the other phase, and both queue the same deferred ExecJsonFile action (and the
+    ExecJsonFileRollback action that restores the captured originals if the transaction fails).
+    Nothing is reverted implicitly on uninstall: an uninstall-time change is whatever the author
+    scheduled with On="uninstall".
   -->
   <Fragment Id="JsonFile">
     <CustomAction Id="WixPropertyJsonFile_X64" DllEntry="ReadValueJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca.dll" Impersonate="no" />
 
     <CustomAction Id="WixSchedJsonFile_X64" DllEntry="SchedJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca.dll" Impersonate="no" />
+    <CustomAction Id="WixSchedJsonFileUninstall_X64" DllEntry="SchedJsonFileUninstall" Execute="immediate" Return="check" BinaryRef="jsonca.dll" Impersonate="no" />
     <CustomAction Id="WixExecJsonFile_X64" DllEntry="ExecJsonFile" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca.dll" />
     <CustomAction Id="WixExecJsonFileRollback_X64" DllEntry="ExecJsonFileRollback" Execute="rollback" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca.dll" />
 
     <InstallExecuteSequence>
       <Custom Action="WixPropertyJsonFile_X64" After="CostFinalize" />
+      <Custom Action="WixSchedJsonFileUninstall_X64" Before="RemoveFiles" />
       <Custom Action="WixSchedJsonFile_X64" After="InstallFiles" />
     </InstallExecuteSequence>
 
@@ -46,11 +51,13 @@
     <CustomAction Id="WixPropertyJsonFile_X86" DllEntry="ReadValueJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca_x86.dll" Impersonate="no" />
 
     <CustomAction Id="WixSchedJsonFile_X86" DllEntry="SchedJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca_x86.dll" Impersonate="no" />
+    <CustomAction Id="WixSchedJsonFileUninstall_X86" DllEntry="SchedJsonFileUninstall" Execute="immediate" Return="check" BinaryRef="jsonca_x86.dll" Impersonate="no" />
     <CustomAction Id="WixExecJsonFile_X86" DllEntry="ExecJsonFile" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca_x86.dll" />
     <CustomAction Id="WixExecJsonFileRollback_X86" DllEntry="ExecJsonFileRollback" Execute="rollback" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca_x86.dll" />
 
     <InstallExecuteSequence>
       <Custom Action="WixPropertyJsonFile_X86" After="CostFinalize" />
+      <Custom Action="WixSchedJsonFileUninstall_X86" Before="RemoveFiles" />
       <Custom Action="WixSchedJsonFile_X86" After="InstallFiles" />
     </InstallExecuteSequence>
 
@@ -67,11 +74,13 @@
     <CustomAction Id="WixPropertyJsonFile_A64" DllEntry="ReadValueJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca_a64.dll" Impersonate="no" />
 
     <CustomAction Id="WixSchedJsonFile_A64" DllEntry="SchedJsonFile" Execute="immediate" Return="check" BinaryRef="jsonca_a64.dll" Impersonate="no" />
+    <CustomAction Id="WixSchedJsonFileUninstall_A64" DllEntry="SchedJsonFileUninstall" Execute="immediate" Return="check" BinaryRef="jsonca_a64.dll" Impersonate="no" />
     <CustomAction Id="WixExecJsonFile_A64" DllEntry="ExecJsonFile" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca_a64.dll" />
     <CustomAction Id="WixExecJsonFileRollback_A64" DllEntry="ExecJsonFileRollback" Execute="rollback" Impersonate="no" Return="check" HideTarget="yes" SuppressModularization="yes" BinaryRef="jsonca_a64.dll" />
 
     <InstallExecuteSequence>
       <Custom Action="WixPropertyJsonFile_A64" After="CostFinalize" />
+      <Custom Action="WixSchedJsonFileUninstall_A64" Before="RemoveFiles" />
       <Custom Action="WixSchedJsonFile_A64" After="InstallFiles" />
     </InstallExecuteSequence>
 

@@ -20,7 +20,42 @@ namespace fs = std::filesystem;
 // Cost for progress bar calculations
 #define COST_JSONFILE 1000
 
-enum eJsonFileQuery { jfqId = 1, jfqFile, jfqElementPath, jfqValue, jfqDefaultValue, jfqFlags, jfqComponent, jfqProperty, jfqCompAttributes, jfqIndex, jfqSchemaFile };
+enum eJsonFileQuery { jfqId = 1, jfqFile, jfqElementPath, jfqValue, jfqDefaultValue, jfqFlags, jfqComponent, jfqProperty, jfqCompAttributes, jfqIndex, jfqSchemaFile, jfqOn };
+
+// Values of the WixJsonFile.On column (bits, so both = install | uninstall). A null column is
+// treated as install, matching the compiler's default.
+const int TIMING_INSTALL = 1;
+const int TIMING_UNINSTALL = 2;
+
+// The phase a scheduling custom action runs in.
+enum eJsonPhase
+{
+    jpInstall,    // WixSchedJsonFile: after InstallFiles, rows of components being installed/repaired
+    jpUninstall   // WixSchedJsonFileUninstall: before RemoveFiles, rows of components being uninstalled
+};
+
+// Decides whether a row runs in the given phase: its On column must include the phase and the
+// component's state transition must match it. Pure (no MSI calls) so the unit tests cover it.
+inline bool JsonRowRunsInPhase(int iOn, INSTALLSTATE isInstalled, INSTALLSTATE isAction, eJsonPhase phase)
+{
+    if (MSI_NULL_INTEGER == iOn)
+    {
+        iOn = TIMING_INSTALL;
+    }
+
+    if (jpUninstall == phase)
+    {
+        // WcaIsUninstalling: installed (local/source) and going absent/removed.
+        bool fUninstalling = (INSTALLSTATE_ABSENT == isAction || INSTALLSTATE_REMOVED == isAction) &&
+                             (INSTALLSTATE_LOCAL == isInstalled || INSTALLSTATE_SOURCE == isInstalled);
+        return (iOn & TIMING_UNINSTALL) && fUninstalling;
+    }
+
+    // WcaIsInstalling: going local/source, or already local/source with no change requested (repair).
+    bool fInstalling = INSTALLSTATE_LOCAL == isAction || INSTALLSTATE_SOURCE == isAction ||
+                       (INSTALLSTATE_DEFAULT == isAction && (INSTALLSTATE_LOCAL == isInstalled || INSTALLSTATE_SOURCE == isInstalled));
+    return (iOn & TIMING_INSTALL) && fInstalling;
+}
 
 
 // These are bit positions
@@ -91,6 +126,7 @@ struct JSON_FILE_CHANGE
     LPWSTR pwzProperty;
     int iIndex;
     LPWSTR pwzSchemaFile;
+    int iOn;
 
     JSON_FILE_CHANGE* pxfcPrev;
     JSON_FILE_CHANGE* pxfcNext;
