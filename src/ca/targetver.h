@@ -1,11 +1,11 @@
 #pragma once
 
-#ifndef WINVER                  // Specifies that the minimum required platform is Windows XP.
-#define WINVER 0x0501           // Change this to the appropriate value to target other versions of Windows.
+#ifndef WINVER                  // Specifies that the minimum required platform is Windows 7.
+#define WINVER 0x0601           // Windows 7: the oldest OS the v143 toolset and WiX v4+ support.
 #endif
 
-#ifndef _WIN32_WINNT            // Specifies that the minimum required platform is Windows XP.
-#define _WIN32_WINNT 0x0501     // Change this to the appropriate value to target other versions of Windows.
+#ifndef _WIN32_WINNT            // Specifies that the minimum required platform is Windows 7.
+#define _WIN32_WINNT 0x0601     // Windows 7: the oldest OS the v143 toolset and WiX v4+ support.
 #endif
 
 #ifndef _WIN32_IE               // Specifies that the minimum required platform is Internet Explorer 6.0 SP3.

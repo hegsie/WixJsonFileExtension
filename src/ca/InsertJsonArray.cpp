@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "JsonFile.h"
 
-HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, int iIndex)
+HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, int iIndex, int iValueType, __in_z_opt LPCWSTR wzCulture)
 {
     try
     {
@@ -56,14 +56,14 @@ HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, 
                 return HRESULT_FROM_WIN32(ERROR_OBJECT_NOT_FOUND);
             }
 
-            // Parse the value to insert
+            // Convert the value to insert (ValueType=auto: JSON when it parses, else a string)
             json valueToInsert;
-            try {
-                valueToInsert = json::parse(valueUtf8);
-            }
-            catch (const std::exception&) {
-                // If parsing fails, treat as a string value
-                valueToInsert = json(valueUtf8);
+            std::string convError;
+            if (!ConvertAuthoredValue(valueUtf8, iValueType, wzCulture, NULL, valueToInsert, convError))
+            {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Value for path '%s' in file '%ls' does not convert to ValueType %s: %s",
+                       sElementPath.c_str(), wzFile, JsonValueTypeName(iValueType), convError.c_str());
+                return E_INVALIDARG;
             }
 
             WcaLog(LOGMSG_STANDARD, "Inserting value at index %d in array at: %s", iIndex, sElementPath.c_str());

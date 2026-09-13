@@ -123,6 +123,9 @@ namespace Hegsie.Wix.JsonExtension
 			string backupSuffix = null;
 			bool createBackup = false;
 			bool restoreOnUninstall = false;
+			JsonValueType valueType = JsonValueType.Auto;
+			string culture = null;
+			bool formatted = true;
 
 			if (node.Attributes().Any())
 			{
@@ -193,6 +196,27 @@ namespace Hegsie.Wix.JsonExtension
 									flags |= (int)JsonFlags.ValidateSchema;
 								}
 								break;
+							case "Formatted":
+								// Whether Value goes through MSI's Formatted processing (property and environment
+								// variable expansion, [\[] escapes). "no" takes it literally, which is the only way
+								// to author a value containing square brackets, such as a JSON array.
+								formatted = !ParseYesNo(node, sourceLineNumbers, attribute, "Formatted", defaultYes: true) ? false : true;
+								break;
+							case "ValueType":
+								// How Value is converted to JSON: auto (default), string, number, boolean, null, json, date.
+								string valueTypeText = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+								if (!TryParseValueType(valueTypeText, out valueType))
+								{
+									Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(),
+										"ValueType", valueTypeText, "auto", "string", "number", "boolean", "null", "json", "date"));
+								}
+								break;
+							case "Culture":
+								// Culture whose conventions ValueType="number" (decimal and grouping separators) and
+								// ValueType="date" (date order, separators) are parsed with, e.g. "de-DE". Formatted,
+								// so it may come from a property.
+								culture = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
+								break;
 							case "CreateBackup":
 								// Copy the file to <File><BackupSuffix> before the first modification in a transaction,
 								// unless that backup already exists, so an administrator can always get the original back.
@@ -243,6 +267,31 @@ namespace Hegsie.Wix.JsonExtension
 				// default is set value
 				action = (int)JsonAction.SetValue;
 				flags |= (int)JsonFlags.SetValue;
+			}
+
+			if (!formatted)
+			{
+				// The Value column is validated by ICE03 as a Formatted string, so a literal value is
+				// stored with MSI's bracket escapes ([\[] and [\]]), which is valid Formatted syntax. The
+				// custom action reads raw values without formatting and undoes exactly this escaping.
+				flags |= (int)JsonFlags.RawValue;
+				value = EscapeBracketsForRawValue(value);
+			}
+
+			if (!string.IsNullOrEmpty(culture) && valueType != JsonValueType.Number && valueType != JsonValueType.Date)
+			{
+				Messaging.Write(ErrorMessages.IllegalAttributeWithoutOtherAttributes(sourceLineNumbers, node.Name.ToString(), "Culture", "ValueType"));
+			}
+
+			if (valueType != JsonValueType.Auto)
+			{
+				bool takesValue = action == (int)JsonAction.SetValue || action == (int)JsonAction.CreateJsonPointerValue ||
+				                  action == (int)JsonAction.AppendArray || action == (int)JsonAction.InsertArray ||
+				                  action == (int)JsonAction.RemoveArrayElement;
+				if (!takesValue)
+				{
+					Messaging.Write(ErrorMessages.IllegalAttributeWithOtherAttribute(sourceLineNumbers, node.Name.ToString(), "ValueType", "Action"));
+				}
 			}
 
 			if (createBackup)
@@ -323,7 +372,9 @@ namespace Hegsie.Wix.JsonExtension
 				Index = index,
 				SchemaFile = schemaFile,
 				On = (int)on,
-				BackupSuffix = backupSuffix
+				BackupSuffix = backupSuffix,
+				ValueType = valueType == JsonValueType.Auto ? (int?)null : (int)valueType,
+				Culture = string.IsNullOrEmpty(culture) ? null : culture
 			});
 
 			// Each timing has its own immediate scheduling action because the two phases sit at
@@ -351,20 +402,64 @@ namespace Hegsie.Wix.JsonExtension
 		}
 
 		/// <summary>
-		/// Parses a yes/no attribute, reporting anything else as an illegal value (which reads as "no").
+		/// Parses a yes/no attribute, reporting anything else as an illegal value (which reads as the default).
 		/// </summary>
-		private bool ParseYesNo(XElement node, SourceLineNumber sourceLineNumbers, XAttribute attribute, string attributeName)
+		private bool ParseYesNo(XElement node, SourceLineNumber sourceLineNumbers, XAttribute attribute, string attributeName, bool defaultYes = false)
 		{
 			string value = ParseHelper.GetAttributeValue(sourceLineNumbers, attribute);
 			if (value.Equals("yes", System.StringComparison.OrdinalIgnoreCase))
 			{
 				return true;
 			}
-			if (!string.IsNullOrEmpty(value) && !value.Equals("no", System.StringComparison.OrdinalIgnoreCase))
+			if (value.Equals("no", System.StringComparison.OrdinalIgnoreCase))
+			{
+				return false;
+			}
+			if (!string.IsNullOrEmpty(value))
 			{
 				Messaging.Write(ErrorMessages.IllegalAttributeValue(sourceLineNumbers, node.Name.ToString(), attributeName, value, "yes", "no"));
 			}
-			return false;
+			return defaultYes;
+		}
+
+		/// <summary>
+		/// Escapes square brackets the way Windows Installer's Formatted syntax does, so a literal
+		/// value passes ICE03. Reversed by the custom action for Formatted="no" values.
+		/// </summary>
+		internal static string EscapeBracketsForRawValue(string value)
+		{
+			if (string.IsNullOrEmpty(value))
+			{
+				return value;
+			}
+			var sb = new System.Text.StringBuilder(value.Length + 8);
+			foreach (char c in value)
+			{
+				if (c == '[') sb.Append("[\\[]");
+				else if (c == ']') sb.Append("[\\]]");
+				else sb.Append(c);
+			}
+			return sb.ToString();
+		}
+
+		/// <summary>
+		/// Parses the ValueType attribute value. An empty value means auto.
+		/// </summary>
+		internal static bool TryParseValueType(string value, out JsonValueType valueType)
+		{
+			switch (value)
+			{
+				case null:
+				case "":
+				case "auto": valueType = JsonValueType.Auto; return true;
+				case "string": valueType = JsonValueType.String; return true;
+				case "number": valueType = JsonValueType.Number; return true;
+				case "boolean": valueType = JsonValueType.Boolean; return true;
+				case "null": valueType = JsonValueType.Null; return true;
+				case "json": valueType = JsonValueType.Json; return true;
+				case "date": valueType = JsonValueType.Date; return true;
+				default: valueType = JsonValueType.Auto; return false;
+			}
 		}
 
 		private const string OnInstall = "install";

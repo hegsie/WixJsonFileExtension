@@ -48,7 +48,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>msi.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>msi.lib;version.lib;oleaut32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -63,7 +63,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>msi.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>msi.lib;version.lib;oleaut32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <!-- Command-line harness: compiles the production transform sources (like the unit tests) with a
@@ -76,6 +76,7 @@
     <ClCompile Include="..\..\src\ca\Errors.cpp" />
     <ClCompile Include="..\..\src\ca\InsertJsonArray.cpp" />
     <ClCompile Include="..\..\src\ca\JsonBackup.cpp" />
+    <ClCompile Include="..\..\src\ca\JsonValue.cpp" />
     <ClCompile Include="..\..\src\ca\JsonWrite.cpp" />
     <ClCompile Include="..\..\src\ca\RemoveJsonArrayElement.cpp" />
     <ClCompile Include="..\..\src\ca\SetJsonPathObject.cpp" />

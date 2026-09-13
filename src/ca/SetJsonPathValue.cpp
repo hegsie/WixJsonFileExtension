@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "JsonFile.h"
 
-HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue) {
+HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue, int iValueType, __in_z_opt LPCWSTR wzCulture) {
 
     try
     {
@@ -65,10 +65,19 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                     pExisting = &existing;
                 }
 
+                json newValue;
+                std::string convError;
+                if (!ConvertAuthoredValue(valueUtf8, iValueType, wzCulture, pExisting, newValue, convError))
+                {
+                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Value for path '%s' in file '%ls' does not convert to ValueType %s: %s",
+                           sElementPath.c_str(), wzFile, JsonValueTypeName(iValueType), convError.c_str());
+                    return E_INVALIDARG;
+                }
+
                 // jsonpointer::add sets the value whether or not the path exists (insert_or_assign),
                 // with create_if_missing=true so intermediate objects are created, allowing a nested
                 // pointer (e.g. /Application/Name) to be built from an empty/partial document.
-                jsonpointer::add(j, sElementPath, MakeJsonValue(valueUtf8, pExisting), true, ec);
+                jsonpointer::add(j, sElementPath, newValue, true, ec);
 
                 if (ec) {
                     WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - JSONPointer add failed for path '%s' in file '%ls': %s",
@@ -91,14 +100,32 @@ HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath,
                        sElementPath.c_str(), query.size(), wzFile);
 
                 if (!query.empty()) {
-                    // Type-preserving update: existing string values stay strings; anything else
-                    // takes the parsed (typed) form of the authored value with string fallback.
-                    auto f = [valueUtf8](const std::string& /*path*/, json& value)
+                    // Type-preserving update (ValueType=auto): existing string values stay strings;
+                    // anything else takes the parsed (typed) form of the authored value with string
+                    // fallback. An explicit ValueType converts strictly and is the same for every match.
+                    std::string convError;
+                    bool convFailed = false;
+                    auto f = [&](const std::string& /*path*/, json& value)
                         {
-                            value = MakeJsonValue(valueUtf8, &value);
+                            json converted;
+                            if (ConvertAuthoredValue(valueUtf8, iValueType, wzCulture, &value, converted, convError))
+                            {
+                                value = converted;
+                            }
+                            else
+                            {
+                                convFailed = true;
+                            }
                         };
 
                     jsonpath::json_replace(j, sElementPath, f);
+
+                    if (convFailed)
+                    {
+                        WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Value for path '%s' in file '%ls' does not convert to ValueType %s: %s",
+                               sElementPath.c_str(), wzFile, JsonValueTypeName(iValueType), convError.c_str());
+                        return E_INVALIDARG;
+                    }
 
                     WcaLog(LOGMSG_STANDARD, "WixJsonFile: Successfully updated path '%s' in file '%ls' with value '%s'",
                            sElementPath.c_str(), wzFile, valueUtf8.c_str());

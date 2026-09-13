@@ -370,6 +370,28 @@ jobs:
         Check ($set.Application.Version -eq '2.0.0') "built Application.Version from empty file"
         Check ($set.Logging.Level -eq 'Debug') "built Logging.Level from empty file"
 
+        Write-Host "ValueType / Culture / Formatted (typed members under /Typed of settings.json):"
+        $raw = Get-Content -Path $setPath -Raw -Encoding UTF8
+        $t = $set.Typed
+        Check ($t.NumberDe -eq 1234.5 -and ($raw -match '"NumberDe":\s*1234\.5')) "ValueType=number Culture=de-DE parsed '1.234,5' as the number 1234.5"
+        Check (($raw -match '"NumberInt":\s*42[,\r\n]')) "ValueType=number wrote 42 as an integer"
+        Check (($raw -match '"StringDigits":\s*"0042"')) "ValueType=string kept '0042' as a string"
+        Check (($raw -match '"Boolean":\s*true')) "ValueType=boolean turned 'yes' into true"
+        Check (($raw -match '"Null":\s*null')) "ValueType=null wrote null"
+        Check ($t.DateGb -eq '2024-12-31T00:00:00') "ValueType=date Culture=en-GB wrote 31/12/2024 as ISO 8601"
+        Check (@($t.RawArray).Count -eq 2 -and $t.RawArray[0] -eq 'a') "Formatted=no wrote the bracketed JSON array literally"
+        Check (@($t.EscapedArray).Count -eq 2 -and $t.EscapedArray[1] -eq 'd') "Formatted=yes with [\[] [\]] escapes wrote the same array"
+
+        Write-Host "Formatting preservation (appsettings.json is tab-indented; line endings as checked out; key order kept):"
+        $appRaw = Get-Content -Path $appPath -Raw -Encoding UTF8
+        $srcRaw = Get-Content -Path "TestJsonConfigInstaller\appsettings.json" -Raw -Encoding UTF8
+        $srcCrlf = $srcRaw.Contains("`r`n")
+        $dstCrlf = $appRaw.Contains("`r`n")
+        Check ($appRaw -match '^\{\r?\n\t"store": \{\r?\n\t\t"book"') "rewritten appsettings.json keeps tab indentation and 'store' as its first key"
+        Check ($srcCrlf -eq $dstCrlf) "rewritten appsettings.json keeps the fixture's line endings (CRLF=$srcCrlf)"
+        Check ($appRaw.IndexOf('"Serilog"') -gt $appRaw.IndexOf('"store"') -and $appRaw.IndexOf('"expensive"') -gt $appRaw.IndexOf('"Serilog"')) "top-level key order is preserved (store, Serilog, ..., expensive)"
+        Check (-not ($appRaw -match "`n {2,}`"")) "no space indentation was introduced"
+
         Write-Host "readValue (verified via written-back file content):"
         Check ($set.ReadResults.Present -eq 'Staging') "readValue read existing element ('Staging') -> written back to file"
         Check ($set.ReadResults.Missing -eq 'READ_DEFAULT') "readValue applied DefaultValue for missing element -> written back to file"

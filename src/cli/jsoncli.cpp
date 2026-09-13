@@ -29,6 +29,8 @@ static int Usage()
         L"  appendArray, insertArray, removeArrayElement, distinctValues, readValue, validateSchema\n"
         L"\n"
         L"Options:\n"
+        L"  --type <t>         ValueType: auto (default), string, number, boolean, null, json, date\n"
+        L"  --culture <name>   culture for --type number/date, e.g. de-DE (default: invariant)\n"
         L"  --index <n>        insertArray position (-1 appends)\n"
         L"  --schema <file>    validate the file against this JSON schema after the operation\n"
         L"  --only-if-exists   skip the operation when elementPath does not exist (OnlyIfExists=\"yes\")\n"
@@ -124,6 +126,8 @@ int wmain(int argc, wchar_t* argv[])
     std::wstring value;
     std::wstring schema;
     std::wstring defaultValue;
+    std::wstring culture;
+    int valueType = jvtAuto;
     int index = -1;
     int options = 0;
     int flags = 0;
@@ -158,6 +162,15 @@ int wmain(int argc, wchar_t* argv[])
     {
         std::wstring opt = argv[next];
         if (opt == L"--index" && next + 1 < argc) { index = _wtoi(argv[++next]); }
+        else if (opt == L"--type" && next + 1 < argc)
+        {
+            std::wstring t = argv[++next];
+            const wchar_t* names[] = { L"auto", L"string", L"number", L"boolean", L"null", L"json", L"date" };
+            valueType = -1;
+            for (int i = 0; i < 7; ++i) { if (t == names[i]) valueType = i; }
+            if (valueType < 0) { std::fwprintf(stderr, L"unknown --type: %ls\n", t.c_str()); return Usage(); }
+        }
+        else if (opt == L"--culture" && next + 1 < argc) { culture = argv[++next]; }
         else if (opt == L"--schema" && next + 1 < argc) { schema = argv[++next]; }
         else if (opt == L"--default" && next + 1 < argc) { defaultValue = argv[++next]; }
         else if (opt == L"--only-if-exists") { onlyIfExists = true; }
@@ -184,7 +197,8 @@ int wmain(int argc, wchar_t* argv[])
     if (!schema.empty()) flags |= 1 << FLAG_VALIDATESCHEMA;
 
     JSON_OPERATION_TRACE trace;
-    HRESULT hr = UpdateJsonFile(file.c_str(), elementPath.c_str(), value.c_str(), flags, index, schema.c_str(), options, &trace);
+    HRESULT hr = UpdateJsonFile(file.c_str(), elementPath.c_str(), value.c_str(), flags, index, schema.c_str(), options, &trace,
+                                valueType, culture.empty() ? NULL : culture.c_str());
 
     if (!quiet)
     {

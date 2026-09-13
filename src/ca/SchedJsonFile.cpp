@@ -178,6 +178,10 @@ static UINT SchedJsonFileCore(
             ExitOnFailure(hr, "failed to write restore schema file to custom action data")
             hr = WcaWriteStringToCaData(pxfc->pwzBackupSuffix ? pxfc->pwzBackupSuffix : L"", &pwzCustomActionData);
             ExitOnFailure(hr, "failed to write restore backup suffix to custom action data")
+            hr = WcaWriteIntegerToCaData(jvtAuto, &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write restore value type to custom action data")
+            hr = WcaWriteStringToCaData(L"", &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write restore culture to custom action data")
             ++cFiles;
         }
     }
@@ -266,6 +270,12 @@ static UINT SchedJsonFileCore(
 
             hr = WcaWriteStringToCaData(wzBackupSuffix, &pwzCustomActionData);
             ExitOnFailure(hr, "failed to write BackupSuffix to custom action data")
+
+            hr = WcaWriteIntegerToCaData(pxfc->iValueType, &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write ValueType to custom action data")
+
+            hr = WcaWriteStringToCaData(pxfc->pwzCulture ? pxfc->pwzCulture : L"", &pwzCustomActionData);
+            ExitOnFailure(hr, "failed to write Culture to custom action data")
 
             ++cFiles;
         }

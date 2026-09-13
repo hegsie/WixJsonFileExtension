@@ -106,7 +106,7 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>msi.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>msi.lib;version.lib;oleaut32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>CustomAction.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -129,7 +129,7 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>msi.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>msi.lib;Version.lib;oleaut32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(WIX)sdk\$(WixPlatformToolset)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>CustomAction.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -154,7 +154,7 @@
     <Link>
       <!-- The WcaUtil/DUtil package props only add their libs for v14x toolsets, so list them
            explicitly in case the fallback toolset has a different name (duplicates are harmless). -->
-      <AdditionalDependencies>msi.lib;version.lib;..\..\packages\WixToolset.WcaUtil.6.0.1\build\native\v14\$(PlatformTarget)\wcautil.lib;..\..\packages\WixToolset.DUtil.6.0.1\build\native\v14\$(PlatformTarget)\dutil.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>msi.lib;version.lib;oleaut32.lib;..\..\packages\WixToolset.WcaUtil.6.0.1\build\native\v14\$(PlatformTarget)\wcautil.lib;..\..\packages\WixToolset.DUtil.6.0.1\build\native\v14\$(PlatformTarget)\dutil.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>CustomAction.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -176,7 +176,7 @@
     <Link>
       <!-- The WcaUtil/DUtil package props only add their libs for v14x toolsets, so list them
            explicitly in case the fallback toolset has a different name (duplicates are harmless). -->
-      <AdditionalDependencies>msi.lib;Version.lib;..\..\packages\WixToolset.WcaUtil.6.0.1\build\native\v14\$(PlatformTarget)\wcautil.lib;..\..\packages\WixToolset.DUtil.6.0.1\build\native\v14\$(PlatformTarget)\dutil.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>msi.lib;Version.lib;oleaut32.lib;..\..\packages\WixToolset.WcaUtil.6.0.1\build\native\v14\$(PlatformTarget)\wcautil.lib;..\..\packages\WixToolset.DUtil.6.0.1\build\native\v14\$(PlatformTarget)\dutil.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>CustomAction.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -194,6 +194,7 @@
     <ClCompile Include="ExecJsonFileRollback.cpp" />
     <ClCompile Include="InsertJsonArray.cpp" />
     <ClCompile Include="JsonBackup.cpp" />
+    <ClCompile Include="JsonValue.cpp" />
     <ClCompile Include="JsonWrite.cpp" />
     <ClCompile Include="ReadJsonFileTable.cpp" />
     <ClCompile Include="ReadValueJsonFile.cpp" />

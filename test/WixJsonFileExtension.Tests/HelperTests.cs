@@ -95,6 +95,43 @@ namespace WixJsonFileExtension.Tests
             Assert.All(all, v => Assert.Equal(1, System.Numerics.BitOperations.PopCount((uint)v)));
         }
 
+        [Theory]
+        [InlineData(null, 0)]
+        [InlineData("", 0)]
+        [InlineData("auto", 0)]
+        [InlineData("string", 1)]
+        [InlineData("number", 2)]
+        [InlineData("boolean", 3)]
+        [InlineData("null", 4)]
+        [InlineData("json", 5)]
+        [InlineData("date", 6)]
+        public void TryParseValueType_AcceptsKnownValues(string value, int expected)
+        {
+            Assert.True(JsonCompiler.TryParseValueType(value, out var valueType));
+            Assert.Equal((JsonValueType)expected, valueType);
+        }
+
+        [Theory]
+        [InlineData("String")]
+        [InlineData("int")]
+        [InlineData("datetime")]
+        public void TryParseValueType_RejectsUnknownValues(string value)
+        {
+            Assert.False(JsonCompiler.TryParseValueType(value, out _));
+        }
+
+        [Theory]
+        [InlineData("plain", "plain")]
+        [InlineData("[\"a\",\"b\"]", "[\\[]\"a\",\"b\"[\\]]")]
+        [InlineData("[PROP]", "[\\[]PROP[\\]]")]
+        [InlineData("", "")]
+        [InlineData(null, null)]
+        public void EscapeBracketsForRawValue_EscapesEveryBracket(string value, string expected)
+        {
+            // Formatted="no" values are stored with MSI's bracket escapes so ICE03 accepts them.
+            Assert.Equal(expected, JsonCompiler.EscapeBracketsForRawValue(value));
+        }
+
         [Fact]
         public void JsonTiming_BothIsUnionOfInstallAndUninstall()
         {

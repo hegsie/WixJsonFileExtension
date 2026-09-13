@@ -3,7 +3,14 @@
 
 #include <vector>
 
-using namespace jsoncons;
+// Order-preserving JSON so a rewritten file keeps its keys where they were (jsoncons' default
+// `json` sorts object members, which reorders every file it touches). The jsonpath, jsonpointer
+// and jsonschema extensions are all templated on the document type, so they work unchanged.
+using json = jsoncons::ojson;
+namespace jsonpath = jsoncons::jsonpath;
+namespace jsonpointer = jsoncons::jsonpointer;
+using jsoncons::pretty_print;
+using jsoncons::json_options;
 namespace fs = std::filesystem;
 
 // Custom action decoration for multi-architecture support (following WiX Toolset pattern)
@@ -20,7 +27,7 @@ namespace fs = std::filesystem;
 // Cost for progress bar calculations
 #define COST_JSONFILE 1000
 
-enum eJsonFileQuery { jfqId = 1, jfqFile, jfqElementPath, jfqValue, jfqDefaultValue, jfqFlags, jfqComponent, jfqProperty, jfqCompAttributes, jfqIndex, jfqSchemaFile, jfqOn, jfqBackupSuffix };
+enum eJsonFileQuery { jfqId = 1, jfqFile, jfqElementPath, jfqValue, jfqDefaultValue, jfqFlags, jfqComponent, jfqProperty, jfqCompAttributes, jfqIndex, jfqSchemaFile, jfqOn, jfqBackupSuffix, jfqValueType, jfqCulture };
 
 // Values of the WixJsonFile.On column (bits, so both = install | uninstall). A null column is
 // treated as install, matching the compiler's default.
@@ -73,6 +80,10 @@ const int FLAG_ONLYIFEXISTS = 10;
 const int FLAG_CREATEBACKUP = 11;       // modifier: back the file up before its first modification
 const int FLAG_RESTOREBACKUP = 12;      // modifier on authored rows: restore that backup on uninstall.
                                         // Alone, it marks a synthesized restore record in the deferred data.
+const int FLAG_RAWVALUE = 13;           // modifier: Formatted="no" - Value is taken literally, not MSI-formatted
+
+// Values of the WixJsonFile.ValueType column (JsonFile/@ValueType).
+enum eJsonValueType { jvtAuto = 0, jvtString = 1, jvtNumber = 2, jvtBoolean = 3, jvtNull = 4, jvtJson = 5, jvtDate = 6 };
 
 // These are bits
 enum eXmlAction
@@ -131,6 +142,8 @@ struct JSON_FILE_CHANGE
     LPWSTR pwzSchemaFile;
     int iOn;
     LPWSTR pwzBackupSuffix;
+    int iValueType;
+    LPWSTR pwzCulture;
 
     JSON_FILE_CHANGE* pxfcPrev;
     JSON_FILE_CHANGE* pxfcNext;
@@ -164,7 +177,9 @@ HRESULT UpdateJsonFile(
     __in int iIndex,
     __in_z LPCWSTR wzSchemaFile,
     __in int iOptions = 0,
-    __inout_opt JSON_OPERATION_TRACE* pTrace = NULL
+    __inout_opt JSON_OPERATION_TRACE* pTrace = NULL,
+    __in int iValueType = jvtAuto,
+    __in_z_opt LPCWSTR wzCulture = NULL
 );
 
 // Name of the action selected by the flags ("setValue", ...), or "unknown".
@@ -184,22 +199,37 @@ std::wstring JsonBackupPath(__in_z LPCWSTR wzFile, __in_z_opt LPCWSTR wzSuffix);
 HRESULT BackupJsonFile(__in_z LPCWSTR wzFile, __in_z_opt LPCWSTR wzSuffix, __out_opt bool* pfCreated);
 // Copies the backup back over the file and removes the backup; S_FALSE when there is no backup.
 HRESULT RestoreJsonFileBackup(__in_z LPCWSTR wzFile, __in_z_opt LPCWSTR wzSuffix, __out_opt bool* pfRestored);
-HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue);
+HRESULT SetJsonPathValue(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, bool createValue, int iValueType = jvtAuto, __in_z_opt LPCWSTR wzCulture = NULL);
 HRESULT SetJsonPathObject(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue);
 HRESULT DeleteJsonPath(__in_z LPCWSTR wzFile, const std::string& sElementPath);
-HRESULT AppendJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue);
-HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, int iIndex);
-HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue);
+HRESULT AppendJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, int iValueType = jvtAuto, __in_z_opt LPCWSTR wzCulture = NULL);
+HRESULT InsertJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, int iIndex, int iValueType = jvtAuto, __in_z_opt LPCWSTR wzCulture = NULL);
+HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, int iValueType = jvtAuto, __in_z_opt LPCWSTR wzCulture = NULL);
 HRESULT DistinctJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath);
 HRESULT ValidateJsonSchema(__in_z LPCWSTR wzFile, __in_z LPCWSTR wzSchemaFile);
 
 std::string GetLastErrorAsString();
 HRESULT ReturnLastError(const std::string& action);
 
-// Atomically serializes and writes a JSON document to a file (temp file + replace).
+// Formatting conventions of a JSON file, detected from its current content (JsonWrite.cpp).
+struct JSON_FILE_FORMAT
+{
+    std::string indent;      // indentation unit: e.g. "\t", "  " or "    "
+    bool crlf;               // CRLF line endings (else LF)
+    bool trailingNewline;    // file ends with a newline
+};
+JSON_FILE_FORMAT DetectJsonFileFormat(__in_z LPCWSTR wzFile);
+std::string SerializeJson(const json& j, const JSON_FILE_FORMAT& format);
+
+// Atomically serializes and writes a JSON document to a file (temp file + replace), keeping the
+// existing file's indentation, line endings and trailing newline.
 HRESULT WriteJsonOutput(__in_z LPCWSTR wzFile, const json& j);
 // Converts an authored value to a typed JSON value; preserves string type when replacing a string.
 json MakeJsonValue(const std::string& valueUtf8, const json* pExisting);
+// ValueType-aware conversion (JsonValue.cpp): jvtAuto defers to MakeJsonValue, the other types
+// convert strictly and return false with a message when the value does not fit.
+bool ConvertAuthoredValue(const std::string& valueUtf8, int iValueType, __in_z_opt LPCWSTR wzCulture, const json* pExisting, json& out, std::string& error);
+const char* JsonValueTypeName(int iValueType);
 
 // Logs text verbatim at the standard level. WcaLog places the message in record field 0, which
 // MSI formats: "[10]" there is a reference to (empty) record field 10 and vanishes from the log,
