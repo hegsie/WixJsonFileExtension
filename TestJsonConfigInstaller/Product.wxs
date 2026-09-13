@@ -1,7 +1,14 @@
-﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" 
+﻿<!-- The version is a preprocessor variable so the regression workflow can build a second,
+     higher-versioned package from the same sources to exercise a major upgrade. ProductCode is
+     left to auto-generate (the WiX default), as a major upgrade requires a new one per build. -->
+<?ifndef TestProductVersion ?>
+  <?define TestProductVersion = 1.0.0.0 ?>
+<?endif?>
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" 
      xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
-  <Package Name="TestJsonConfigInstaller" Language="1033" Version="1.0.0.0" Manufacturer="Testing" UpgradeCode="de23c83e-41e6-413d-9bde-1510e10bb2a2" ProductCode="{C9A3F6AF-7F4F-473F-BFFC-6143EB1AA0D4}">
+  <Package Name="TestJsonConfigInstaller" Language="1033" Version="$(var.TestProductVersion)" Manufacturer="Testing" UpgradeCode="de23c83e-41e6-413d-9bde-1510e10bb2a2">
 
     <Media Id="1" Cabinet="cab1.cab" EmbedCab="yes" />
 
@@ -29,6 +36,15 @@
          line to enable the corresponding failure scenario. -->
     <Property Id="TEST_INVALID_JSON" Value="0" />
     <Property Id="TEST_SCHEMA_FAILURE" Value="0" />
+
+    <!-- Install/uninstall timing (On attribute) regression. LIFECYCLE_FILE is a JSON file that
+         outlives the product (the workflow creates it at this path), LIFECYCLE_PHASE is passed on
+         each msiexec command line (install / repair / upgrade / uninstall) so the On="both" row
+         records which transaction last ran it, and LC_READ_MARKER is the sentinel-defaulted target
+         of an uninstall-time readValue (see the LifecycleComponent below). -->
+    <Property Id="LIFECYCLE_FILE" Value="C:\JsonRegression\lifecycle.json" />
+    <Property Id="LIFECYCLE_PHASE" Value="install" />
+    <Property Id="LC_READ_MARKER" Value="PROPERTY_NOT_SET" />
 
     <Feature Id="ProductFeature" Title="TestJsonConfigInstaller" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
@@ -138,6 +154,19 @@
                ElementPath="$.features.enabled"
                Action="distinctValues"
                Sequence="12"/>
+
+        <!-- On="uninstall" against a file this same component installs. It cannot be verified from
+             the file (RemoveFiles deletes it moments later) but it proves the uninstall-time
+             scheduling point: the deferred action runs before RemoveFiles, so the file still exists.
+             Were it sequenced after RemoveFiles, setValue would fail with file-not-found and the
+             uninstall would fail - and the regression workflow asserts the uninstall succeeds. -->
+        <Json:JsonFile Id="uninstallTouchInstalledFile"
+               File="[#JsonConfig]"
+               ElementPath="$.expensive"
+               Value="0"
+               Action="setValue"
+               On="uninstall"
+               Sequence="15"/>
 
         <!-- New: Conditional update - only if path exists -->
         <Json:JsonFile Id="updateExpensiveIfExists"
@@ -266,6 +295,36 @@
           Value="[REG_READ_MISSING]"
           Action="createJsonPointerValue"
           Sequence="6" />
+      </Component>
+
+      <!-- Install/uninstall timing (On attribute) coverage against a JSON file that outlives the
+           product. The workflow seeds LIFECYCLE_FILE before the first install and inspects it after
+           install, repair, major upgrade and uninstall:
+             install   -> installed=true, marker="present", phase="install", no readBack
+             repair    -> install-time rows run again (phase="repair"), uninstall-time rows do not
+             upgrade   -> old package's uninstall-time rows run first (readBack="present"), then the
+                          new package's install-time rows (marker recreated, phase="upgrade")
+             uninstall -> installed=false, marker deleted, phase="uninstall", readBack="present"
+           Keyed on a registry value so the component installs no file of its own. -->
+      <Component Id="LifecycleComponent" Guid="{3B7D2C2E-6F0A-4C4B-9E1D-2A5F8B9C0D11}">
+        <RegistryValue Root="HKLM" Key="Software\TestJsonConfigInstaller" Name="Lifecycle" Type="integer" Value="1" KeyPath="yes" />
+
+        <!-- install-time (the default, spelled out here for clarity) -->
+        <Json:JsonFile Id="lcInstallFlag" File="[LIFECYCLE_FILE]" ElementPath="$.lifecycle.installed" Value="true" Action="setValue" On="install" Sequence="1" />
+        <Json:JsonFile Id="lcInstallMarker" File="[LIFECYCLE_FILE]" ElementPath="/lifecycle/marker" Value="present" Action="createJsonPointerValue" On="install" Sequence="2" />
+
+        <!-- both: records the phase of whichever transaction ran it last -->
+        <Json:JsonFile Id="lcBothPhase" File="[LIFECYCLE_FILE]" ElementPath="$.lifecycle.phase" Value="[LIFECYCLE_PHASE]" Action="setValue" On="both" Sequence="3" />
+
+        <!-- uninstall-time: the paired revert of the two install-time rows above ... -->
+        <Json:JsonFile Id="lcUninstallFlag" File="[LIFECYCLE_FILE]" ElementPath="$.lifecycle.installed" Value="false" Action="setValue" On="uninstall" Sequence="4" />
+        <Json:JsonFile Id="lcUninstallMarker" File="[LIFECYCLE_FILE]" ElementPath="$.lifecycle.marker" Action="deleteValue" On="uninstall" Sequence="5" />
+
+        <!-- ... plus an uninstall-time readValue. It runs after CostFinalize of the uninstall, before
+             the marker above is deleted, and its result is written back so the file records that
+             readValue honoured On="uninstall" (value "present" rather than the sentinel/default). -->
+        <Json:JsonFile Id="lcReadMarkerOnUninstall" File="[LIFECYCLE_FILE]" ElementPath="$.lifecycle.marker" DefaultValue="READ_DEFAULT" Action="readValue" Property="LC_READ_MARKER" On="uninstall" />
+        <Json:JsonFile Id="lcWriteReadBack" File="[LIFECYCLE_FILE]" ElementPath="/lifecycle/readBack" Value="[LC_READ_MARKER]" Action="createJsonPointerValue" On="uninstall" Sequence="6" />
       </Component>
 
       <!-- Installs the JSON schema used for validateSchema coverage. Kept in its own component so

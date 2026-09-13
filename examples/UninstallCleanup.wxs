@@ -1,0 +1,117 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Uninstall Clean-up Example Fragment
+
+  This fragment demonstrates the On attribute: running JSON modifications while a
+  component is being uninstalled (or at both install and uninstall time), so that
+  entries a product adds to a JSON file it does not own are removed again.
+
+  To use this fragment:
+  1. Include it in your main WiX source file
+  2. Reference the ComponentGroup: <ComponentGroupRef Id="UninstallCleanupComponents" />
+  3. Define the HOST_CONFIG property (path of the shared JSON file) in your installer
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:Json="http://schemas.hegsie.com/wix/JsonExtension">
+
+  <Fragment>
+    <!-- The shared file this product edits but does not install. It outlives the product, which
+         is what makes uninstall-time edits meaningful. -->
+    <Property Id="HOST_CONFIG" Value="[CommonAppDataFolder]HostApp\plugins.json" />
+    <Property Id="PREVIOUS_THEME" Value="default" />
+
+    <ComponentGroup Id="UninstallCleanupComponents" Directory="INSTALLFOLDER">
+      <!-- Keyed on a registry value: the component installs no file of its own -->
+      <Component Id="HostRegistration" Guid="*">
+        <RegistryValue Root="HKLM" Key="Software\MyApp\HostRegistration" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+
+        <!-- Install (the default On="install"): register the plugin, creating the section if needed -->
+        <Json:JsonFile
+          Id="RegisterPlugin"
+          File="[HOST_CONFIG]"
+          ElementPath="/plugins/MyApp"
+          Value='{"path":"[INSTALLFOLDER]MyApp.Plugin.dll","enabled":true}'
+          Action="createJsonPointerValue"
+          Sequence="1" />
+
+        <!-- Uninstall: unregister it. Runs before RemoveFiles while everything is still in place.
+             OnlyIfExists tolerates the entry having been removed by hand. -->
+        <Json:JsonFile
+          Id="UnregisterPlugin"
+          File="[HOST_CONFIG]"
+          ElementPath="$.plugins.MyApp"
+          Action="deleteValue"
+          OnlyIfExists="yes"
+          On="uninstall"
+          Sequence="2" />
+
+        <!-- Both: keep a "last modified by" stamp current whichever way the component goes -->
+        <Json:JsonFile
+          Id="StampHostConfig"
+          File="[HOST_CONFIG]"
+          ElementPath="/lastModifiedBy"
+          Value="[ProductName] [ProductVersion]"
+          Action="createJsonPointerValue"
+          On="both"
+          Sequence="3" />
+      </Component>
+
+      <!-- Switch a shared setting at install time and restore the previous value at uninstall.
+           The previous value is remembered inside the file itself so the uninstall can read it
+           back with an uninstall-time readValue. -->
+      <Component Id="ThemeSwitch" Guid="*">
+        <RegistryValue Root="HKLM" Key="Software\MyApp\HostRegistration" Name="Theme" Type="integer" Value="1" KeyPath="yes" />
+
+        <!-- Install: remember, then switch -->
+        <Json:JsonFile
+          Id="ReadCurrentTheme"
+          File="[HOST_CONFIG]"
+          ElementPath="$.theme"
+          DefaultValue="default"
+          Action="readValue"
+          Property="PREVIOUS_THEME" />
+        <Json:JsonFile
+          Id="RememberTheme"
+          File="[HOST_CONFIG]"
+          ElementPath="/themeBeforeMyApp"
+          Value="[PREVIOUS_THEME]"
+          Action="createJsonPointerValue"
+          Sequence="10" />
+        <Json:JsonFile
+          Id="SwitchTheme"
+          File="[HOST_CONFIG]"
+          ElementPath="/theme"
+          Value="myapp"
+          Action="createJsonPointerValue"
+          Sequence="11" />
+
+        <!-- Uninstall: read the remembered value, restore it, drop the note -->
+        <Json:JsonFile
+          Id="ReadRememberedTheme"
+          File="[HOST_CONFIG]"
+          ElementPath="$.themeBeforeMyApp"
+          DefaultValue="default"
+          Action="readValue"
+          Property="PREVIOUS_THEME"
+          On="uninstall" />
+        <Json:JsonFile
+          Id="RestoreTheme"
+          File="[HOST_CONFIG]"
+          ElementPath="$.theme"
+          Value="[PREVIOUS_THEME]"
+          Action="setValue"
+          OnlyIfExists="yes"
+          On="uninstall"
+          Sequence="12" />
+        <Json:JsonFile
+          Id="DropThemeNote"
+          File="[HOST_CONFIG]"
+          ElementPath="$.themeBeforeMyApp"
+          Action="deleteValue"
+          OnlyIfExists="yes"
+          On="uninstall"
+          Sequence="13" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

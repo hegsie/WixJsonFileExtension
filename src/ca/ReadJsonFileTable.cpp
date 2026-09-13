@@ -2,7 +2,7 @@
 #include "JsonFile.h"
 
 LPCWSTR vcsJsonFileQuery = L"SELECT `WixJsonFile`.`JsonConfig`, `WixJsonFile`.`File`, `WixJsonFile`.`ElementPath`, "
-                           L"`WixJsonFile`.`Value`, `WixJsonFile`.`DefaultValue`, `WixJsonFile`.`Flags`, `WixJsonFile`.`Component_`, `WixJsonFile`.`Property`, `Component`.`Attributes`, `WixJsonFile`.`Index`, `WixJsonFile`.`SchemaFile` FROM `WixJsonFile`,`Component` "
+                           L"`WixJsonFile`.`Value`, `WixJsonFile`.`DefaultValue`, `WixJsonFile`.`Flags`, `WixJsonFile`.`Component_`, `WixJsonFile`.`Property`, `Component`.`Attributes`, `WixJsonFile`.`Index`, `WixJsonFile`.`SchemaFile`, `WixJsonFile`.`On` FROM `WixJsonFile`,`Component` "
                            L"WHERE `WixJsonFile`.`Component_`=`Component`.`Component` ORDER BY `File`, `Sequence`";
 
 static HRESULT AddJsonFileChangeToList(
@@ -141,6 +141,14 @@ HRESULT ReadJsonFileTable(
         ExitOnFailure(hr, "failed to get SchemaFile for WixJsonFile: %ls", (*ppxfcTail)->wzId)
         hr = StrAllocString(&(*ppxfcTail)->pwzSchemaFile, pwzData, 0);
         ExitOnFailure(hr, "failed to allocate buffer for schema file")
+
+        // Get the timing (On column). Null means install, like Index above.
+        hr = WcaGetRecordInteger(hRec, jfqOn, &(*ppxfcTail)->iOn);
+        if (FAILED(hr) || S_FALSE == hr || MSI_NULL_INTEGER == (*ppxfcTail)->iOn)
+        {
+            (*ppxfcTail)->iOn = TIMING_INSTALL;
+            hr = S_OK;
+        }
     }
 
     // if we looped through all records all is well

@@ -23,6 +23,7 @@ namespace Hegsie.Wix.JsonExtension.Table
 				new ColumnDefinition("Property", ColumnType.String, 0, primaryKey: false, nullable: true, ColumnCategory.Unknown, description: "Property to load the json value into when executing a readValue action"),
 				new ColumnDefinition("Index", ColumnType.Number, 4, primaryKey: false, nullable: true, ColumnCategory.Unknown, description: "Index for array insert operations. -1 or omitted means append to end."),
 				new ColumnDefinition("SchemaFile", ColumnType.String, 0, primaryKey: false, nullable: true, ColumnCategory.Formatted, description: "Path to JSON schema file for validation", modularizeType: ColumnModularizeType.Property),
+				new ColumnDefinition("On", ColumnType.Number, 2, primaryKey: false, nullable: true, ColumnCategory.Unknown, minValue: 1, maxValue: 3, description: "When the operation runs: install=1, uninstall=2, both=3. Null is treated as install."),
 			},
 			symbolIdIsPrimaryKey: true
 		);

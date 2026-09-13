@@ -32,10 +32,17 @@ LExit:
 }
 
 /******************************************************************
- SchedJsonFile - entry point for JsonFile Custom Action
+ SchedJsonFileCore - shared body of the two scheduling custom actions.
+
+ Walks the WixJsonFile table and queues, for the deferred ExecJsonFile
+ action, every write row whose On timing and component state match the
+ phase this scheduler runs in (see JsonRowRunsInPhase), capturing each
+ target file for ExecJsonFileRollback first.
 ********************************************************************/
-extern "C" UINT __stdcall SchedJsonFile(
-    __in MSIHANDLE hInstall
+static UINT SchedJsonFileCore(
+    __in MSIHANDLE hInstall,
+    __in_z LPCSTR szLogName,
+    __in eJsonPhase phase
 )
 {
     HRESULT hr = S_OK;
@@ -58,24 +65,24 @@ extern "C" UINT __stdcall SchedJsonFile(
     BOOL fScheduledRollback = FALSE;
 
     // initialize
-    hr = WcaInitialize(hInstall, "SchedJsonFile");
+    hr = WcaInitialize(hInstall, szLogName);
     ExitOnFailure(hr, "failed to initialize")
 
     hr = ReadJsonFileTable(&pxfcHead, &pxfcTail);
     if (S_FALSE == hr)
     {
-        WcaLog(LOGMSG_VERBOSE, "Skipping SchedJsonFile because WixJsonFile table not present");
+        WcaLog(LOGMSG_VERBOSE, "Skipping %s because WixJsonFile table not present", szLogName);
         ExitFunction1(hr = S_OK)
     }
 
     MessageExitOnFailure(hr, msierrJsonFileFailedRead, "failed to read WixJsonFile table")
 
-    WcaLog(LOGMSG_VERBOSE, "Finished reading WixJsonFile table");
+    WcaLog(LOGMSG_VERBOSE, "Finished reading WixJsonFile table (%s phase)", jpUninstall == phase ? "uninstall" : "install");
     // loop through all the json configurations
     for (pxfc = pxfcHead; pxfc; pxfc = pxfc->pxfcNext)
     {
-        // If it's being installed
-        if (WcaIsInstalling(pxfc->isInstalled, pxfc->isAction))
+        // Only rows timed for this phase whose component is making the matching transition.
+        if (JsonRowRunsInPhase(pxfc->iOn, pxfc->isInstalled, pxfc->isAction, phase))
         {
             std::bitset<32> flags(pxfc->iJsonFlags);
 
@@ -98,7 +105,8 @@ extern "C" UINT __stdcall SchedJsonFile(
             // so the deferred ExecJsonFile action sees exactly what was authored in the WixJsonFile table.
             hr = WcaWriteIntegerToCaData(pxfc->iJsonFlags, &pwzCustomActionData);
             ExitOnFailure(hr, "failed to write flags to custom action data")
-            WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Scheduling operation (flags=%d) for file: %ls", pxfc->iJsonFlags, pxfc->wzFile);
+            WcaLog(LOGMSG_VERBOSE, "WixJsonFile: Scheduling %s-time operation (flags=%d, on=%d) for file: %ls",
+                jpUninstall == phase ? "uninstall" : "install", pxfc->iJsonFlags, pxfc->iOn, pxfc->wzFile);
 
             // Schedule rollback for this file if we haven't already
             if (!pwzCurrentFile || 0 != lstrcmpW(pwzCurrentFile, pxfc->wzFile))
@@ -169,4 +177,29 @@ LExit:
     }
 
     return WcaFinalize(FAILED(hr) ? ERROR_INSTALL_FAILURE : er);
+}
+
+/******************************************************************
+ SchedJsonFile - install-time scheduler, sequenced after InstallFiles.
+ Queues the rows with On=install/both of components being installed or
+ repaired.
+********************************************************************/
+extern "C" UINT __stdcall SchedJsonFile(
+    __in MSIHANDLE hInstall
+)
+{
+    return SchedJsonFileCore(hInstall, "SchedJsonFile", jpInstall);
+}
+
+/******************************************************************
+ SchedJsonFileUninstall - uninstall-time scheduler, sequenced before
+ RemoveFiles so the target files still exist when the deferred action
+ runs. Queues the rows with On=uninstall/both of components being
+ uninstalled.
+********************************************************************/
+extern "C" UINT __stdcall SchedJsonFileUninstall(
+    __in MSIHANDLE hInstall
+)
+{
+    return SchedJsonFileCore(hInstall, "SchedJsonFileUninstall", jpUninstall);
 }

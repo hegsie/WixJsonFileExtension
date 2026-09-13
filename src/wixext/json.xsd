@@ -99,6 +99,22 @@
       </xs:enumeration>
     </xs:restriction>
   </xs:simpleType>
+  <xs:simpleType name="OnType">
+    <xs:annotation>
+      <xs:documentation>When a JsonFile modification runs: during install (default), during uninstall, or both.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:NMTOKEN">
+      <xs:enumeration value="install">
+        <xs:annotation><xs:documentation>Apply while the component is being installed or repaired (after InstallFiles).</xs:documentation></xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="uninstall">
+        <xs:annotation><xs:documentation>Apply while the component is being uninstalled (before RemoveFiles).</xs:documentation></xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="both">
+        <xs:annotation><xs:documentation>Apply at both install and uninstall time.</xs:documentation></xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
 
   <xs:element name="JsonFile">
     <xs:annotation>
@@ -217,6 +233,21 @@
             Path to a JSON schema file for validation. The JSON file will be validated against this schema
             after modifications. If validation fails, the installation will fail.
             Supports basic JSON Schema features (type checking, required properties).
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="On" type="OnType" default="install">
+        <xs:annotation>
+          <xs:documentation>
+            When the modification runs. 'install' (the default) applies it while the component is being
+            installed or repaired, after InstallFiles. 'uninstall' applies it while the component is being
+            uninstalled, before RemoveFiles, so the target file still exists. 'both' does both.
+            The same Action and Value are applied at each time, so an uninstall-time revert is authored as a
+            separate JsonFile element with On='uninstall' (typically Action='deleteValue', or 'setValue' back to
+            the original value). Uninstall-time changes only make sense for JSON files that outlive the
+            component, such as a shared or permanent configuration file; a file removed by the same uninstall
+            is edited and then deleted. On a major upgrade the old package's uninstall-time changes run before
+            the new package's install-time changes (with the default afterInstallValidate scheduling).
           </xs:documentation>
         </xs:annotation>
       </xs:attribute>

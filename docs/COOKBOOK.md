@@ -12,6 +12,7 @@ This cookbook provides practical examples and patterns for common JSON configura
 6. [Complex Nested Configurations](#complex-nested-configurations)
 7. [Array Manipulation](#array-manipulation)
 8. [Conditional Updates](#conditional-updates)
+9. [Uninstall Clean-up](#uninstall-clean-up)
 
 ---
 
@@ -607,6 +608,89 @@ This cookbook provides practical examples and patterns for common JSON configura
     Action="setValue" />
 </Component>
 ```
+
+---
+
+## Uninstall Clean-up
+
+### Pattern: Register with a Shared Configuration File and Unregister on Uninstall
+
+**Use Case**: Your product adds itself to a JSON file it does not own - a host application's plugin list, a machine-wide settings file under `CommonAppDataFolder`, a shared tool's configuration - and must remove its entry again when uninstalled so the host is not left pointing at deleted files.
+
+**WiX Fragment**:
+```xml
+<!-- Keyed on a registry value: this component installs no file of its own, it only edits the
+     host's file, which outlives this product. -->
+<Component Id="HostRegistration" Guid="*">
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Host" Name="Registered" Type="integer" Value="1" KeyPath="yes" />
+
+  <!-- Install / repair: add (or refresh) our entry -->
+  <Json:JsonFile
+    Id="RegisterWithHost"
+    File="[CommonAppDataFolder]HostApp\plugins.json"
+    ElementPath="/plugins/MyApp"
+    Value='{"path":"[INSTALLFOLDER]MyApp.Plugin.dll","enabled":true}'
+    Action="createJsonPointerValue" />
+
+  <!-- Uninstall: remove the entry. OnlyIfExists tolerates an administrator having removed it by
+       hand; without it a missing path fails the uninstall. -->
+  <Json:JsonFile
+    Id="UnregisterFromHost"
+    File="[CommonAppDataFolder]HostApp\plugins.json"
+    ElementPath="$.plugins.MyApp"
+    Action="deleteValue"
+    OnlyIfExists="yes"
+    On="uninstall" />
+</Component>
+```
+
+**How it behaves:**
+- `On="install"` is the default, so `RegisterWithHost` runs at install and repair, after `InstallFiles`.
+- `UnregisterFromHost` runs only while the component is being uninstalled, before `RemoveFiles`, so the host file is edited while everything is still in place.
+- On a major upgrade the old version unregisters first, then the new version registers, so the entry ends up pointing at the new install.
+
+### Pattern: Restore a Setting You Changed
+
+**Use Case**: Your installer switches a setting in a shared file (say, the host's default renderer) and should put the previous value back on uninstall.
+
+**WiX Fragment**:
+```xml
+<Component Id="RendererSwitch" Guid="*">
+  <RegistryValue Root="HKLM" Key="Software\MyApp\Host" Name="Renderer" Type="integer" Value="1" KeyPath="yes" />
+
+  <!-- Remember the value that was there before we changed it. readValue runs in the immediate
+       phase, before any write, and the property is a formatted [reference] in the Value below. -->
+  <Json:JsonFile
+    Id="ReadOriginalRenderer"
+    File="[CommonAppDataFolder]HostApp\settings.json"
+    ElementPath="$.renderer"
+    DefaultValue="software"
+    Action="readValue"
+    Property="ORIGINAL_RENDERER" />
+
+  <!-- Install: switch to ours, keeping a note of the original alongside it -->
+  <Json:JsonFile Id="SetRenderer" File="[CommonAppDataFolder]HostApp\settings.json"
+                 ElementPath="$.renderer" Value="myapp" Action="setValue" Sequence="1" />
+  <Json:JsonFile Id="NoteOriginalRenderer" File="[CommonAppDataFolder]HostApp\settings.json"
+                 ElementPath="/rendererBeforeMyApp" Value="[ORIGINAL_RENDERER]" Action="createJsonPointerValue" Sequence="2" />
+
+  <!-- Uninstall: read the note back and restore it, then drop the note -->
+  <Json:JsonFile
+    Id="ReadNotedRenderer"
+    File="[CommonAppDataFolder]HostApp\settings.json"
+    ElementPath="$.rendererBeforeMyApp"
+    DefaultValue="software"
+    Action="readValue"
+    Property="NOTED_RENDERER"
+    On="uninstall" />
+  <Json:JsonFile Id="RestoreRenderer" File="[CommonAppDataFolder]HostApp\settings.json"
+                 ElementPath="$.renderer" Value="[NOTED_RENDERER]" Action="setValue" On="uninstall" Sequence="3" />
+  <Json:JsonFile Id="DropRendererNote" File="[CommonAppDataFolder]HostApp\settings.json"
+                 ElementPath="$.rendererBeforeMyApp" Action="deleteValue" OnlyIfExists="yes" On="uninstall" Sequence="4" />
+</Component>
+```
+
+Declare `ORIGINAL_RENDERER` and `NOTED_RENDERER` as properties (`<Property Id="NOTED_RENDERER" Value="software" />`) so ICE checks see them and a missing note still restores something sensible.
 
 ---
 
