@@ -9,6 +9,7 @@
     <ClCompile Include="ExecJsonFileRollback.cpp" />
     <ClCompile Include="InsertJsonArray.cpp" />
     <ClCompile Include="JsonBackup.cpp" />
+    <ClCompile Include="JsonValue.cpp" />
     <ClCompile Include="JsonWrite.cpp" />
     <ClCompile Include="ReadJsonFileTable.cpp" />
     <ClCompile Include="ReadValueJsonFile.cpp" />

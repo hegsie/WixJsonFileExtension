@@ -20,6 +20,8 @@ extern "C" UINT WINAPI ExecJsonFile(
     LPWSTR sczPhase = NULL;
     LPWSTR sczTransformLog = NULL;
     LPWSTR sczBackupSuffix = NULL;
+    LPWSTR sczCulture = NULL;
+    int iValueType = jvtAuto;
 
     // Files backed up in this action (CreateBackup applies once per file per transaction).
     std::set<std::wstring> backedUp;
@@ -94,6 +96,12 @@ extern "C" UINT WINAPI ExecJsonFile(
         hr = WcaReadStringFromCaData(&pwz, &sczBackupSuffix);
         ExitOnFailure(hr, "WixJsonFile: Failed to get BackupSuffix for WixJsonFile")
 
+        hr = WcaReadIntegerFromCaData(&pwz, &iValueType);
+        ExitOnFailure(hr, "WixJsonFile: Failed to get ValueType for WixJsonFile")
+
+        hr = WcaReadStringFromCaData(&pwz, &sczCulture);
+        ExitOnFailure(hr, "WixJsonFile: Failed to get Culture for WixJsonFile")
+
         JSON_OPERATION_TRACE trace;
         std::string backupNote;
         const bool fRestoreRecord = 0 != (iFlags & (1 << FLAG_RESTOREBACKUP)) && 0 == (iFlags & ((1 << FLAG_RESTOREBACKUP) - 1));
@@ -135,7 +143,7 @@ extern "C" UINT WINAPI ExecJsonFile(
 
             if (SUCCEEDED(hr))
             {
-                hr = UpdateJsonFile(sczFile, sczElementPath, sczValue, iFlags, iIndex, sczSchemaFile, iOptions, fTransformLog ? &trace : NULL);
+                hr = UpdateJsonFile(sczFile, sczElementPath, sczValue, iFlags, iIndex, sczSchemaFile, iOptions, fTransformLog ? &trace : NULL, iValueType, sczCulture);
             }
             else
             {
@@ -181,6 +189,8 @@ extern "C" UINT WINAPI ExecJsonFile(
                 entry["value"] = valueUtf8;
                 entry["index"] = iIndex;
                 entry["flags"] = iFlags;
+                if (jvtAuto != iValueType) { entry["valueType"] = JsonValueTypeName(iValueType); }
+                if (sczCulture && *sczCulture) { std::string cultureUtf8; WideToUtf8(sczCulture, cultureUtf8); entry["culture"] = cultureUtf8; }
                 if (!schemaUtf8.empty()) { entry["schemaFile"] = schemaUtf8; }
                 if (!backupNote.empty()) { entry["backup"] = backupNote; }
                 entry["outcome"] = trace.outcome;
@@ -216,6 +226,7 @@ LExit:
     ReleaseStr(sczPhase)
     ReleaseStr(sczTransformLog)
     ReleaseStr(sczBackupSuffix)
+    ReleaseStr(sczCulture)
 
     DWORD er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);

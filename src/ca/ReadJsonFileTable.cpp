@@ -2,7 +2,7 @@
 #include "JsonFile.h"
 
 LPCWSTR vcsJsonFileQuery = L"SELECT `WixJsonFile`.`JsonConfig`, `WixJsonFile`.`File`, `WixJsonFile`.`ElementPath`, "
-                           L"`WixJsonFile`.`Value`, `WixJsonFile`.`DefaultValue`, `WixJsonFile`.`Flags`, `WixJsonFile`.`Component_`, `WixJsonFile`.`Property`, `Component`.`Attributes`, `WixJsonFile`.`Index`, `WixJsonFile`.`SchemaFile`, `WixJsonFile`.`On`, `WixJsonFile`.`BackupSuffix` FROM `WixJsonFile`,`Component` "
+                           L"`WixJsonFile`.`Value`, `WixJsonFile`.`DefaultValue`, `WixJsonFile`.`Flags`, `WixJsonFile`.`Component_`, `WixJsonFile`.`Property`, `Component`.`Attributes`, `WixJsonFile`.`Index`, `WixJsonFile`.`SchemaFile`, `WixJsonFile`.`On`, `WixJsonFile`.`BackupSuffix`, `WixJsonFile`.`ValueType`, `WixJsonFile`.`Culture` FROM `WixJsonFile`,`Component` "
                            L"WHERE `WixJsonFile`.`Component_`=`Component`.`Component` ORDER BY `File`, `Sequence`";
 
 static HRESULT AddJsonFileChangeToList(
@@ -104,9 +104,23 @@ HRESULT ReadJsonFileTable(
         hr = WcaGetRecordFormattedString(hRec, jfqElementPath, &(*ppxfcTail)->pwzElementPath);
         ExitOnFailure(hr, "failed to get XPath for WixJsonFile: %ls", (*ppxfcTail)->wzId)
 
-        // Get the value
-        hr = WcaGetRecordFormattedString(hRec, jfqValue, &pwzData);
-        ExitOnFailure(hr, "failed to get Value for WixJsonFile: %ls", (*ppxfcTail)->wzId)
+        // Get the value. Formatted="no" (FLAG_RAWVALUE) takes it literally, so a JSON array or a
+        // bracketed literal is not mangled by MSI property expansion. The compiler stored such a
+        // value with the Formatted bracket escapes ([\[] and [\]]) to satisfy ICE03; undo them.
+        if ((*ppxfcTail)->iJsonFlags & (1 << FLAG_RAWVALUE))
+        {
+            hr = WcaGetRecordString(hRec, jfqValue, &pwzData);
+            ExitOnFailure(hr, "failed to get raw Value for WixJsonFile: %ls", (*ppxfcTail)->wzId)
+            hr = StrReplaceStringAll(&pwzData, L"[\\[]", L"[");
+            ExitOnFailure(hr, "failed to unescape raw Value for WixJsonFile: %ls", (*ppxfcTail)->wzId)
+            hr = StrReplaceStringAll(&pwzData, L"[\\]]", L"]");
+            ExitOnFailure(hr, "failed to unescape raw Value for WixJsonFile: %ls", (*ppxfcTail)->wzId)
+        }
+        else
+        {
+            hr = WcaGetRecordFormattedString(hRec, jfqValue, &pwzData);
+            ExitOnFailure(hr, "failed to get Value for WixJsonFile: %ls", (*ppxfcTail)->wzId)
+        }
         hr = StrAllocString(&(*ppxfcTail)->pwzValue, pwzData, 0);
         ExitOnFailure(hr, "failed to allocate buffer for value")
 
@@ -155,6 +169,19 @@ HRESULT ReadJsonFileTable(
         ExitOnFailure(hr, "failed to get BackupSuffix for WixJsonFile: %ls", (*ppxfcTail)->wzId)
         hr = StrAllocString(&(*ppxfcTail)->pwzBackupSuffix, pwzData, 0);
         ExitOnFailure(hr, "failed to allocate buffer for backup suffix")
+
+        // Get the value type (null means auto) and the culture (formatted, usually empty)
+        hr = WcaGetRecordInteger(hRec, jfqValueType, &(*ppxfcTail)->iValueType);
+        if (FAILED(hr) || S_FALSE == hr || MSI_NULL_INTEGER == (*ppxfcTail)->iValueType)
+        {
+            (*ppxfcTail)->iValueType = jvtAuto;
+            hr = S_OK;
+        }
+
+        hr = WcaGetRecordFormattedString(hRec, jfqCulture, &pwzData);
+        ExitOnFailure(hr, "failed to get Culture for WixJsonFile: %ls", (*ppxfcTail)->wzId)
+        hr = StrAllocString(&(*ppxfcTail)->pwzCulture, pwzData, 0);
+        ExitOnFailure(hr, "failed to allocate buffer for culture")
     }
 
     // if we looped through all records all is well
@@ -185,6 +212,7 @@ void FreeJsonFileChangeList(
         ReleaseStr(pxfc->pwzProperty);
         ReleaseStr(pxfc->pwzSchemaFile);
         ReleaseStr(pxfc->pwzBackupSuffix);
+        ReleaseStr(pxfc->pwzCulture);
 
         // Free the structure itself
         MemFree(pxfc);

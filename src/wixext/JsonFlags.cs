@@ -16,6 +16,8 @@
 		// Modifiers (not actions): back the file up before the first change in a transaction, and
 		// put that backup back when the component is uninstalled.
 		CreateBackup = 2048,
-		RestoreOnUninstall = 4096
+		RestoreOnUninstall = 4096,
+		// Formatted="no": the custom action reads Value literally instead of MSI-formatting it.
+		RawValue = 8192
 	}
 }

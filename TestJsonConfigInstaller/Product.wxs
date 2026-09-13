@@ -297,6 +297,20 @@
           Value="[REG_READ_MISSING]"
           Action="createJsonPointerValue"
           Sequence="6" />
+
+        <!-- ValueType / Culture / Formatted coverage (issue #30). Every row creates a member under
+             /Typed so the regression workflow can check the JSON type that was written. -->
+        <Json:JsonFile Id="typedNumberDe" File="[#EmptyConfig]" ElementPath="/Typed/NumberDe" Value="1.234,5" ValueType="number" Culture="de-DE" Action="createJsonPointerValue" Sequence="10" />
+        <Json:JsonFile Id="typedNumberInt" File="[#EmptyConfig]" ElementPath="/Typed/NumberInt" Value="42" ValueType="number" Action="createJsonPointerValue" Sequence="11" />
+        <Json:JsonFile Id="typedString" File="[#EmptyConfig]" ElementPath="/Typed/StringDigits" Value="0042" ValueType="string" Action="createJsonPointerValue" Sequence="12" />
+        <Json:JsonFile Id="typedBoolean" File="[#EmptyConfig]" ElementPath="/Typed/Boolean" Value="yes" ValueType="boolean" Action="createJsonPointerValue" Sequence="13" />
+        <Json:JsonFile Id="typedNull" File="[#EmptyConfig]" ElementPath="/Typed/Null" Value="ignored" ValueType="null" Action="createJsonPointerValue" Sequence="14" />
+        <Json:JsonFile Id="typedDateGb" File="[#EmptyConfig]" ElementPath="/Typed/DateGb" Value="31/12/2024" ValueType="date" Culture="en-GB" Action="createJsonPointerValue" Sequence="15" />
+        <!-- Formatted="no": a JSON array literal with square brackets, which MSI formatting would
+             otherwise treat as a property reference and blank out. -->
+        <Json:JsonFile Id="rawArray" File="[#EmptyConfig]" ElementPath="/Typed/RawArray" Value='["a","b"]' Formatted="no" ValueType="json" Action="createJsonPointerValue" Sequence="16" />
+        <!-- The same text through Formatted="yes" (the default) with escaped brackets. -->
+        <Json:JsonFile Id="escapedArray" File="[#EmptyConfig]" ElementPath="/Typed/EscapedArray" Value='[\[]"c","d"[\]]' ValueType="json" Action="createJsonPointerValue" Sequence="17" />
       </Component>
 
       <!-- Install/uninstall timing (On attribute) coverage against a JSON file that outlives the

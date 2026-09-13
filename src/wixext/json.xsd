@@ -99,6 +99,20 @@
       </xs:enumeration>
     </xs:restriction>
   </xs:simpleType>
+  <xs:simpleType name="ValueTypeType">
+    <xs:annotation>
+      <xs:documentation>How a JsonFile Value is converted to a JSON value.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:NMTOKEN">
+      <xs:enumeration value="auto" />
+      <xs:enumeration value="string" />
+      <xs:enumeration value="number" />
+      <xs:enumeration value="boolean" />
+      <xs:enumeration value="null" />
+      <xs:enumeration value="json" />
+      <xs:enumeration value="date" />
+    </xs:restriction>
+  </xs:simpleType>
   <xs:simpleType name="OnType">
     <xs:annotation>
       <xs:documentation>When a JsonFile modification runs: during install (default), during uninstall, or both.</xs:documentation>
@@ -248,6 +262,39 @@
             component, such as a shared or permanent configuration file; a file removed by the same uninstall
             is edited and then deleted. On a major upgrade the old package's uninstall-time changes run before
             the new package's install-time changes (with the default afterInstallValidate scheduling).
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Formatted" type="wxs:YesNoTypeUnion" default="yes">
+        <xs:annotation>
+          <xs:documentation>
+            Whether Value is a Windows Installer formatted string: [PROPERTY] and [%ENVIRONMENT_VARIABLE]
+            references are expanded and square brackets must be escaped as [\[] and [\]]. Set to 'no' to use
+            Value literally, with no expansion and no escaping, which is the way to author a value containing
+            square brackets such as a JSON array ('["a","b"]'). Default is 'yes'.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="ValueType" type="ValueTypeType" default="auto">
+        <xs:annotation>
+          <xs:documentation>
+            How Value is converted to a JSON value. 'auto' (the default) writes JSON when the text parses as
+            JSON and a string otherwise, keeping an existing string a string. The explicit types convert
+            strictly and fail the operation when the text does not fit: 'string' always writes a string,
+            'number' a number (parsed with the conventions of Culture, so '1.234,5' is 1234.5 in de-DE),
+            'boolean' accepts true/false, yes/no, on/off and 1/0, 'null' writes null, 'json' requires valid
+            JSON, and 'date' parses a date in Culture's conventions and writes it as ISO 8601
+            (yyyy-MM-ddTHH:mm:ss). Applies to setValue, createJsonPointerValue, appendArray, insertArray and
+            removeArrayElement.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:attribute name="Culture" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>
+            Culture name, such as 'en-GB' or 'de-DE', whose conventions ValueType='number' and ValueType='date'
+            are parsed with. Without it the invariant culture applies ('.' decimal point, no grouping, dates
+            such as 2024-12-31 or 12/31/2024). Formatted, so it may come from a property.
           </xs:documentation>
         </xs:annotation>
       </xs:attribute>

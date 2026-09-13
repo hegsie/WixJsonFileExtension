@@ -104,7 +104,9 @@ HRESULT UpdateJsonFile(
     __in int iIndex,
     __in_z LPCWSTR wzSchemaFile,
     __in int iOptions,
-    __inout_opt JSON_OPERATION_TRACE* pTrace
+    __inout_opt JSON_OPERATION_TRACE* pTrace,
+    __in int iValueType,
+    __in_z_opt LPCWSTR wzCulture
 )
 {
     HRESULT hr = S_OK;
@@ -232,10 +234,10 @@ HRESULT UpdateJsonFile(
     // the file, which is harmless but pointless) touches the disk.
     if (fDryRun)
     {
-        WcaLog(LOGMSG_STANDARD, "WixJsonFile: DRY RUN - would apply %s to '%ls' in '%ls'%s%ls%s (flags=%d, index=%d)",
+        WcaLog(LOGMSG_STANDARD, "WixJsonFile: DRY RUN - would apply %s to '%ls' in '%ls'%s%ls%s (flags=%d, index=%d, valueType=%s)",
             szAction, wzElementPath, wzFile,
             (wzValue && *wzValue) ? " with value '" : "", (wzValue && *wzValue) ? wzValue : L"", (wzValue && *wzValue) ? "'" : "",
-            iFlags, iIndex);
+            iFlags, iIndex, JsonValueTypeName(iValueType));
         return FinishOperation(pTrace, "dry-run", S_OK, wzFile, elementPath, fPointer, false);
     }
 
@@ -295,7 +297,7 @@ HRESULT UpdateJsonFile(
     bool create = flags.test(FLAG_CREATEVALUE);
     if (flags.test(FLAG_SETVALUE) || create) {
         WcaLog(LOGMSG_VERBOSE, "Setting JSON value (create=%s)", create ? "true" : "false");
-        hr = SetJsonPathValue(wzFile, elementPath, wzValue, create);
+        hr = SetJsonPathValue(wzFile, elementPath, wzValue, create, iValueType, wzCulture);
     }
     else if (flags.test(FLAG_DELETEVALUE)) {
         WcaLog(LOGMSG_VERBOSE, "Deleting JSON value");
@@ -307,15 +309,15 @@ HRESULT UpdateJsonFile(
     }
     else if (flags.test(FLAG_APPENDARRAY)) {
         WcaLog(LOGMSG_VERBOSE, "Appending to JSON array");
-        hr = AppendJsonArray(wzFile, elementPath, wzValue);
+        hr = AppendJsonArray(wzFile, elementPath, wzValue, iValueType, wzCulture);
     }
     else if (flags.test(FLAG_INSERTARRAY)) {
         WcaLog(LOGMSG_VERBOSE, "Inserting into JSON array at index %d", iIndex);
-        hr = InsertJsonArray(wzFile, elementPath, wzValue, iIndex);
+        hr = InsertJsonArray(wzFile, elementPath, wzValue, iIndex, iValueType, wzCulture);
     }
     else if (flags.test(FLAG_REMOVEARRAYELEMENT)) {
         WcaLog(LOGMSG_VERBOSE, "Removing element from JSON array");
-        hr = RemoveJsonArrayElement(wzFile, elementPath, wzValue);
+        hr = RemoveJsonArrayElement(wzFile, elementPath, wzValue, iValueType, wzCulture);
     }
     else if (flags.test(FLAG_DISTINCTVALUES)) {
         WcaLog(LOGMSG_VERBOSE, "Removing duplicates from JSON array");

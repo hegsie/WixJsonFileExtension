@@ -25,6 +25,9 @@ An extension to [Windows Installer XML (WiX) Toolset](http://wixtoolset.org/) to
 - [Detailed Usage](#detailed-usage)
   - [Available Actions](#available-actions)
   - [JsonFile Element Attributes](#jsonfile-element-attributes)
+  - [Value Typing](#value-typing)
+  - [Property Expansion and Literal Values](#property-expansion-and-literal-values)
+  - [File Writes](#file-writes)
   - [JSONPath vs JSONPointer](#jsonpath-vs-jsonpointer)
 - [Examples](#examples)
   - [Reading Values](#reading-values)
@@ -454,6 +457,9 @@ The `JsonFile` element supports the following actions:
 | `ElementPath` | Yes | JSONPath or JSONPointer expression to locate the element(s) to modify |
 | `Action` | No | The action to perform (see Available Actions table). Defaults to `setValue` |
 | `Value` | Conditional | The value to set. Required for `setValue`, `replaceJsonValue`, `createJsonPointerValue`, `appendArray`, and `insertArray` actions. For `removeArrayElement`, `Value` is optional: if omitted, elements matched by the JSONPath expression are removed; if provided, all array elements matching that value are removed. Can be a simple value, property reference like `[PROPERTY_NAME]`, or JSON-formatted string. See "Value typing" below for how values are converted to JSON types |
+| `ValueType` | No | How `Value` is converted to JSON: `auto` (default), `string`, `number`, `boolean`, `null`, `json` or `date`. See [Value Typing](#value-typing) |
+| `Culture` | No | Culture name (e.g. `de-DE`, `en-GB`) whose conventions `ValueType="number"` and `ValueType="date"` are parsed with. Without it the invariant culture applies |
+| `Formatted` | No | Whether `Value` is a Windows Installer formatted string (`[PROPERTY]` and `[%ENV]` expansion, `[\[]` escapes). `no` takes it literally, which is how to author a value containing square brackets such as a JSON array. Default is `yes` |
 | `DefaultValue` | No | Default value to use if the value cannot be read - the path doesn't exist, the file doesn't exist, or the file cannot be parsed (used with `readValue`) |
 | `Property` | Conditional | Windows Installer property to store the read value. Required for `readValue` action |
 | `On` | No | When the modification runs: `install` (default) while the component is being installed or repaired, `uninstall` while it is being uninstalled, or `both`. The same `Action` and `Value` apply at each time; see [Install and Uninstall Timing](#install-and-uninstall-timing) |
@@ -467,16 +473,55 @@ The `JsonFile` element supports the following actions:
 
 ### Value Typing
 
-How the `Value` attribute is converted into a JSON value:
+How the `Value` attribute is converted into a JSON value is decided by `ValueType`. The default, `auto`, infers the type from the text:
 
 - **Replacing an existing string value** (`setValue`, `createJsonPointerValue`): the new value is always written as a string, so values like `"1.0"` or `"true"` don't silently change type.
 - **Replacing a non-string value or creating a new value**: the value is parsed as JSON first, so `9090` becomes a number, `true`/`false` become booleans, and `["a","b"]` becomes an array. If the value is not valid JSON it is written as a string.
-- **`appendArray` / `insertArray` / `removeArrayElement`**: the value is parsed as JSON with a fallback to string (unchanged behavior).
-- **`replaceJsonValue`**: the value must be valid JSON and is written exactly as parsed (unchanged behavior).
+- **`appendArray` / `insertArray` / `removeArrayElement`**: the value is parsed as JSON with a fallback to string.
+- **`replaceJsonValue`**: the value must be valid JSON and is written exactly as parsed.
+
+When the inference is not what you want, or the value comes from user input in a local format, set the type explicitly. Explicit types convert strictly and **fail the operation** (and so the install) when the text does not fit, which is usually preferable to a silently mistyped setting:
+
+| `ValueType` | Writes | Accepts |
+|-------------|--------|---------|
+| `string` | a string | anything, including `"0042"` or `"true"`, kept as text |
+| `number` | a number | digits with the decimal and grouping separators of `Culture` (`1.234,5` in `de-DE`, `1,234.5` in `en-US`); integers stay integers |
+| `boolean` | `true`/`false` | `true`/`false`, `yes`/`no`, `on`/`off`, `1`/`0`, case-insensitive |
+| `null` | `null` | anything (the text is ignored) |
+| `json` | the parsed JSON | valid JSON only |
+| `date` | an ISO 8601 string, `yyyy-MM-ddTHH:mm:ss` | a date (and optional time) in `Culture`'s conventions: `31/12/2024` in `en-GB`, `12/31/2024` in `en-US`, `2024-12-31` anywhere |
+
+Without `Culture`, `number` and `date` use the invariant culture. `Culture` is a formatted field, so it can be set from a property collected in the UI. A well-formed culture name Windows does not know (say `xx-ZZ`) is not an error: Windows treats it as a custom locale with default conventions, so check the name rather than relying on a failure.
+
+```xml
+<!-- A port typed by the user stays a number even though the property is text -->
+<Json:JsonFile Id="SetPort" File="[#AppConfig]" ElementPath="$.Kestrel.Port" Value="[PORT]" ValueType="number" />
+
+<!-- A German-format threshold from a property -->
+<Json:JsonFile Id="SetThreshold" File="[#AppConfig]" ElementPath="$.Limits.Threshold" Value="[THRESHOLD]" ValueType="number" Culture="de-DE" />
+
+<!-- Feature flag from a checkbox property that holds "1" or "" -->
+<Json:JsonFile Id="SetFlag" File="[#AppConfig]" ElementPath="$.Features.Beta" Value="[BETA_CHECKED]" ValueType="boolean" />
+```
+
+### Property Expansion and Literal Values
+
+`Value`, `File`, `ElementPath`, `SchemaFile`, `BackupSuffix` and `Culture` are Windows Installer **formatted** fields: `[PROPERTY]` is replaced by the property's value, `[%NAME]` by the environment variable, `[#FileId]` and `[$ComponentId]` by installed paths, and a literal `[` or `]` has to be written `[\[]` and `[\]]`. The rules are Windows Installer's own, documented under [Formatted](https://learn.microsoft.com/windows/win32/msi/formatted); unknown property references expand to nothing rather than failing.
+
+Because of that, a `Value` that is itself JSON with square brackets, such as an array, is mangled by formatting unless the brackets are escaped. Rather than escaping, set `Formatted="no"` to have the value used exactly as written, with no expansion of any kind:
+
+```xml
+<Json:JsonFile Id="SetOrigins" File="[#AppConfig]" ElementPath="$.Cors.AllowedOrigins"
+               Value='["https://a.example","https://b.example"]' Formatted="no" ValueType="json" />
+```
+
+A formatted value cannot contain a property reference *and* literal brackets in a convenient way; for those, put the JSON in a property and reference it (`Value="[MY_JSON]"`), as the test installer does.
 
 ### File Writes
 
-All modifications are written atomically: the updated JSON is written to a temporary file next to the target and then swapped in, so a failure mid-write can never leave a truncated or corrupted configuration file. Note that files are re-serialized (pretty-printed) on every write, so original formatting and any non-standard content such as comments are not preserved (files containing comments fail to parse).
+All modifications are written atomically: the updated JSON is written to a temporary file next to the target and then swapped in, so a failure mid-write can never leave a truncated or corrupted configuration file.
+
+Files are re-serialized on every write, but in a way that keeps diffs small for source-controlled configuration: **object keys keep their order**, and the **indentation unit** (tabs, or two or four spaces), **line endings** (CRLF or LF) and **trailing newline** of the existing file are detected and reused. A file with nothing to detect (minified) is written with four-space indentation and CRLF. Non-standard content such as comments is not preserved (files containing comments fail to parse), and jsoncons' own line-breaking rules apply within a line (short arrays stay on one line).
 
 ### JSONPath vs JSONPointer
 
@@ -1461,7 +1506,7 @@ When working with JSONPath in WiX XML files, you need to be aware of multiple la
 
 ### 1. MSI Formatting Characters
 
-Square brackets `[` and `]` are special characters in Windows Installer formatted strings. They must be escaped as `[\[]` and `[\]]` in your WiX source files.
+Square brackets `[` and `]` are special characters in Windows Installer formatted strings. They must be escaped as `[\[]` and `[\]]` in your WiX source files, or, for a `Value` that needs no property expansion, use `Formatted="no"` (see [Property Expansion and Literal Values](#property-expansion-and-literal-values)).
 
 **Example:**
 ```xml

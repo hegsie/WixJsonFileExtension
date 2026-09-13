@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "JsonFile.h"
 
-HRESULT AppendJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue)
+HRESULT AppendJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, int iValueType, __in_z_opt LPCWSTR wzCulture)
 {
     try
     {
@@ -56,14 +56,14 @@ HRESULT AppendJsonArray(__in_z LPCWSTR wzFile, const std::string& sElementPath, 
                 return HRESULT_FROM_WIN32(ERROR_OBJECT_NOT_FOUND);
             }
 
-            // Parse the value to append
+            // Convert the value to append (ValueType=auto: JSON when it parses, else a string)
             json valueToAppend;
-            try {
-                valueToAppend = json::parse(valueUtf8);
-            }
-            catch (const std::exception&) {
-                // If parsing fails, treat as a string value
-                valueToAppend = json(valueUtf8);
+            std::string convError;
+            if (!ConvertAuthoredValue(valueUtf8, iValueType, wzCulture, NULL, valueToAppend, convError))
+            {
+                WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Value for path '%s' in file '%ls' does not convert to ValueType %s: %s",
+                       sElementPath.c_str(), wzFile, JsonValueTypeName(iValueType), convError.c_str());
+                return E_INVALIDARG;
             }
 
             WcaLog(LOGMSG_STANDARD, "Appending value to array at: %s", sElementPath.c_str());

@@ -418,6 +418,129 @@ static void Test_Restore_PutsBackupBackAndRemovesIt()
     RemoveFile(path);
 }
 
+// ValueType / Culture conversion (JsonValue.cpp) and Formatted="no" plumbing.
+static void Test_ValueType_StringKeepsDigitsAsString()
+{
+    auto path = WriteTempJson(R"({"port":8080})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.port", L"9090", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtString, NULL));
+    auto j = ReadJson(path);
+    CHECK(j["port"].is_string() && j["port"].as<std::string>() == "9090");
+    RemoveFile(path);
+}
+
+static void Test_ValueType_NumberWithCulture()
+{
+    auto path = WriteTempJson(R"({"a":"x","b":"x","c":"x"})");
+    // de-DE: '.' groups, ',' is the decimal separator.
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.a", L"1.234,5", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtNumber, L"de-DE"));
+    // Invariant: plain integer becomes an integer, not a double.
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.b", L" 42 ", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtNumber, NULL));
+    // en-US grouping.
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.c", L"1,234.5", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtNumber, L"en-US"));
+    auto j = ReadJson(path);
+    CHECK(j["a"].is_number() && j["a"].as<double>() == 1234.5);
+    CHECK(j["b"].is_int64() && j["b"].as<int64_t>() == 42);
+    CHECK(j["c"].is_number() && j["c"].as<double>() == 1234.5);
+
+    // Not a number in that culture (or any): the operation fails and the file is untouched.
+    // (An unknown but well-formed culture name is not an error: Windows 10+ treats any BCP-47
+    // tag as a custom locale with default conventions.)
+    CHECK(FAILED(UpdateJsonFile(path.c_str(), L"$.a", L"abc", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtNumber, L"de-DE")));
+    CHECK(ReadJson(path)["a"].as<double>() == 1234.5);
+    RemoveFile(path);
+}
+
+static void Test_ValueType_BooleanNullJson()
+{
+    auto path = WriteTempJson(R"({"b":"x","n":"x","j":"x"})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.b", L"Yes", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtBoolean, NULL));
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.n", L"whatever", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtNull, NULL));
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.j", L"[\"a\",{\"k\":1}]", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtJson, NULL));
+    auto j = ReadJson(path);
+    CHECK(j["b"].is_bool() && j["b"].as<bool>() == true);
+    CHECK(j["n"].is_null());
+    CHECK(j["j"].is_array() && j["j"].size() == 2 && j["j"][1]["k"].as<int>() == 1);
+    CHECK(FAILED(UpdateJsonFile(path.c_str(), L"$.b", L"maybe", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtBoolean, NULL)));
+    CHECK(FAILED(UpdateJsonFile(path.c_str(), L"$.j", L"{not json", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtJson, NULL)));
+    RemoveFile(path);
+}
+
+static void Test_ValueType_DateWithCulture()
+{
+    auto path = WriteTempJson(R"({"gb":"x","us":"x","iso":"x"})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.gb", L"31/12/2024 14:30", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtDate, L"en-GB"));
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.us", L"12/31/2024", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtDate, L"en-US"));
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.iso", L"2024-12-31", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtDate, NULL));
+    auto j = ReadJson(path);
+    CHECK(j["gb"].as<std::string>() == "2024-12-31T14:30:00");
+    CHECK(j["us"].as<std::string>() == "2024-12-31T00:00:00");
+    CHECK(j["iso"].as<std::string>() == "2024-12-31T00:00:00");
+    CHECK(FAILED(UpdateJsonFile(path.c_str(), L"$.gb", L"not a date", FlagFor(FLAG_SETVALUE), -1, L"", 0, NULL, jvtDate, L"en-GB")));
+    RemoveFile(path);
+}
+
+static void Test_ValueType_AppliesToArrayActions()
+{
+    auto path = WriteTempJson(R"({"items":["1"]})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.items", L"2", FlagFor(FLAG_APPENDARRAY), -1, L"", 0, NULL, jvtString, NULL));
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.items", L"3", FlagFor(FLAG_INSERTARRAY), 0, L"", 0, NULL, jvtNumber, NULL));
+    auto j = ReadJson(path);
+    CHECK(j["items"].size() == 3);
+    CHECK(j["items"][0].is_int64() && j["items"][0].as<int>() == 3);
+    CHECK(j["items"][2].is_string() && j["items"][2].as<std::string>() == "2");
+    // removeArrayElement matches the typed value: the string "1", not the number 1.
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.items", L"1", FlagFor(FLAG_REMOVEARRAYELEMENT), -1, L"", 0, NULL, jvtNumber, NULL));
+    CHECK(ReadJson(path)["items"].size() == 3);
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.items", L"1", FlagFor(FLAG_REMOVEARRAYELEMENT), -1, L"", 0, NULL, jvtString, NULL));
+    CHECK(ReadJson(path)["items"].size() == 2);
+    RemoveFile(path);
+}
+
+// Order and formatting preservation (ojson + DetectJsonFileFormat/SerializeJson).
+static void Test_Write_PreservesKeyOrder()
+{
+    auto path = WriteTempJson("{\"zeta\": 1, \"alpha\": 2, \"mid\": {\"y\": 1, \"x\": 2}}");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.alpha", L"3", FlagFor(FLAG_SETVALUE), -1, L""));
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"/mid/w", L"0", FlagFor(FLAG_CREATEVALUE), -1, L""));
+    std::string text = ReadText(path);
+    CHECK(text.find("\"zeta\"") < text.find("\"alpha\""));
+    CHECK(text.find("\"alpha\"") < text.find("\"mid\""));
+    CHECK(text.find("\"y\"") < text.find("\"x\""));
+    CHECK(text.find("\"x\"") < text.find("\"w\""));   // appended member goes last
+    RemoveFile(path);
+}
+
+static void Test_Write_PreservesIndentAndLineEndings()
+{
+    // Tabs + CRLF + trailing newline (the fixture style)
+    auto tabs = WriteTempJson("{\r\n\t\"a\": {\r\n\t\t\"b\": 1\r\n\t}\r\n}\r\n");
+    CHECK_HR(UpdateJsonFile(tabs.c_str(), L"$.a.b", L"2", FlagFor(FLAG_SETVALUE), -1, L""));
+    std::string text = ReadText(tabs);
+    CHECK(text.find("\r\n\t\"a\"") != std::string::npos);
+    CHECK(text.find("\r\n\t\t\"b\": 2") != std::string::npos);
+    CHECK(text.find("  ") == std::string::npos);        // no space indentation crept in
+    CHECK(text.size() >= 2 && text.substr(text.size() - 2) == "\r\n");
+    RemoveFile(tabs);
+
+    // Two spaces + LF + no trailing newline
+    auto two = WriteTempJson("{\n  \"a\": {\n    \"b\": 1\n  }\n}");
+    CHECK_HR(UpdateJsonFile(two.c_str(), L"$.a.b", L"2", FlagFor(FLAG_SETVALUE), -1, L""));
+    text = ReadText(two);
+    CHECK(text.find("\n  \"a\"") != std::string::npos);
+    CHECK(text.find("\n    \"b\": 2") != std::string::npos);
+    CHECK(text.find('\r') == std::string::npos);
+    CHECK(text.find('\t') == std::string::npos);
+    CHECK(text.back() == '}');
+    RemoveFile(two);
+
+    // Nothing to detect (minified): the historical 4-space CRLF output
+    auto minified = WriteTempJson("{\"a\":{\"b\":1}}");
+    CHECK_HR(UpdateJsonFile(minified.c_str(), L"$.a.b", L"2", FlagFor(FLAG_SETVALUE), -1, L""));
+    text = ReadText(minified);
+    CHECK(text.find("\r\n    \"a\"") != std::string::npos);
+    RemoveFile(minified);
+}
+
 // Timing (On column) gating shared by the scheduling and readValue custom actions. The component
 // state pairs mirror what MsiGetComponentState reports: fresh install (absent -> local), repair
 // (local -> local), uninstall (local -> absent) and a component that is not part of the transaction
@@ -558,6 +681,13 @@ int main(int argc, char** argv)
     RunTest("Backup_CreatesOnceAndKeepsOriginal", Test_Backup_CreatesOnceAndKeepsOriginal);
     RunTest("Backup_DefaultSuffixAndMissingFile", Test_Backup_DefaultSuffixAndMissingFile);
     RunTest("Restore_PutsBackupBackAndRemovesIt", Test_Restore_PutsBackupBackAndRemovesIt);
+    RunTest("ValueType_StringKeepsDigitsAsString", Test_ValueType_StringKeepsDigitsAsString);
+    RunTest("ValueType_NumberWithCulture", Test_ValueType_NumberWithCulture);
+    RunTest("ValueType_BooleanNullJson", Test_ValueType_BooleanNullJson);
+    RunTest("ValueType_DateWithCulture", Test_ValueType_DateWithCulture);
+    RunTest("ValueType_AppliesToArrayActions", Test_ValueType_AppliesToArrayActions);
+    RunTest("Write_PreservesKeyOrder", Test_Write_PreservesKeyOrder);
+    RunTest("Write_PreservesIndentAndLineEndings", Test_Write_PreservesIndentAndLineEndings);
 
     std::string out = (argc > 1) ? argv[1] : "cpp-tests.xml";
     WriteJUnit(out);

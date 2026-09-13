@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "JsonFile.h"
 
-HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue)
+HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElementPath, __in_z LPCWSTR wzValue, int iValueType, __in_z_opt LPCWSTR wzCulture)
 {
     try
     {
@@ -47,14 +47,14 @@ HRESULT RemoveJsonArrayElement(__in_z LPCWSTR wzFile, const std::string& sElemen
                     return hr;
                 }
 
-                // Parse the value to match
+                // Convert the value to match (ValueType=auto: JSON when it parses, else a string)
                 json valueToMatch;
-                try {
-                    valueToMatch = json::parse(valueUtf8);
-                }
-                catch (const std::exception&) {
-                    // If parsing fails, treat as a string value
-                    valueToMatch = json(valueUtf8);
+                std::string convError;
+                if (!ConvertAuthoredValue(valueUtf8, iValueType, wzCulture, NULL, valueToMatch, convError))
+                {
+                    WcaLog(LOGMSG_STANDARD, "WixJsonFile: Error - Value for path '%s' in file '%ls' does not convert to ValueType %s: %s",
+                           sElementPath.c_str(), wzFile, JsonValueTypeName(iValueType), convError.c_str());
+                    return E_INVALIDARG;
                 }
 
                 // Find and remove matching elements

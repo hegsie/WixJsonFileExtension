@@ -19,7 +19,9 @@ public static partial class JsonFileDefinitions
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.Index), IntermediateFieldType.Number),
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.SchemaFile), IntermediateFieldType.String),
 			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.On), IntermediateFieldType.Number),
-			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.BackupSuffix), IntermediateFieldType.String)
+			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.BackupSuffix), IntermediateFieldType.String),
+			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.ValueType), IntermediateFieldType.Number),
+			new IntermediateFieldDefinition(nameof(JsonFileSymbolFields.Culture), IntermediateFieldType.String)
 		},
 		typeof(JsonFileSymbol));
 }
@@ -37,7 +39,9 @@ public enum JsonFileSymbolFields
 	Index,
 	SchemaFile,
 	On,
-	BackupSuffix
+	BackupSuffix,
+	ValueType,
+	Culture
 }
 
 public class JsonFileSymbol : IntermediateSymbol
@@ -127,5 +131,23 @@ public class JsonFileSymbol : IntermediateSymbol
 	{
 		get => this.Fields[(int)JsonFileSymbolFields.BackupSuffix].AsString();
 		set => this.Set((int)JsonFileSymbolFields.BackupSuffix, value);
+	}
+
+	/// <summary>
+	/// How Value is converted (see JsonValueType); null or 0 is auto.
+	/// </summary>
+	public int? ValueType
+	{
+		get => this.Fields[(int)JsonFileSymbolFields.ValueType].AsNullableNumber();
+		set => this.Set((int)JsonFileSymbolFields.ValueType, value);
+	}
+
+	/// <summary>
+	/// Culture name (e.g. "de-DE") whose conventions number and date values are parsed with.
+	/// </summary>
+	public string Culture
+	{
+		get => this.Fields[(int)JsonFileSymbolFields.Culture].AsString();
+		set => this.Set((int)JsonFileSymbolFields.Culture, value);
 	}
 }

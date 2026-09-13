@@ -63,7 +63,7 @@ extern "C" UINT WINAPI ReadValueJsonFile(
                     try
                     {
                         std::ifstream is{ fs::path(pxfc->wzFile) };
-                        auto fileJson = jsoncons::json::parse(is);
+                        auto fileJson = json::parse(is);
                         is.close();
 
                         WcaLog(LOGMSG_STANDARD, "Parsed File");
@@ -78,7 +78,7 @@ extern "C" UINT WINAPI ReadValueJsonFile(
                         }
                         else
                         {
-                            jsoncons::json result = jsonpath::json_query(fileJson, elementPath);
+                            json result = jsonpath::json_query(fileJson, elementPath);
 
                             WcaLog(LOGMSG_STANDARD, "Completed query of json file");
 
@@ -90,7 +90,7 @@ extern "C" UINT WINAPI ReadValueJsonFile(
                                 WcaLog(LOGMSG_STANDARD, "Found %d results for %s", static_cast<int>(result.size()), elementPath.c_str());
 
                                 // json_query returns an array of matches; use the first match.
-                                jsoncons::json match = (result.is_array() && !result.empty()) ? result.at(0) : result;
+                                json match = (result.is_array() && !result.empty()) ? result.at(0) : result;
                                 std::string valueUtf8 = match.as<std::string>();
 
                                 // jsoncons stores strings as UTF-8; convert back to UTF-16 so the MSI
