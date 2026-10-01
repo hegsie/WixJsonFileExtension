@@ -65,9 +65,13 @@ A Trusted Publishing policy must be configured on nuget.org under the `hegsie` a
 
 NuGet publishing requires no repository secrets. DLL signing does require the two repository secrets below.
 
-The release workflow Authenticode-signs the x86, x64, and ARM64 custom-action DLLs before building the wixlib that embeds them. Obtain a trusted code-signing certificate that includes an exportable private key, and export it as a password-protected PKCS#12/PFX file. Keep the PFX and password private.
+To obtain a publicly trusted certificate, order an **Authenticode/code-signing certificate** from a certificate authority (CA) trusted by Windows, and complete the identity validation the CA requires. Ask the CA before ordering how its certificate can be used from GitHub Actions. Current CA/Browser Forum requirements generally require code-signing private keys to remain in protected hardware or an HSM, so a newly issued certificate may not be exportable as a PFX.
 
-Encode the PFX on a trusted machine. For example, in PowerShell on Windows, replace the path with the PFX location:
+The release workflow currently accepts only a password-protected PKCS#12/PFX file containing the private key. Do not assume a new public code-signing certificate can be exported in that format. If your CA provides a hardware token or hosted signing service instead, this workflow must be adapted to use that signing method before it can sign releases. See the [CA/Browser Forum code-signing requirements](https://cabforum.org/working-groups/code-signing/requirements/) for the current baseline.
+
+If you already have a PFX that your CA permits you to use this way, keep it and its password private.
+
+For a compatible PFX, encode it on a trusted machine. For example, in PowerShell on Windows, replace the path with the PFX location:
 
 ```powershell
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\certificate.pfx")) | Set-Clipboard
