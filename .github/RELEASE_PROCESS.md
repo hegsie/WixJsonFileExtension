@@ -63,9 +63,21 @@ A Trusted Publishing policy must be configured on nuget.org under the `hegsie` a
 - **Repository**: `WixJsonFileExtension`
 - **Workflow file**: `release.yml`
 
-The release workflow Authenticode-signs the x86, x64, and ARM64 custom-action DLLs before building the wixlib that embeds them. Configure these repository secrets with a code-signing certificate in PKCS#12/PFX format:
+NuGet publishing requires no repository secrets. DLL signing does require the two repository secrets below.
+
+The release workflow Authenticode-signs the x86, x64, and ARM64 custom-action DLLs before building the wixlib that embeds them. Obtain a trusted code-signing certificate that includes an exportable private key, and export it as a password-protected PKCS#12/PFX file. Keep the PFX and password private.
+
+Encode the PFX on a trusted machine. For example, in PowerShell on Windows, replace the path with the PFX location:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\certificate.pfx")) | Set-Clipboard
+```
+
+In this repository on GitHub, open **Settings → Secrets and variables → Actions → Repository secrets**, then select **New repository secret** for each:
 - `WINDOWS_SIGNING_CERTIFICATE_BASE64`: Base64-encoded PFX file
 - `WINDOWS_SIGNING_CERTIFICATE_PASSWORD`: PFX password
+
+Paste the encoded value from the clipboard as the first secret and the PFX password as the second. The repository's Settings tab and secrets management require suitable repository permissions. Do not print either value in workflow logs or commit them to the repository.
 
 The workflow signs with SHA-256, adds a trusted timestamp, and verifies each DLL signature. A release fails if the secrets are missing or signing/verification fails. Keep the certificate and password private; do not commit them to the repository. This signs the extension's custom-action DLLs, not an installer's final MSI or bundle; projects consuming the extension should sign their own final installer with their own certificate.
 
