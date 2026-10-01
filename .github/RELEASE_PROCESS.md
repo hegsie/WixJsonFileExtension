@@ -83,6 +83,8 @@ One-time setup:
    - variable `SIGNPATH_ORGANIZATION_ID`: the organization ID shown in SignPath;
    - secret `SIGNPATH_API_TOKEN`: the CI user's API token.
 
+The public [code signing policy](../CODE_SIGNING.md) required by SignPath Foundation lists what is signed and who can approve signing; keep its team roles current.
+
 This signs the extension's custom-action DLLs, not an installer's final MSI or bundle; projects consuming the extension should sign their own final installer with their own certificate.
 
 ## Notes

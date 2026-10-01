@@ -42,6 +42,12 @@ jobs:
         }
         echo "version=$version" >> $env:GITHUB_OUTPUT
         echo "Version: $version"
+        # Four-part numeric form for the jsonca.dll version resource (prerelease suffix dropped,
+        # missing parts set to 0).
+        $v = [version]($version -replace '-.*$', '')
+        $fileVersion = "$($v.Major).$($v.Minor).$([Math]::Max($v.Build, 0)).$([Math]::Max($v.Revision, 0))"
+        echo "fileversion=$fileVersion" >> $env:GITHUB_OUTPUT
+        echo "File version: $fileVersion"
 
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v2
@@ -56,11 +62,11 @@ jobs:
     - name: Build x86 and ARM64 custom action DLLs
       working-directory: ${{env.GITHUB_WORKSPACE}}
       run: |
-        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=Win32 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=Win32 /p:JsonCaVersion=${{ steps.version.outputs.fileversion }} /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=ARM64 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=ARM64 /p:JsonCaVersion=${{ steps.version.outputs.fileversion }} /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=x64 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=x64 /p:JsonCaVersion=${{ steps.version.outputs.fileversion }} /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     # Authenticode-sign the custom action DLLs (issue #56) before the wixlib embeds them, so they
@@ -93,7 +99,9 @@ jobs:
 
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}}
+      # JsonCaVersion must match the custom action builds above: a different value changes the
+      # resource compiler command line, which would rebuild and relink jsonca and drop its signature.
+      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:JsonCaVersion=${{ steps.version.outputs.fileversion }} ${{env.SOLUTION_FILE_PATH}}
 
     # The solution build must have treated jsonca as up to date; a relink would have replaced the
     # signed DLLs with unsigned ones before the wixlib embedded them.

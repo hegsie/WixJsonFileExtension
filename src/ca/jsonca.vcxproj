@@ -219,6 +219,16 @@
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
+  <!-- Stamps the version resource in jsonca.rc. The release workflow passes the four-part release
+       version (e.g. /p:JsonCaVersion=7.1.0.0); other builds fall back to 0.0.0.0. -->
+  <PropertyGroup>
+    <JsonCaVersion Condition="'$(JsonCaVersion)'==''">0.0.0.0</JsonCaVersion>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ResourceCompile>
+      <PreprocessorDefinitions>JSONCA_VER_MAJOR=$([System.Version]::Parse('$(JsonCaVersion)').Major);JSONCA_VER_MINOR=$([System.Version]::Parse('$(JsonCaVersion)').Minor);JSONCA_VER_BUILD=$([System.Version]::Parse('$(JsonCaVersion)').Build);JSONCA_VER_REVISION=$([System.Version]::Parse('$(JsonCaVersion)').Revision);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ResourceCompile Include="jsonca.rc" />
   </ItemGroup>
