@@ -50,16 +50,53 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       run: nuget restore ${{env.SOLUTION_FILE_PATH}}
 
-    # Build the custom action DLL for the non-x64 platforms first: the wixlib compiles its
-    # x86/ARM64 fragments (and embeds those DLLs) only when the outputs exist, so released
-    # packages must carry all three platforms.
-    - name: Build x86 and ARM64 custom action DLLs
+    # Build every custom action architecture before signing and building the wixlib that embeds
+    # them, so released packages carry signed DLLs for all three platforms.
+    - name: Build custom action DLLs
       working-directory: ${{env.GITHUB_WORKSPACE}}
       run: |
         msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=Win32 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=ARM64 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=x64 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    - name: Sign custom action DLLs
+      shell: pwsh
+      env:
+        SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+        SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+      run: |
+        if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64) -or
+            [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) {
+          throw "Set WINDOWS_SIGNING_CERTIFICATE_BASE64 and WINDOWS_SIGNING_CERTIFICATE_PASSWORD repository secrets before releasing."
+        }
+
+        $signTool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
+          Where-Object { $_.Directory.Name -eq "x64" } |
+          Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
+          Select-Object -First 1
+        if (-not $signTool) { throw "Windows SDK SignTool was not found." }
+
+        $certificatePath = Join-Path $env:RUNNER_TEMP "windows-signing-certificate.pfx"
+        try {
+          [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:SIGNING_CERTIFICATE_BASE64))
+          $dlls = @(
+            "Win32\Release\jsonca.dll",
+            "x64\Release\jsonca.dll",
+            "ARM64\Release\jsonca.dll"
+          )
+          foreach ($dll in $dlls) {
+            if (-not (Test-Path $dll)) { throw "Custom action DLL not found: $dll" }
+            & $signTool.FullName sign /f $certificatePath /p $env:SIGNING_CERTIFICATE_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $dll
+            if ($LASTEXITCODE -ne 0) { throw "Signing failed for $dll" }
+            & $signTool.FullName verify /pa /all $dll
+            if ($LASTEXITCODE -ne 0) { throw "Signature verification failed for $dll" }
+          }
+        } finally {
+          Remove-Item $certificatePath -Force -ErrorAction SilentlyContinue
+        }
 
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}

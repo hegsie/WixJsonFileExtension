@@ -63,7 +63,11 @@ A Trusted Publishing policy must be configured on nuget.org under the `hegsie` a
 - **Repository**: `WixJsonFileExtension`
 - **Workflow file**: `release.yml`
 
-No repository secrets are required for publishing.
+The release workflow Authenticode-signs the x86, x64, and ARM64 custom-action DLLs before building the wixlib that embeds them. Configure these repository secrets with a code-signing certificate in PKCS#12/PFX format:
+- `WINDOWS_SIGNING_CERTIFICATE_BASE64`: Base64-encoded PFX file
+- `WINDOWS_SIGNING_CERTIFICATE_PASSWORD`: PFX password
+
+The workflow signs with SHA-256, adds a trusted timestamp, and verifies each DLL signature. A release fails if the secrets are missing or signing/verification fails. Keep the certificate and password private; do not commit them to the repository. This signs the extension's custom-action DLLs, not an installer's final MSI or bundle; projects consuming the extension should sign their own final installer with their own certificate.
 
 ## Notes
 
