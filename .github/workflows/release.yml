@@ -23,6 +23,9 @@ permissions:
   # Required for NuGet Trusted Publishing: the workflow exchanges its OIDC token for a
   # short-lived NuGet.org API key instead of using a stored long-lived key.
   id-token: write
+  # Required by the SignPath action: it uses GITHUB_TOKEN to read job details and download the
+  # unsigned-ca artifact.
+  actions: read
 
 jobs:
   release:
@@ -95,6 +98,9 @@ jobs:
         artifact-configuration-slug: custom-action-dlls
         github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
         wait-for-completion: true
+        # Signing requests are approved manually in SignPath (see CODE_SIGNING.md); allow an hour
+        # instead of the action's 10-minute default. Well within the job's 6-hour limit.
+        wait-for-completion-timeout-in-seconds: 3600
         output-artifact-directory: ${{ github.workspace }}
 
     - name: Build

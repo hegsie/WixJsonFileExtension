@@ -10,8 +10,10 @@ Only binaries built from this repository's source are signed. Installers that co
 
 ## Team roles
 
-- Committers and reviewers: [repository collaborators](https://github.com/hegsie/WixJsonFileExtension/graphs/contributors)
-- Approvers: [hegsie](https://github.com/hegsie) (owner)
+- Committers and reviewers: [hegsie](https://github.com/hegsie) (repository owner; the only account with write access)
+- Approvers: [hegsie](https://github.com/hegsie)
+
+Outside contributors submit changes as pull requests from forks; they cannot push to this repository or approve signing.
 
 Every change reaches `main` through a reviewed pull request, and every signing request is approved manually in SignPath. All team members use multi-factor authentication on GitHub and SignPath.
 
