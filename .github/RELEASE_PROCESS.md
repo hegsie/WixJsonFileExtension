@@ -63,27 +63,27 @@ A Trusted Publishing policy must be configured on nuget.org under the `hegsie` a
 - **Repository**: `WixJsonFileExtension`
 - **Workflow file**: `release.yml`
 
-NuGet publishing requires no repository secrets. DLL signing does require the two repository secrets below.
+NuGet publishing requires no repository secrets.
 
-To obtain a publicly trusted certificate, order an **Authenticode/code-signing certificate** from a certificate authority (CA) trusted by Windows, and complete the identity validation the CA requires. Ask the CA before ordering how its certificate can be used from GitHub Actions. Current CA/Browser Forum requirements generally require code-signing private keys to remain in protected hardware or an HSM, so a newly issued certificate may not be exportable as a PFX.
+### Code signing (SignPath Foundation)
 
-The release workflow currently accepts only a password-protected PKCS#12/PFX file containing the private key. Do not assume a new public code-signing certificate can be exported in that format. If your CA provides a hardware token or hosted signing service instead, this workflow must be adapted to use that signing method before it can sign releases. See the [CA/Browser Forum code-signing requirements](https://cabforum.org/working-groups/code-signing/requirements/) for the current baseline.
+The release workflow Authenticode-signs the custom action DLLs (`jsonca.dll` for x64, x86 and ARM64) before the wixlib embeds them, so every MSI built with the extension carries signed custom actions (issue #56). Signing uses [SignPath Foundation](https://signpath.org/), which provides certificates and signing free of charge to open source projects. The private key stays in SignPath's HSM, so no certificate or password is stored in this repository.
 
-If you already have a PFX that your CA permits you to use this way, keep it and its password private.
+The signing steps are skipped while the `SIGNPATH_ORGANIZATION_ID` repository variable is unset, so releases still build (unsigned) until signing is configured. Once it is set, a release fails if signing fails or if any DLL is not validly signed after the build.
 
-For a compatible PFX, encode it on a trusted machine. For example, in PowerShell on Windows, replace the path with the PFX location:
+One-time setup:
 
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\certificate.pfx")) | Set-Clipboard
-```
+1. Apply at <https://signpath.org/apply> and wait for approval.
+2. In SignPath, create:
+   - a project with slug `WixJsonFileExtension`, with GitHub.com added as a trusted build system for this repository;
+   - an artifact configuration with slug `custom-action-dlls` using [`.signpath/artifact-configuration.xml`](../.signpath/artifact-configuration.xml);
+   - a signing policy with slug `release-signing`;
+   - a CI user, and an API token for it with submitter permission on that policy.
+3. In this repository, under **Settings → Secrets and variables → Actions**, add:
+   - variable `SIGNPATH_ORGANIZATION_ID`: the organization ID shown in SignPath;
+   - secret `SIGNPATH_API_TOKEN`: the CI user's API token.
 
-In this repository on GitHub, open **Settings → Secrets and variables → Actions → Repository secrets**, then select **New repository secret** for each:
-- `WINDOWS_SIGNING_CERTIFICATE_BASE64`: Base64-encoded PFX file
-- `WINDOWS_SIGNING_CERTIFICATE_PASSWORD`: PFX password
-
-Paste the encoded value from the clipboard as the first secret and the PFX password as the second. The repository's Settings tab and secrets management require suitable repository permissions. Do not print either value in workflow logs or commit them to the repository.
-
-The workflow signs with SHA-256, adds a trusted timestamp, and verifies each DLL signature. A release fails if the secrets are missing or signing/verification fails. Keep the certificate and password private; do not commit them to the repository. This signs the extension's custom-action DLLs, not an installer's final MSI or bundle; projects consuming the extension should sign their own final installer with their own certificate.
+This signs the extension's custom-action DLLs, not an installer's final MSI or bundle; projects consuming the extension should sign their own final installer with their own certificate.
 
 ## Notes
 

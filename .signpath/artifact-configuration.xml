@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "custom-action-dlls", used by .github/workflows/release.yml.
+     The release workflow uploads x64/Release, Win32/Release and ARM64/Release jsonca.dll as one
+     GitHub artifact; every jsonca.dll in it is Authenticode-signed. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="*/Release/jsonca.dll" min-matches="3" max-matches="3">
+      <authenticode-sign/>
+    </pe-file>
+  </zip-file>
+</artifact-configuration>
