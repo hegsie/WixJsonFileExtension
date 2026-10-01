@@ -10,8 +10,10 @@ Only binaries built from this repository's source are signed. Installers that co
 
 ## Team roles
 
-- Committers and reviewers: [hegsie](https://github.com/hegsie) (repository owner; the only account with write access)
-- Approvers: [hegsie](https://github.com/hegsie)
+- Committers and reviewers: [hegsie](https://github.com/hegsie) (repository owner), [benhegartysefe](https://github.com/benhegartysefe)
+- Approvers: [hegsie](https://github.com/hegsie), [benhegartysefe](https://github.com/benhegartysefe)
+
+Both accounts belong to the maintainer, Ben Hegarty, and are the only accounts with write access.
 
 Outside contributors submit changes as pull requests from forks; they cannot push to this repository or approve signing.
 
