@@ -63,7 +63,29 @@ A Trusted Publishing policy must be configured on nuget.org under the `hegsie` a
 - **Repository**: `WixJsonFileExtension`
 - **Workflow file**: `release.yml`
 
-No repository secrets are required for publishing.
+NuGet publishing requires no repository secrets.
+
+### Code signing (SignPath Foundation)
+
+The release workflow Authenticode-signs the custom action DLLs (`jsonca.dll` for x64, x86 and ARM64) before the wixlib embeds them, so every MSI built with the extension carries signed custom actions (issue #56). Signing uses [SignPath Foundation](https://signpath.org/), which provides certificates and signing free of charge to open source projects. The private key stays in SignPath's HSM, so no certificate or password is stored in this repository.
+
+The signing steps are skipped while the `SIGNPATH_ORGANIZATION_ID` repository variable is unset, so releases still build (unsigned) until signing is configured. Once it is set, a release fails if signing fails or if any DLL is not validly signed after the build.
+
+One-time setup:
+
+1. Apply at <https://signpath.org/apply> and wait for approval.
+2. In SignPath, create:
+   - a project with slug `WixJsonFileExtension`, with GitHub.com added as a trusted build system for this repository;
+   - an artifact configuration with slug `custom-action-dlls` using [`.signpath/artifact-configuration.xml`](../.signpath/artifact-configuration.xml);
+   - a signing policy with slug `release-signing`;
+   - a CI user, and an API token for it with submitter permission on that policy.
+3. In this repository, under **Settings → Secrets and variables → Actions**, add:
+   - variable `SIGNPATH_ORGANIZATION_ID`: the organization ID shown in SignPath;
+   - secret `SIGNPATH_API_TOKEN`: the CI user's API token.
+
+The public [code signing policy](../CODE_SIGNING.md) required by SignPath Foundation lists what is signed and who can approve signing; keep its team roles current.
+
+This signs the extension's custom-action DLLs, not an installer's final MSI or bundle; projects consuming the extension should sign their own final installer with their own certificate.
 
 ## Notes
 

@@ -23,6 +23,9 @@ permissions:
   # Required for NuGet Trusted Publishing: the workflow exchanges its OIDC token for a
   # short-lived NuGet.org API key instead of using a stored long-lived key.
   id-token: write
+  # Required by the SignPath action: it uses GITHUB_TOKEN to read job details and download the
+  # unsigned-ca artifact.
+  actions: read
 
 jobs:
   release:
@@ -42,6 +45,12 @@ jobs:
         }
         echo "version=$version" >> $env:GITHUB_OUTPUT
         echo "Version: $version"
+        # Four-part numeric form for the jsonca.dll version resource (prerelease suffix dropped,
+        # missing parts set to 0).
+        $v = [version]($version -replace '-.*$', '')
+        $fileVersion = "$($v.Major).$($v.Minor).$([Math]::Max($v.Build, 0)).$([Math]::Max($v.Revision, 0))"
+        echo "fileversion=$fileVersion" >> $env:GITHUB_OUTPUT
+        echo "File version: $fileVersion"
 
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v2
@@ -56,14 +65,62 @@ jobs:
     - name: Build x86 and ARM64 custom action DLLs
       working-directory: ${{env.GITHUB_WORKSPACE}}
       run: |
-        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=Win32 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=Win32 /p:JsonCaVersion=${{ steps.version.outputs.fileversion }} /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=ARM64 /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=ARM64 /p:JsonCaVersion=${{ steps.version.outputs.fileversion }} /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=x64 /p:JsonCaVersion=${{ steps.version.outputs.fileversion }} /p:SolutionDir=${{ github.workspace }}\ src\ca\jsonca.vcxproj
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    # Authenticode-sign the custom action DLLs (issue #56) before the wixlib embeds them, so they
+    # are signed inside every MSI built with the extension. Signing is done by SignPath Foundation
+    # (free for open source). Skipped until the SIGNPATH_ORGANIZATION_ID repository variable and
+    # SIGNPATH_API_TOKEN secret are configured, so releases keep working unsigned until then.
+    - name: Upload unsigned custom action DLLs
+      id: upload-unsigned
+      if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: unsigned-ca
+        path: |
+          x64/${{env.BUILD_CONFIGURATION}}/jsonca.dll
+          Win32/${{env.BUILD_CONFIGURATION}}/jsonca.dll
+          ARM64/${{env.BUILD_CONFIGURATION}}/jsonca.dll
+
+    - name: Sign custom action DLLs (SignPath)
+      if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+      uses: signpath/github-action-submit-signing-request@v1
+      with:
+        api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+        organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+        project-slug: WixJsonFileExtension
+        signing-policy-slug: release-signing
+        artifact-configuration-slug: custom-action-dlls
+        github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+        wait-for-completion: true
+        # Signing requests are approved manually in SignPath (see CODE_SIGNING.md); allow an hour
+        # instead of the action's 10-minute default. Well within the job's 6-hour limit.
+        wait-for-completion-timeout-in-seconds: 3600
+        output-artifact-directory: ${{ github.workspace }}
 
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}}
+      # JsonCaVersion must match the custom action builds above: a different value changes the
+      # resource compiler command line, which would rebuild and relink jsonca and drop its signature.
+      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:JsonCaVersion=${{ steps.version.outputs.fileversion }} ${{env.SOLUTION_FILE_PATH}}
+
+    # The solution build must have treated jsonca as up to date; a relink would have replaced the
+    # signed DLLs with unsigned ones before the wixlib embedded them.
+    - name: Verify custom action DLLs are signed
+      if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+      shell: pwsh
+      run: |
+        foreach ($p in @("x64", "Win32", "ARM64")) {
+          $dll = "${{ github.workspace }}\$p\${{env.BUILD_CONFIGURATION}}\jsonca.dll"
+          $sig = Get-AuthenticodeSignature $dll
+          Write-Host "$p jsonca.dll: $($sig.Status) $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne "Valid") { Write-Error "$dll is not validly signed"; exit 1 }
+        }
 
     - name: Pack
       working-directory: ${{env.SOLUTION_FILE_PATH}}\src\wixext\

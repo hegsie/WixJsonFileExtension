@@ -1755,6 +1755,10 @@ Before submitting a pull request:
 2. Test with the example installer in `TestJsonConfigInstaller/`
 3. Ensure your changes don't break existing functionality
 
+## Code Signing
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/). Released `jsonca.dll` custom action binaries are Authenticode-signed; see the [code signing policy](CODE_SIGNING.md) for what is signed, team roles and the privacy policy.
+
 ## Acknowledgements
 
 WixJsonFileExtension uses [jsoncons](https://github.com/danielaparker/jsoncons) by Daniel Parker to read and manipulate JSON files. Special thanks to Daniel Parker for this excellent C++ JSON library.
