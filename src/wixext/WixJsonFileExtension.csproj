@@ -5,8 +5,15 @@
   <Import Project="WixJsonFileExtension.Common.props" />
 
   <PropertyGroup>
-    <Description>WiX Toolset Utility extension</Description>
-    <Title>WiX JSON extension</Title>
+    <!-- Title, Description and PackageTags are what nuget.org search matches against, so they use
+         the terms people search for (appsettings.json, MSI, XmlFile, JSONPath). -->
+    <Title>WiX JSON File Extension - edit appsettings.json and JSON files from MSI installers</Title>
+    <Description>WiX Toolset v4, v5, v6 and v7 extension to create, update, read and remove values in JSON files such as appsettings.json during MSI install, repair and uninstall. Adds a JsonFile element that works like util:XmlFile, for JSON: JSONPath and JSON Pointer paths, Windows Installer formatted values, typed values (string, number, boolean, JSON), array operations, schema validation, backups and automatic rollback. Supports x64, x86 and ARM64 installers, with no custom action code to write.</Description>
+    <PackageTags>wix wixtoolset wix-extension wixext msi windows-installer installer setup json jsonpath json-pointer appsettings appsettings.json xmlfile configuration dotnet aspnetcore</PackageTags>
+    <PackageProjectUrl>https://github.com/hegsie/WixJsonFileExtension</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/hegsie/WixJsonFileExtension</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Copyright>Copyright (c) 2024 Ben Hegarty (hegsie)</Copyright>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <PackageReadmeFile>README.md</PackageReadmeFile>
