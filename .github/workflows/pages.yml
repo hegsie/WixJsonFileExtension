@@ -1,0 +1,44 @@
+# Publishes docs/ to GitHub Pages (https://hegsie.github.io/WixJsonFileExtension/).
+# Requires Settings -> Pages -> Source: "GitHub Actions".
+name: Docs site
+
+on:
+  push:
+    branches: [ "main" ]
+    paths: [ "docs/**", ".github/workflows/pages.yml" ]
+  # Pull requests only build the site, so broken pages show up before merge.
+  pull_request:
+    paths: [ "docs/**", ".github/workflows/pages.yml" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/configure-pages@v5
+    - uses: actions/jekyll-build-pages@v1
+      with:
+        source: ./docs
+        destination: ./_site
+    - uses: actions/upload-pages-artifact@v3
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - id: deployment
+      uses: actions/deploy-pages@v4

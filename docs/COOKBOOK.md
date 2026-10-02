@@ -830,8 +830,8 @@ Use online JSONPath evaluators to test your expressions:
 
 ## Additional Resources
 
-- [Main Documentation](../README.md)
-- [Example Fragments](../examples/)
+- [Main Documentation](https://github.com/hegsie/WixJsonFileExtension/blob/main/README.md)
+- [Example Fragments](https://github.com/hegsie/WixJsonFileExtension/tree/main/examples)
 - [JSONPath Specification](https://goessner.net/articles/JsonPath/)
 - [JSONPointer Specification](https://tools.ietf.org/html/rfc6901)
 - [WiX Toolset Documentation](https://wixtoolset.org/docs/)

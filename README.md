@@ -3,7 +3,9 @@
 [![NuGet](https://img.shields.io/nuget/v/WixJsonFileExtension.svg)](https://www.nuget.org/packages/WixJsonFileExtension/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An extension to [Windows Installer XML (WiX) Toolset](http://wixtoolset.org/) to create or modify JSON-formatted files during an installation.
+Update `appsettings.json` and other JSON configuration files from a [WiX Toolset](https://wixtoolset.org/) MSI installer. WixJsonFileExtension adds a `JsonFile` element that works like `util:XmlFile`, for JSON: set, read, delete and replace values with JSONPath during install, repair and uninstall, with automatic rollback and no custom action code to write. Supports WiX v4, v5, v6 and v7, and x64, x86 and ARM64 installers.
+
+**Documentation:** <https://hegsie.github.io/WixJsonFileExtension/>
 
 ## Table of Contents
 

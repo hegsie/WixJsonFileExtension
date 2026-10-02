@@ -1,0 +1,13 @@
+# GitHub Pages site for the docs/ folder, built by .github/workflows/pages.yml.
+title: WixJsonFileExtension
+description: Update appsettings.json and other JSON files from WiX Toolset MSI installers - a JsonFile element like util:XmlFile, for JSON.
+url: https://hegsie.github.io
+baseurl: /WixJsonFileExtension
+theme: jekyll-theme-cayman
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-titles-from-headings
+author: hegsie

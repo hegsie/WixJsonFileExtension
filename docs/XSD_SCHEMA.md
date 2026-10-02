@@ -219,7 +219,7 @@ This namespace is version-agnostic and will be maintained across versions for ba
 
 ## Further Reading
 
-- [Main README](../README.md) - Complete extension documentation
-- [Improved Authoring Experience](../README.md#improved-authoring-experience) - Overview of new features
-- [CompositeElements.wxs](../examples/CompositeElements.wxs) - Complete examples
+- [Main README](https://github.com/hegsie/WixJsonFileExtension/blob/main/README.md) - Complete extension documentation
+- [Improved Authoring Experience](https://github.com/hegsie/WixJsonFileExtension/blob/main/README.md#improved-authoring-experience) - Overview of new features
+- [CompositeElements.wxs](https://github.com/hegsie/WixJsonFileExtension/blob/main/examples/CompositeElements.wxs) - Complete examples
 - [WiX v4 XSD Documentation](https://wixtoolset.org/docs/schema/) - WiX schema reference
