@@ -81,6 +81,8 @@ static void RemoveFile(const std::wstring& path)
     fs::remove(fs::path(path), ec);
 }
 
+static std::string ReadText(const std::wstring& path);
+
 static int FlagFor(int bitPosition) { return 1 << bitPosition; }
 
 static void Test_SetValue_UpdatesExisting()
@@ -158,6 +160,35 @@ static void Test_SetValue_PreservesStringType()
     auto j = ReadJson(path);
     CHECK(j["version"].is_string());
     CHECK(j["version"].as<std::string>() == "2.5");
+    RemoveFile(path);
+}
+
+static void Test_SetValue_EscapesBackslashesInPaths()
+{
+    // Windows paths are the common case: the authored value is the literal path, and the file
+    // must hold it as an escaped JSON string ("C:\\Program Files\\...") that reads back unchanged.
+    auto path = WriteTempJson(R"({"ConfigFilePath":"old"})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"$.ConfigFilePath",
+                            L"C:\\Program Files\\MyApp\\Configuration\\ActualConfig.json",
+                            FlagFor(FLAG_SETVALUE), -1, L""));
+    auto j = ReadJson(path);
+    CHECK(j["ConfigFilePath"].is_string());
+    CHECK(j["ConfigFilePath"].as<std::string>() == R"(C:\Program Files\MyApp\Configuration\ActualConfig.json)");
+    CHECK(ReadText(path).find(R"(C:\\Program Files\\MyApp\\Configuration\\ActualConfig.json)") != std::string::npos);
+    RemoveFile(path);
+}
+
+static void Test_CreatePointer_BackslashSequencesStayLiteral()
+{
+    // On a new key the value is type-detected; a path whose segments look like JSON escapes
+    // (\n, \t) must still be written as that literal text, not as a newline or tab.
+    auto path = WriteTempJson(R"({})");
+    CHECK_HR(UpdateJsonFile(path.c_str(), L"/Logging/Path", L"C:\\new\\temp\\logs",
+                            FlagFor(FLAG_CREATEVALUE), -1, L""));
+    auto j = ReadJson(path);
+    CHECK(j["Logging"]["Path"].is_string());
+    CHECK(j["Logging"]["Path"].as<std::string>() == R"(C:\new\temp\logs)");
+    CHECK(ReadText(path).find(R"(C:\\new\\temp\\logs)") != std::string::npos);
     RemoveFile(path);
 }
 
@@ -704,6 +735,8 @@ int main(int argc, char** argv)
     RunTest("OnlyIfExists_SkipsMissingPath", Test_OnlyIfExists_SkipsMissingPath);
     RunTest("OnlyIfExists_AppliesWhenPresent", Test_OnlyIfExists_AppliesWhenPresent);
     RunTest("SetValue_PreservesStringType", Test_SetValue_PreservesStringType);
+    RunTest("SetValue_EscapesBackslashesInPaths", Test_SetValue_EscapesBackslashesInPaths);
+    RunTest("CreatePointer_BackslashSequencesStayLiteral", Test_CreatePointer_BackslashSequencesStayLiteral);
     RunTest("SetValue_WritesTypedValueForNonStrings", Test_SetValue_WritesTypedValueForNonStrings);
     RunTest("CreatePointer_UpdatesExistingValue", Test_CreatePointer_UpdatesExistingValue);
     RunTest("CreatePointer_TypedValueForNewPath", Test_CreatePointer_TypedValueForNewPath);

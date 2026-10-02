@@ -62,6 +62,26 @@ jobs:
     - name: Build
       run: msbuild /m /p:Configuration=${{ env.BUILD_CONFIGURATION }} ${{ env.SOLUTION_FILE_PATH }}
 
+    # The version resource in jsonca.rc is built from macros (JSONCA_VER_*) that jsonca.vcxproj
+    # fills from JsonCaVersion. CI builds don't set it, so every platform must report the 0.0.0.0
+    # fallback; a macro name or an empty string here means the resource didn't expand.
+    - name: Verify custom action DLL version resource
+      shell: pwsh
+      run: |
+        $failed = $false
+        foreach ($p in @("x64", "Win32", "ARM64")) {
+          $dll = "${{ github.workspace }}\$p\${{ env.BUILD_CONFIGURATION }}\jsonca.dll"
+          $info = (Get-Item $dll).VersionInfo
+          Write-Host "$p jsonca.dll: ProductName='$($info.ProductName)' FileVersion='$($info.FileVersion)' ProductVersion='$($info.ProductVersion)' CompanyName='$($info.CompanyName)'"
+          if ($info.ProductName -ne "WixJsonFileExtension" -or $info.CompanyName -ne "WixJsonFileExtension" -or
+              $info.FileVersion -ne "0.0.0.0" -or $info.ProductVersion -ne "0.0.0.0" -or
+              $info.FileMajorPart -ne 0 -or $info.FileMinorPart -ne 0 -or $info.FileBuildPart -ne 0 -or $info.FilePrivatePart -ne 0) {
+            Write-Error "$dll has an unexpected version resource"
+            $failed = $true
+          }
+        }
+        if ($failed) { exit 1 }
+
     # continue-on-error so both suites always run and produce result files; the reporter steps below
     # fail the job if there are test failures. SolutionDir is passed so the wixext PostBuild xcopy
     # target resolves when the test project builds the wixext outside of the .sln.
