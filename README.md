@@ -101,7 +101,9 @@ This extension supports **WiX Toolset v4, v5, v6 and v7**. Every flavour targets
 | **WiX 6.x** | ✅ Fully Supported | Built against WiX 6.0.1; shipped in `wixext6/` |
 | **WiX 5.x** | ✅ Fully Supported | Built against WiX 5.0.2; shipped in `wixext5/` |
 | **WiX 4.x** | ✅ Fully Supported | Built against WiX 4.0.6; shipped in `wixext4/` |
-| WiX 3.x | ❌ Not Supported | Use WiX 4+ for this extension |
+| WiX 3.x | ❌ Not Supported | See [WiX v3](#wix-v3) below for a legacy, unmaintained build |
+
+<a id="wix-v3"></a>**WiX v3**: this extension does not support WiX 3.x. A legacy WiX v3.11 build of its predecessor is available as the [v1.0 release of hegsie/WixJsonExtension](https://github.com/hegsie/WixJsonExtension/releases/tag/v1.0) (a fork of NerdyDuck/WixJsonExtension). It is not maintained and lacks this extension's later features and fixes, so moving to WiX v4 or later and this package is recommended.
 
 **Package distribution**: The extension is distributed via NuGet with binaries in the `wixext4/`, `wixext5/`, `wixext6/` and `wixext7/` package folders. WiX picks the folder matching its own major version, so nothing needs to be configured beyond the `PackageReference` - installing the package into a WiX 4, 5, 6 or 7 project just works. Every push builds a package with each of those four toolsets to keep that true.
 
