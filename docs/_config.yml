@@ -11,3 +11,7 @@ plugins:
   - jekyll-optional-front-matter
   - jekyll-titles-from-headings
 author: hegsie
+# Google Search Console ownership check; jekyll-seo-tag emits it as a
+# <meta name="google-site-verification"> tag on every page.
+webmaster_verifications:
+  google: zjhnDk1CZ_OmZ3exNiE6kG9e4WsO1bmwghunP-nbshI
