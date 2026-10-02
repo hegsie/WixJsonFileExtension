@@ -122,6 +122,25 @@ jobs:
           if ($sig.Status -ne "Valid") { Write-Error "$dll is not validly signed"; exit 1 }
         }
 
+    # Every released jsonca.dll must carry the release version and product name in its version
+    # resource. SignPath restricts signing to this metadata, and it's what users see in file
+    # properties. Checked before anything is published.
+    - name: Verify custom action DLL version resource
+      shell: pwsh
+      run: |
+        $expected = "${{ steps.version.outputs.fileversion }}"
+        $failed = $false
+        foreach ($p in @("x64", "Win32", "ARM64")) {
+          $dll = "${{ github.workspace }}\$p\${{env.BUILD_CONFIGURATION}}\jsonca.dll"
+          $info = (Get-Item $dll).VersionInfo
+          Write-Host "$p jsonca.dll: ProductName='$($info.ProductName)' FileVersion='$($info.FileVersion)' ProductVersion='$($info.ProductVersion)'"
+          if ($info.ProductName -ne "WixJsonFileExtension" -or $info.FileVersion -ne $expected -or $info.ProductVersion -ne $expected) {
+            Write-Error "$dll should report WixJsonFileExtension $expected"
+            $failed = $true
+          }
+        }
+        if ($failed) { exit 1 }
+
     - name: Pack
       working-directory: ${{env.SOLUTION_FILE_PATH}}\src\wixext\
       run: dotnet pack --no-build --configuration ${{env.BUILD_CONFIGURATION}} /p:Version=${{ steps.version.outputs.version }}
