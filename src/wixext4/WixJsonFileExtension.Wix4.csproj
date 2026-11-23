@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
+<!-- Copyright (c) 2024 Ben Hegarty (hegsie). Licensed under the MIT License. See LICENSE file in the project root for full license information. -->
 
 <!--
   WiX Toolset v4 flavour of the extension. It compiles the same sources as
@@ -7,13 +7,28 @@
   produces an identically named assembly; the v6 project packs the output of this project into the
   package's wixext4/ folder. The wixlib is version independent (the intermediate format is 4.0.0.0
   from WiX 4 through WiX 7), so every flavour embeds the same one.
+
+  This project is also packable as the legacy Wix4JsonFileExtension package ID (including the MIT
+  license metadata) so existing WiX v4 consumers referencing Wix4JsonFileExtension can upgrade in
+  place without renaming their PackageReference.
 -->
 <Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\wixext\WixJsonFileExtension.Common.props" />
 
   <PropertyGroup>
-    <!-- Only the v6 project produces the NuGet package; this one just contributes its assembly. -->
-    <IsPackable>false</IsPackable>
+    <PackageId>Wix4JsonFileExtension</PackageId>
+    <Title>WiX JSON File Extension (WiX v4) - edit appsettings.json and JSON files from MSI installers</Title>
+    <Description>WiX Toolset v4 extension to create, update, read and remove values in JSON files such as appsettings.json during MSI install, repair and uninstall. Legacy package ID for WiX v4 projects; new projects on WiX v4-v7 can also use WixJsonFileExtension.</Description>
+    <PackageTags>wix wix4 wixtoolset wix-extension wixext msi windows-installer installer setup json jsonpath json-pointer appsettings appsettings.json xmlfile configuration dotnet aspnetcore</PackageTags>
+    <PackageProjectUrl>https://github.com/hegsie/WixJsonFileExtension</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/hegsie/WixJsonFileExtension</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Copyright>Copyright (c) 2024 Ben Hegarty (hegsie)</Copyright>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
 
     <!-- The sources live next to the v6 project, so the default globs would also pick up that
          project's bin/obj output. -->
@@ -24,6 +39,19 @@
     <Compile Include="..\wixext\**\*.cs" Exclude="..\wixext\bin\**;..\wixext\obj\**;..\wixext\Properties\**" />
 
     <InternalsVisibleTo Include="WixJsonFileExtension.Tests" />
+
+    <None Include="..\..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Wix4JsonFileExtension.targets" PackagePath="build" />
+    <Content Include="$(TargetPath)" PackagePath="wixext4\Wix4JsonFileExtension.dll" />
+    <Content Include="..\wixext\json.xsd" PackagePath="schemas" />
+    <Content Include="..\..\x64\$(Configuration)\jsoncli.exe" PackagePath="tools" Condition="Exists('..\..\x64\$(Configuration)\jsoncli.exe')" />
   </ItemGroup>
 
   <ItemGroup>
